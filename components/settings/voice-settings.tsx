@@ -738,10 +738,10 @@ export function VoiceSettings() {
                                                         className="w-full accent-black"
                                                         aria-label="Minimax 语速"
                                                     />
-                                                    <div className="menu-desc flex justify-between px-1">
-                                                        <span>{MINIMAX_SPEED_MIN.toFixed(1)}×</span>
-                                                        <span>默认 1.0×</span>
-                                                        <span>{MINIMAX_SPEED_MAX.toFixed(1)}×</span>
+                                                    <div className="relative mt-1 h-5 px-1 text-xs text-gray-500" aria-hidden="true">
+                                                        <span className="absolute left-1 whitespace-nowrap">{MINIMAX_SPEED_MIN.toFixed(1)}×</span>
+                                                        <span className="absolute whitespace-nowrap" style={{ left: "33.333%", transform: "translateX(-50%)" }}>1.0× 默认</span>
+                                                        <span className="absolute right-1 whitespace-nowrap">{MINIMAX_SPEED_MAX.toFixed(1)}×</span>
                                                     </div>
                                                 </div>
                                                 <div className="flex flex-col gap-1">
