@@ -13,53 +13,45 @@ jobs:
     if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout branch
+        uses: actions/checkout@v4
         with:
           ref: fix/minimax-speed-slider-placement
           fetch-depth: 0
-      - name: Move speed slider into Minimax section
-        shell: python
+
+      - name: Move slider to Minimax section
         run: |
+          python3 <<'PY'
           from pathlib import Path
 
-          path = Path('components/settings/voice-settings.tsx')
-          text = path.read_text()
-          block = '''                                                <div className="flex flex-col gap-1">
-                                                    <div className="flex items-center justify-between px-1">
-                                                        <label className="menu-desc">语速</label>
-                                                        <span className="menu-label font-medium">{(config.speechSpeed ?? DEFAULT_SPEECH_SPEED).toFixed(1)}×</span>
-                                                    </div>
-                                                    <input
-                                                        type="range"
-                                                        min={MINIMAX_SPEED_MIN}
-                                                        max={MINIMAX_SPEED_MAX}
-                                                        step={MINIMAX_SPEED_STEP}
-                                                        value={config.speechSpeed ?? DEFAULT_SPEECH_SPEED}
-                                                        onChange={(e) => updateConfig(config.id, { speechSpeed: Number(e.target.value) })}
-                                                        className="w-full accent-black"
-                                                        aria-label="Minimax 语速"
-                                                    />
-                                                    <div className="menu-desc flex justify-between px-1">
-                                                        <span>{MINIMAX_SPEED_MIN.toFixed(1)}×</span>
-                                                        <span>默认 1.0×</span>
-                                                        <span>{MINIMAX_SPEED_MAX.toFixed(1)}×</span>
-                                                    </div>
-                                                </div>
-'''
-          if text.count(block) != 1:
-              raise SystemExit(f'Expected exactly one speed block, found {text.count(block)}')
-          text = text.replace(block, '', 1)
-          anchor = '''                                        {config.provider === "Minimax" && (
-                                            <>
-'''
-          if text.count(anchor) != 1:
-              raise SystemExit(f'Expected exactly one Minimax anchor, found {text.count(anchor)}')
-          text = text.replace(anchor, anchor + block, 1)
-          path.write_text(text)
-      - name: Remove temporary workflow
-        run: rm .github/workflows/fix-minimax-speed-slider-placement.yml
-      - name: Commit fix
+          path = Path("components/settings/voice-settings.tsx")
+          text = path.read_text(encoding="utf-8")
+
+          start_marker = '                                                <div className="flex flex-col gap-1">\n                                                    <div className="flex items-center justify-between px-1">\n                                                        <label className="menu-desc">语速</label>'
+          end_marker = '                                                </div>\n                                                <div className="flex flex-col gap-1">\n                                                    <label className="menu-desc ml-1">语音模型 (TTS Model)</label>'
+
+          start = text.find(start_marker)
+          if start < 0:
+              raise SystemExit("Speed slider start marker not found")
+
+          end = text.find(end_marker, start)
+          if end < 0:
+              raise SystemExit("Speed slider end marker not found")
+
+          slider = text[start:end + len('                                                </div>\n')]
+          text = text[:start] + text[end + len('                                                </div>\n'):]
+
+          minimax_marker = '                                        {config.provider === "Minimax" && (\n                                            <>\n'
+          if text.count(minimax_marker) != 1:
+              raise SystemExit("Minimax section marker not unique")
+
+          text = text.replace(minimax_marker, minimax_marker + slider, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Remove temporary workflow and commit
         run: |
+          rm .github/workflows/fix-minimax-speed-slider-placement.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add components/settings/voice-settings.tsx .github/workflows/fix-minimax-speed-slider-placement.yml
