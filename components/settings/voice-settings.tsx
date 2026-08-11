@@ -680,27 +680,6 @@ export function VoiceSettings() {
                                                     />
                                                 </div>
                                                 <div className="flex flex-col gap-1">
-                                                    <div className="flex items-center justify-between px-1">
-                                                        <label className="menu-desc">语速</label>
-                                                        <span className="menu-label font-medium">{(config.speechSpeed ?? DEFAULT_SPEECH_SPEED).toFixed(1)}×</span>
-                                                    </div>
-                                                    <input
-                                                        type="range"
-                                                        min={MINIMAX_SPEED_MIN}
-                                                        max={MINIMAX_SPEED_MAX}
-                                                        step={MINIMAX_SPEED_STEP}
-                                                        value={config.speechSpeed ?? DEFAULT_SPEECH_SPEED}
-                                                        onChange={(e) => updateConfig(config.id, { speechSpeed: Number(e.target.value) })}
-                                                        className="w-full accent-black"
-                                                        aria-label="Minimax 语速"
-                                                    />
-                                                    <div className="menu-desc flex justify-between px-1">
-                                                        <span>{MINIMAX_SPEED_MIN.toFixed(1)}×</span>
-                                                        <span>默认 1.0×</span>
-                                                        <span>{MINIMAX_SPEED_MAX.toFixed(1)}×</span>
-                                                    </div>
-                                                </div>
-                                                <div className="flex flex-col gap-1">
                                                     <label className="menu-desc ml-1">语音模型 (TTS Model)</label>
                                                     {manualModelIds[config.id] ? (
                                                         <div className="flex gap-2">
@@ -744,6 +723,27 @@ export function VoiceSettings() {
 
                                         {config.provider === "Minimax" && (
                                             <>
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-center justify-between px-1">
+                                                        <label className="menu-desc">语速</label>
+                                                        <span className="menu-label font-medium">{(config.speechSpeed ?? DEFAULT_SPEECH_SPEED).toFixed(1)}×</span>
+                                                    </div>
+                                                    <input
+                                                        type="range"
+                                                        min={MINIMAX_SPEED_MIN}
+                                                        max={MINIMAX_SPEED_MAX}
+                                                        step={MINIMAX_SPEED_STEP}
+                                                        value={config.speechSpeed ?? DEFAULT_SPEECH_SPEED}
+                                                        onChange={(e) => updateConfig(config.id, { speechSpeed: Number(e.target.value) })}
+                                                        className="w-full accent-black"
+                                                        aria-label="Minimax 语速"
+                                                    />
+                                                    <div className="menu-desc flex justify-between px-1">
+                                                        <span>{MINIMAX_SPEED_MIN.toFixed(1)}×</span>
+                                                        <span>默认 1.0×</span>
+                                                        <span>{MINIMAX_SPEED_MAX.toFixed(1)}×</span>
+                                                    </div>
+                                                </div>
                                                 <div className="flex flex-col gap-1">
                                                     <label className="menu-desc ml-1">朗读语言</label>
                                                     <select
