@@ -1,0 +1,58 @@
+name: Apply TTS speed label layout v2
+
+on:
+  push:
+    branches:
+      - fix/tts-speed-scale-labels
+
+permissions:
+  contents: write
+
+jobs:
+  apply-layout:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/tts-speed-scale-labels
+          fetch-depth: 0
+
+      - name: Replace speed label layout
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("components/settings/voice-settings.tsx")
+          lines = path.read_text(encoding="utf-8").splitlines()
+          marker = '<div className="menu-desc flex justify-between px-1">'
+          matches = [i for i, line in enumerate(lines) if marker in line]
+          if len(matches) != 1:
+              raise SystemExit(f"Expected one speed label container, found {len(matches)}")
+
+          i = matches[0]
+          old = lines[i:i + 5]
+          if len(old) != 5 or "MINIMAX_SPEED_MIN" not in old[1] or "默认 1.0×" not in old[2] or "MINIMAX_SPEED_MAX" not in old[3] or old[4].strip() != "</div>":
+              raise SystemExit("Speed label block structure changed; stopped safely")
+
+          indent = lines[i][:len(lines[i]) - len(lines[i].lstrip())]
+          child = indent + "    "
+          replacement = [
+              indent + '<div className="relative mt-1 h-5 px-1 text-xs text-gray-500" aria-hidden="true">',
+              child + '<span className="absolute left-1 whitespace-nowrap">{MINIMAX_SPEED_MIN.toFixed(1)}×</span>',
+              child + '<span className="absolute whitespace-nowrap" style={{ left: "33.333%", transform: "translateX(-50%)" }}>1.0× 默认</span>',
+              child + '<span className="absolute right-1 whitespace-nowrap">{MINIMAX_SPEED_MAX.toFixed(1)}×</span>',
+              indent + '</div>',
+          ]
+          lines[i:i + 5] = replacement
+          path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+      - name: Commit result and remove temporary workflows
+        run: |
+          rm -f .github/workflows/fix-tts-speed-scale-labels.yml
+          rm -f .github/workflows/apply-tts-speed-label-layout-v2.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add components/settings/voice-settings.tsx .github/workflows
+          git commit -m "优化语速滑块刻度排版"
+          git push origin fix/tts-speed-scale-labels
