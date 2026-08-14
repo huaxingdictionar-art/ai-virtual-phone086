@@ -61,6 +61,23 @@ export function getCharacterNextVersion(characterId: string): number {
   return Math.max(state.currentVersion, ...state.versions.map(item => item.version)) + 1;
 }
 
+/**
+ * 覆盖当前版本：不保留当前编号的旧快照，并把修改后的角色推进到历史最高编号的下一版。
+ * 例如历史最高为 V3、当前切换在 V2，覆盖保存后旧 V2 被移除，当前版本变为 V4。
+ */
+export function overwriteCharacterVersion(characterId: string): number {
+  const store = loadStore();
+  const state = normalizeState(store[characterId]);
+  const overwrittenVersion = state.currentVersion;
+  const highestVersion = Math.max(overwrittenVersion, ...state.versions.map(item => item.version));
+
+  state.versions = state.versions.filter(item => item.version !== overwrittenVersion);
+  state.currentVersion = highestVersion + 1;
+  store[characterId] = state;
+  saveStore(store);
+  return state.currentVersion;
+}
+
 export function loadCharacterVersions(characterId: string): CharacterVersion[] {
   return [...normalizeState(loadStore()[characterId]).versions]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -82,7 +99,7 @@ export function backupCharacterVersion(
     id: `charver_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
     characterId: character.id,
     version: snapshotVersion,
-    label: label?.trim() || (source === "mascot" ? "小卷修改前自动备份" : source === "restore" ? "恢复版本前自动备份" : `v${snapshotVersion}.0 修改前备份`),
+    label: label?.trim() || (source === "mascot" ? "小卷修改前自动备份" : source === "restore" ? "恢复版本前自动备份" : "修改前备份"),
     createdAt: new Date().toISOString(),
     source,
     data: cloneCharacter(character),
@@ -101,27 +118,30 @@ export function backupCharacterVersion(
 
 /**
  * 在已有版本之间切换，不创建新版本号。
- * 首次从当前版本切走时，仅把当前内容放入同编号快照，保证之后可以切回来。
+ * 切走当前版本时同步其同编号快照，保证之后可以无损切回来。
  */
 export function switchCharacterVersion(character: Character, target: CharacterVersion): number {
   const store = loadStore();
   const state = normalizeState(store[character.id]);
   const currentVersion = state.currentVersion;
 
-  if (!state.versions.some(item => item.version === currentVersion)) {
-    const currentSnapshot: CharacterVersion = {
-      id: `charver_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      characterId: character.id,
-      version: currentVersion,
-      label: `v${currentVersion}.0 切换时保留`,
-      createdAt: new Date().toISOString(),
-      source: "switch",
-      data: cloneCharacter(character),
-    };
-    state.versions = [...state.versions, currentSnapshot]
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-      .slice(-MAX_VERSIONS_PER_CHARACTER);
-  }
+  if (currentVersion === target.version) return currentVersion;
+
+  // 切走前同步当前编号的快照。已有同编号快照时原位更新，不创建新编号；
+  // 这样即使当前内容曾被直接改写，也能在之后无损切回。
+  const existingSnapshot = state.versions.find(item => item.version === currentVersion);
+  const currentSnapshot: CharacterVersion = {
+    id: existingSnapshot?.id || `charver_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    characterId: character.id,
+    version: currentVersion,
+    label: existingSnapshot?.label || "切换时保留",
+    createdAt: existingSnapshot?.createdAt || new Date().toISOString(),
+    source: existingSnapshot?.source || "switch",
+    data: cloneCharacter(character),
+  };
+  state.versions = [...state.versions.filter(item => item.version !== currentVersion), currentSnapshot]
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .slice(-MAX_VERSIONS_PER_CHARACTER);
 
   state.currentVersion = target.version;
   store[character.id] = state;
@@ -134,7 +154,7 @@ export function renameCharacterVersion(characterId: string, versionId: string, l
   const state = normalizeState(store[characterId]);
   const target = state.versions.find(version => version.id === versionId);
   if (!target) return;
-  target.label = label.trim() || `v${target.version}.0`;
+  target.label = label.trim() || `V${target.version}`;
   store[characterId] = state;
   saveStore(store);
 }
