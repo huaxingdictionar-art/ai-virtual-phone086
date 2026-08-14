@@ -5,7 +5,7 @@ const STORAGE_KEY = "ai_phone_character_versions_v1";
 const MAX_VERSIONS_PER_CHARACTER = 30;
 registerKvMigration(STORAGE_KEY);
 
-export type CharacterVersionSource = "manual" | "mascot" | "restore";
+export type CharacterVersionSource = "manual" | "mascot" | "restore" | "switch";
 
 export type CharacterVersion = {
   id: string;
@@ -56,6 +56,11 @@ export function getCharacterCurrentVersion(characterId: string): number {
   return normalizeState(loadStore()[characterId]).currentVersion;
 }
 
+export function getCharacterNextVersion(characterId: string): number {
+  const state = normalizeState(loadStore()[characterId]);
+  return Math.max(state.currentVersion, ...state.versions.map(item => item.version)) + 1;
+}
+
 export function loadCharacterVersions(characterId: string): CharacterVersion[] {
   return [...normalizeState(loadStore()[characterId]).versions]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
@@ -83,10 +88,42 @@ export function backupCharacterVersion(
     data: cloneCharacter(character),
   };
 
-  state.currentVersion = snapshotVersion + 1;
-  state.versions = [...state.versions, snapshot]
+  // 同一版本只保留一个快照；从旧版本继续编辑时，版本号始终接在历史最大编号之后。
+  const highestVersion = Math.max(snapshotVersion, ...state.versions.map(item => item.version));
+  state.currentVersion = highestVersion + 1;
+  state.versions = [...state.versions.filter(item => item.version !== snapshotVersion), snapshot]
     .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
     .slice(-MAX_VERSIONS_PER_CHARACTER);
+  store[character.id] = state;
+  saveStore(store);
+  return state.currentVersion;
+}
+
+/**
+ * 在已有版本之间切换，不创建新版本号。
+ * 首次从当前版本切走时，仅把当前内容放入同编号快照，保证之后可以切回来。
+ */
+export function switchCharacterVersion(character: Character, target: CharacterVersion): number {
+  const store = loadStore();
+  const state = normalizeState(store[character.id]);
+  const currentVersion = state.currentVersion;
+
+  if (!state.versions.some(item => item.version === currentVersion)) {
+    const currentSnapshot: CharacterVersion = {
+      id: `charver_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      characterId: character.id,
+      version: currentVersion,
+      label: `v${currentVersion}.0 切换时保留`,
+      createdAt: new Date().toISOString(),
+      source: "switch",
+      data: cloneCharacter(character),
+    };
+    state.versions = [...state.versions, currentSnapshot]
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .slice(-MAX_VERSIONS_PER_CHARACTER);
+  }
+
+  state.currentVersion = target.version;
   store[character.id] = state;
   saveStore(store);
   return state.currentVersion;

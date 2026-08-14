@@ -925,6 +925,8 @@ export function buildMascotNativeNameMap(): Map<string, string> {
 export type MascotToolContext = {
     pageContext: MascotPageContext;
     history?: CssAssetUserImageHistoryMessage[];
+    /** 同一条用户消息触发的整轮任务共享，用于保证每个角色只备份一次。 */
+    characterBackupIds?: Set<string>;
 };
 
 /** 执行小卷工具调用 */
@@ -951,7 +953,7 @@ export async function executeMascotToolCall(call: ToolCall, ctx: MascotToolConte
             // ─── 角色 ───
             case "读取角色": return await handleReadCharacter(call.args);
             case "创建角色": return await handleCreateCharacter(call.args);
-            case "更新角色字段": return await handleUpdateCharacterField(call.args);
+            case "更新角色字段": return await handleUpdateCharacterField(call.args, ctx);
 
             // ─── 世界书 ───
             case "列出世界书": return await handleListWorldbooks(call.args);
@@ -1412,9 +1414,9 @@ async function handleCreateCharacter(args: Record<string, unknown>): Promise<Too
     return { name: "创建角色", success: true, data: `已创建角色 ${newChar.name} (${newChar.id})` };
 }
 
-async function handleUpdateCharacterField(args: Record<string, unknown>): Promise<ToolResult> {
+async function handleUpdateCharacterField(args: Record<string, unknown>, ctx: MascotToolContext): Promise<ToolResult> {
     const { loadCharacters, saveCharacters } = await import("./character-storage");
-    const { backupCharacterVersion } = await import("./character-version-storage");
+    const { backupCharacterVersion, getCharacterCurrentVersion } = await import("./character-version-storage");
     const chars = loadCharacters();
     const idx = chars.findIndex((c) => c.name === args.name);
     if (idx < 0) return { name: "更新角色字段", success: false, error: `找不到角色：${args.name}` };
@@ -1426,12 +1428,23 @@ async function handleUpdateCharacterField(args: Record<string, unknown>): Promis
     } else {
         return { name: "更新角色字段", success: false, error: `不支持的字段：${field}` };
     }
-    // 小卷没有跳过备份的权限：任何角色字段写入前都先保存完整旧卡。
-    const nextVersion = backupCharacterVersion(chars[idx], "mascot", `小卷修改 ${field} 前自动备份`);
+
+    // 一条用户消息触发的整轮小卷任务中，同一角色只在第一次写入前备份。
+    const backupIds = ctx.characterBackupIds ?? (ctx.characterBackupIds = new Set<string>());
+    const didBackup = !backupIds.has(chars[idx].id);
+    const nextVersion = didBackup
+        ? backupCharacterVersion(chars[idx], "mascot", "小卷本次任务修改前自动备份")
+        : getCharacterCurrentVersion(chars[idx].id);
+    backupIds.add(chars[idx].id);
+
     char.updatedAt = new Date().toISOString();
     chars[idx] = char as typeof chars[number];
     saveCharacters(chars);
-    return { name: "更新角色字段", success: true, data: `已自动备份旧卡，并更新 ${args.name} 的 ${field}；当前版本 v${nextVersion}.0` };
+    return {
+        name: "更新角色字段",
+        success: true,
+        data: `${didBackup ? "已为本次任务自动备份旧卡，并" : "本次任务已备份，继续"}更新 ${args.name} 的 ${field}；当前版本 v${nextVersion}.0`,
+    };
 }
 
 // ── Worldbook Handlers ──────────────────────────

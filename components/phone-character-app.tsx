@@ -44,8 +44,10 @@ import {
   clearCharacterVersions,
   deleteCharacterVersion,
   getCharacterCurrentVersion,
+  getCharacterNextVersion,
   loadCharacterVersions,
   renameCharacterVersion,
+  switchCharacterVersion,
   type CharacterVersion,
 } from "@/lib/character-version-storage";
 import { notifyMascotPageContext } from "@/lib/mascot-events";
@@ -283,7 +285,8 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
             onRestoreVersion={(version) => {
               const existing = view.id ? characters.find((c) => c.id === view.id) : null;
               if (!existing) return;
-              const nextVersion = backupCharacterVersion(existing, "restore", `恢复 v${version.version}.0 前自动备份`);
+              // 版本切换不递增编号；首次切走时只保留当前同编号快照，方便无损切回。
+              const activeVersion = switchCharacterVersion(existing, version);
               const restored: Character = {
                 ...version.data,
                 id: existing.id,
@@ -292,7 +295,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
               };
               updateChars(characters.map((c) => (c.id === existing.id ? restored : c)));
               setView({ type: "detail", id: existing.id, isEditing: false });
-              onNotice(`已恢复 v${version.version}.0，恢复前内容已备份；当前为 v${nextVersion}.0`);
+              onNotice(`已切换到 v${activeVersion}.0，未创建新版本`);
             }}
             onDelete={() => {
               if (view.id) {
@@ -2290,7 +2293,7 @@ function CharArchiveView({
         <div className="flex items-center gap-2">
           {isExisting && (
             <button className="char-action-btn" onClick={openVersionHistory} aria-label="版本记录" title="版本记录">
-              <History size={18} />
+              <History size={20} strokeWidth={1.6} />
             </button>
           )}
           <button className="char-action-btn" onClick={onEdit} aria-label="编辑角色">
@@ -2368,7 +2371,7 @@ function CharArchiveView({
           <div className="modal-dialog" data-ui="modal-dialog" onClick={e => e.stopPropagation()}>
             <div className="modal-header" data-ui="modal-header">
               <div className="ui-icon-circle" data-variant="action"><History size={20} /></div>
-              <h3 className="modal-title">保存为 v{getCharacterCurrentVersion(char.id) + 1}.0？</h3>
+              <h3 className="modal-title">保存为 v{getCharacterNextVersion(char.id)}.0？</h3>
             </div>
             <div className="modal-body" data-ui="modal-body">
               <p>“备份并保存”会保留修改前的完整角色卡，之后可随时恢复。</p>
@@ -2398,17 +2401,17 @@ function CharArchiveView({
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <strong>v{version.version}.0 · {version.label}</strong>
-                      <div className="ts-10 opacity-60 mt-1">{new Date(version.createdAt).toLocaleString()} · {version.source === "mascot" ? "小卷自动备份" : version.source === "restore" ? "恢复前备份" : "手动备份"}</div>
+                      <div className="ts-10 opacity-60 mt-1">{new Date(version.createdAt).toLocaleString()} · {version.source === "mascot" ? "小卷自动备份" : version.source === "switch" ? "切换时保留" : version.source === "restore" ? "旧版恢复备份" : "手动备份"}</div>
                     </div>
                   </div>
                   <details className="mt-2">
                     <summary className="cursor-pointer ts-12">预览内容</summary>
                     <div className="mt-2 ts-12 whitespace-pre-wrap break-words max-h-48 overflow-auto rounded bg-black/5 p-2">
-                      <strong>{version.data.name}</strong>{version.data.personality ? `\n性格：${version.data.personality}` : ""}{`\n人设：${version.data.persona || "（空）"}`}
+                      <strong>{version.data.name || "（未命名）"}</strong>{`\n\n性格 / PERSONALITY：\n${version.data.personality || "（空）"}`}{`\n\n人设 / PERSONA：\n${version.data.persona || "（空）"}`}
                     </div>
                   </details>
                   <div className="flex flex-wrap gap-2 mt-3">
-                    <button className="ui-btn ui-btn-primary" onClick={() => setRestoreTarget(version)}>恢复此版本</button>
+                    <button className="ui-btn ui-btn-primary" onClick={() => setRestoreTarget(version)}>切换到此版本</button>
                     <button className="ui-btn ui-btn-outline" onClick={() => {
                       const label = window.prompt("版本名称", version.label);
                       if (label !== null) {
@@ -2435,11 +2438,11 @@ function CharArchiveView({
 
       {restoreTarget && (
         <ConfirmDialog
-          title={`恢复 v${restoreTarget.version}.0？`}
-          message="恢复前会先自动备份当前角色卡。恢复后，聊天只会读取恢复后的当前版本。"
+          title={`切换到 v${restoreTarget.version}.0？`}
+          message="将直接切换到这个已有版本，不会递增版本号，也不会创建重复备份。聊天只会读取切换后的当前版本。"
           icon={History}
           variant="action"
-          confirmLabel="备份当前内容并恢复"
+          confirmLabel="切换到此版本"
           cancelLabel="取消"
           onConfirm={() => {
             const target = restoreTarget;
