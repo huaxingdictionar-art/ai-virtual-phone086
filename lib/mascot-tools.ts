@@ -1443,7 +1443,7 @@ async function handleUpdateCharacterField(args: Record<string, unknown>, ctx: Ma
     return {
         name: "更新角色字段",
         success: true,
-        data: `${didBackup ? "已为本次任务自动备份旧卡，并" : "本次任务已备份，继续"}更新 ${args.name} 的 ${field}；当前版本 v${nextVersion}.0`,
+        data: `${didBackup ? "已为本次任务自动备份旧卡，并" : "本次任务已备份，继续"}更新 ${args.name} 的 ${field}；当前版本 V${nextVersion}`,
     };
 }
 
