@@ -62,10 +62,13 @@ export function AgentComputerSettings({ onNotice }: { onNotice?: (msg: string) =
             const result = await testAgentComputer(draft);
             setStatus(result);
             if (result.ok) {
-                saveAgentComputerConfig(draft);
-                setConfig(draft);
+                const saved = { ...draft, mode: result.mode };
+                saveAgentComputerConfig(saved);
+                setConfig(saved);
                 setConnected(true);
-                onNotice?.(result.mode === "shell" ? "已连接：完整模式（硬盘 + shell）" : "已连接：基础模式（硬盘）");
+                onNotice?.(result.mode === "container"
+                    ? "已连接：容器模式（真 Linux）"
+                    : result.mode === "shell" ? "已连接：完整模式（硬盘 + shell）" : "已连接：基础模式（硬盘）");
             }
         } finally {
             setTesting(false);
@@ -137,9 +140,11 @@ export function AgentComputerSettings({ onNotice }: { onNotice?: (msg: string) =
                     {status && (
                         <span className="menu-desc !mt-0 text-center">
                             {status.ok
-                                ? status.mode === "shell"
-                                    ? "✓ 已连接：完整模式（硬盘 + shell 命令）"
-                                    : "✓ 已连接：基础模式（硬盘可用；shell 暂不可用，见部署说明）"
+                                ? status.mode === "container"
+                                    ? "✓ 已连接：容器模式（真 Linux，可 npm/pip、全功能网络）"
+                                    : status.mode === "shell"
+                                        ? "✓ 已连接：完整模式（硬盘 + shell 命令）"
+                                        : "✓ 已连接：基础模式（硬盘可用；shell 暂不可用，见部署说明）"
                                 : `✗ 连接失败：${status.error}`}
                         </span>
                     )}
