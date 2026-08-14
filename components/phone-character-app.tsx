@@ -38,7 +38,16 @@ import { loadMomentsConfig, saveMomentsConfig } from "@/lib/moments-storage";
 import type { CanvasBgItem } from "@/lib/character-types";
 import { PageShell } from "@/components/ui/page-shell";
 import { ConfirmDialog } from "@/components/ui/modal";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle, History } from "lucide-react";
+import {
+  backupCharacterVersion,
+  clearCharacterVersions,
+  deleteCharacterVersion,
+  getCharacterCurrentVersion,
+  loadCharacterVersions,
+  renameCharacterVersion,
+  type CharacterVersion,
+} from "@/lib/character-version-storage";
 import { notifyMascotPageContext } from "@/lib/mascot-events";
 import { kvGet, kvSet } from "@/lib/kv-db";
 import { normalizeTimeZone } from "@/lib/character-time";
@@ -239,6 +248,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
           <CharArchiveView
             char={view.id ? (characters.find((c) => c.id === view.id) ?? createCharacter({ name: "", persona: "", avatar: null })) : createCharacter({ name: "", persona: "", avatar: null })}
             isEditing={view.isEditing}
+            isExisting={Boolean(view.id)}
             onBack={handleBackFromDetail}
             onEdit={() => setView({ type: "detail", id: view.id, isEditing: true })}
             onCancelEdit={() => {
@@ -248,9 +258,12 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
                 setView({ type: "list", id: null, isEditing: false });
               }
             }}
-            onSave={(data) => {
+            onSave={(data, createVersion) => {
               const existing = view.id ? characters.find((c) => c.id === view.id) : null;
               if (existing) {
+                const nextVersion = createVersion
+                  ? backupCharacterVersion(existing, "manual", "手动编辑前备份")
+                  : getCharacterCurrentVersion(existing.id);
                 const updated: Character = {
                   ...existing,
                   ...data,
@@ -258,7 +271,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
                 };
                 updateChars(characters.map((c) => (c.id === existing.id ? updated : c)));
                 setView({ type: "detail", id: existing.id, isEditing: false });
-                onNotice("档案已更新");
+                onNotice(createVersion ? `已备份旧卡，当前为 v${nextVersion}.0` : "档案已覆盖保存");
               } else {
                 const newChar = createCharacter(data);
                 newChar.polaroidStyle = pendingPolaroidStyle;
@@ -267,8 +280,23 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
                 onNotice("点击画布放置角色");
               }
             }}
+            onRestoreVersion={(version) => {
+              const existing = view.id ? characters.find((c) => c.id === view.id) : null;
+              if (!existing) return;
+              const nextVersion = backupCharacterVersion(existing, "restore", `恢复 v${version.version}.0 前自动备份`);
+              const restored: Character = {
+                ...version.data,
+                id: existing.id,
+                createdAt: existing.createdAt,
+                updatedAt: new Date().toISOString(),
+              };
+              updateChars(characters.map((c) => (c.id === existing.id ? restored : c)));
+              setView({ type: "detail", id: existing.id, isEditing: false });
+              onNotice(`已恢复 v${version.version}.0，恢复前内容已备份；当前为 v${nextVersion}.0`);
+            }}
             onDelete={() => {
               if (view.id) {
+                clearCharacterVersions(view.id);
                 updateChars(characters.filter((c) => c.id !== view.id));
               }
               setView({ type: "list", id: null, isEditing: false });
@@ -1726,10 +1754,12 @@ function DraggableNode({
 function CharArchiveView({
   char,
   isEditing = false,
+  isExisting = false,
   onBack,
   onEdit,
   onCancelEdit,
   onSave,
+  onRestoreVersion,
   onDelete,
   onExportJson,
   onExportPng,
@@ -1737,10 +1767,12 @@ function CharArchiveView({
 }: {
   char: Character;
   isEditing?: boolean;
+  isExisting?: boolean;
   onBack: () => void;
   onEdit: () => void;
   onCancelEdit?: () => void;
-  onSave?: (data: CharacterImportData) => void;
+  onSave?: (data: CharacterImportData, createVersion: boolean) => void;
+  onRestoreVersion?: (version: CharacterVersion) => void;
   onDelete: () => void;
   onExportJson: () => void;
   onExportPng: () => Promise<void>;
@@ -1748,6 +1780,10 @@ function CharArchiveView({
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [showUnsavedConfirm, setShowUnsavedConfirm] = useState<"back" | "cancel" | null>(null);
+  const [showSaveVersionConfirm, setShowSaveVersionConfirm] = useState(false);
+  const [showVersions, setShowVersions] = useState(false);
+  const [versions, setVersions] = useState<CharacterVersion[]>([]);
+  const [restoreTarget, setRestoreTarget] = useState<CharacterVersion | null>(null);
   const [name, setName] = useState(char.name || "");
   const [persona, setPersona] = useState(char.persona || "");
   const [personality, setPersonality] = useState(char.personality || "");
@@ -1862,25 +1898,45 @@ function CharArchiveView({
     setTagInput("");
   }
 
-  function handleSave() {
+  function commitSave(createVersion: boolean) {
     const trimmedTimeZone = timeZone.trim();
     const normalizedTimeZone = trimmedTimeZone ? normalizeTimeZone(trimmedTimeZone) : undefined;
-    if (onSave) {
-      const trimmedBrief = briefPersona.trim();
-      onSave({
-        name: name.trim() || char.name || "UNNAMED",
-        persona,
-        personality: personality.trim() || undefined,
-        briefPersona: trimmedBrief || undefined,
-        // 简介变动才刷新时间戳；未动则保留原值（供「设定已更新」过期提示判断）
-        briefPersonaUpdatedAt: trimmedBrief
-          ? (trimmedBrief !== (char.briefPersona || "").trim() ? new Date().toISOString() : char.briefPersonaUpdatedAt)
-          : undefined,
-        timeZone: normalizedTimeZone,
-        tags,
-        avatar: avatar ?? null
-      });
+    if (!onSave) return;
+    const trimmedBrief = briefPersona.trim();
+    onSave({
+      name: name.trim() || char.name || "UNNAMED",
+      persona,
+      personality: personality.trim() || undefined,
+      briefPersona: trimmedBrief || undefined,
+      // 简介变动才刷新时间戳；未动则保留原值（供「设定已更新」过期提示判断）
+      briefPersonaUpdatedAt: trimmedBrief
+        ? (trimmedBrief !== (char.briefPersona || "").trim() ? new Date().toISOString() : char.briefPersonaUpdatedAt)
+        : undefined,
+      timeZone: normalizedTimeZone,
+      tags,
+      avatar: avatar ?? null,
+    }, createVersion);
+  }
+
+  function handleSave() {
+    if (!isDirty()) {
+      onCancelEdit?.();
+      return;
     }
+    if (isExisting) {
+      setShowSaveVersionConfirm(true);
+    } else {
+      commitSave(false);
+    }
+  }
+
+  function openVersionHistory() {
+    setVersions(loadCharacterVersions(char.id));
+    setShowVersions(true);
+  }
+
+  function refreshVersions() {
+    setVersions(loadCharacterVersions(char.id));
   }
 
   async function handleGenerateBrief() {
@@ -2231,9 +2287,16 @@ function CharArchiveView({
       onBack={handleBack}
       className="bg-[var(--c-page-body-bg)]"
       rightAction={!isEditing ? (
-        <button className="char-action-btn" onClick={onEdit}>
-          <IconEdit />
-        </button>
+        <div className="flex items-center gap-2">
+          {isExisting && (
+            <button className="char-action-btn" onClick={openVersionHistory} aria-label="版本记录" title="版本记录">
+              <History size={18} />
+            </button>
+          )}
+          <button className="char-action-btn" onClick={onEdit} aria-label="编辑角色">
+            <IconEdit />
+          </button>
+        </div>
       ) : undefined}
     >
       {archiveFrame}
@@ -2299,6 +2362,94 @@ function CharArchiveView({
       )}
 
 
+
+      {showSaveVersionConfirm && (
+        <div className="modal-overlay" data-ui="modal" onClick={() => setShowSaveVersionConfirm(false)}>
+          <div className="modal-dialog" data-ui="modal-dialog" onClick={e => e.stopPropagation()}>
+            <div className="modal-header" data-ui="modal-header">
+              <div className="ui-icon-circle" data-variant="action"><History size={20} /></div>
+              <h3 className="modal-title">保存为 v{getCharacterCurrentVersion(char.id) + 1}.0？</h3>
+            </div>
+            <div className="modal-body" data-ui="modal-body">
+              <p>“备份并保存”会保留修改前的完整角色卡，之后可随时恢复。</p>
+              <p className="mt-2">“直接覆盖”不会创建备份，修改前的内容将无法找回。</p>
+            </div>
+            <div className="modal-footer" data-ui="modal-footer" style={{ flexWrap: "wrap" }}>
+              <button className="ui-btn ui-btn-ghost" onClick={() => setShowSaveVersionConfirm(false)}>取消</button>
+              <button className="ui-btn ui-btn-danger" onClick={() => { setShowSaveVersionConfirm(false); commitSave(false); }}>直接覆盖</button>
+              <button className="ui-btn ui-btn-action" onClick={() => { setShowSaveVersionConfirm(false); commitSave(true); }}>备份并保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showVersions && (
+        <div className="modal-overlay" data-ui="modal" onClick={() => setShowVersions(false)}>
+          <div className="modal-dialog" data-ui="modal-dialog" onClick={e => e.stopPropagation()} style={{ maxHeight: "82vh", overflow: "auto", textAlign: "left" }}>
+            <div className="modal-header" data-ui="modal-header">
+              <History size={20} />
+              <h3 className="modal-title">版本记录 · 当前 v{getCharacterCurrentVersion(char.id)}.0</h3>
+            </div>
+            <div className="modal-body" data-ui="modal-body" style={{ width: "100%", textAlign: "left" }}>
+              {versions.length === 0 ? (
+                <p>尚无历史版本。下次编辑时选择“备份并保存”，或让小卷修改后，这里会出现修改前的完整快照。</p>
+              ) : versions.map(version => (
+                <div key={version.id} className="mb-3 rounded-lg border border-black/15 p-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <strong>v{version.version}.0 · {version.label}</strong>
+                      <div className="ts-10 opacity-60 mt-1">{new Date(version.createdAt).toLocaleString()} · {version.source === "mascot" ? "小卷自动备份" : version.source === "restore" ? "恢复前备份" : "手动备份"}</div>
+                    </div>
+                  </div>
+                  <details className="mt-2">
+                    <summary className="cursor-pointer ts-12">预览内容</summary>
+                    <div className="mt-2 ts-12 whitespace-pre-wrap break-words max-h-48 overflow-auto rounded bg-black/5 p-2">
+                      <strong>{version.data.name}</strong>{version.data.personality ? `\n性格：${version.data.personality}` : ""}{`\n人设：${version.data.persona || "（空）"}`}
+                    </div>
+                  </details>
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    <button className="ui-btn ui-btn-primary" onClick={() => setRestoreTarget(version)}>恢复此版本</button>
+                    <button className="ui-btn ui-btn-outline" onClick={() => {
+                      const label = window.prompt("版本名称", version.label);
+                      if (label !== null) {
+                        renameCharacterVersion(char.id, version.id, label);
+                        refreshVersions();
+                      }
+                    }}>重命名</button>
+                    <button className="ui-btn ui-btn-danger" onClick={() => {
+                      if (window.confirm(`确定删除 v${version.version}.0 的备份吗？此操作无法撤销。`)) {
+                        deleteCharacterVersion(char.id, version.id);
+                        refreshVersions();
+                      }
+                    }}>删除</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="modal-footer" data-ui="modal-footer">
+              <button className="ui-btn ui-btn-primary" onClick={() => setShowVersions(false)}>完成</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {restoreTarget && (
+        <ConfirmDialog
+          title={`恢复 v${restoreTarget.version}.0？`}
+          message="恢复前会先自动备份当前角色卡。恢复后，聊天只会读取恢复后的当前版本。"
+          icon={History}
+          variant="action"
+          confirmLabel="备份当前内容并恢复"
+          cancelLabel="取消"
+          onConfirm={() => {
+            const target = restoreTarget;
+            setRestoreTarget(null);
+            setShowVersions(false);
+            onRestoreVersion?.(target);
+          }}
+          onCancel={() => setRestoreTarget(null)}
+        />
+      )}
 
       {/* Unsaved changes confirmation dialog */}
       {showUnsavedConfirm && (

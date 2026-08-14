@@ -1414,6 +1414,7 @@ async function handleCreateCharacter(args: Record<string, unknown>): Promise<Too
 
 async function handleUpdateCharacterField(args: Record<string, unknown>): Promise<ToolResult> {
     const { loadCharacters, saveCharacters } = await import("./character-storage");
+    const { backupCharacterVersion } = await import("./character-version-storage");
     const chars = loadCharacters();
     const idx = chars.findIndex((c) => c.name === args.name);
     if (idx < 0) return { name: "更新角色字段", success: false, error: `找不到角色：${args.name}` };
@@ -1425,10 +1426,12 @@ async function handleUpdateCharacterField(args: Record<string, unknown>): Promis
     } else {
         return { name: "更新角色字段", success: false, error: `不支持的字段：${field}` };
     }
+    // 小卷没有跳过备份的权限：任何角色字段写入前都先保存完整旧卡。
+    const nextVersion = backupCharacterVersion(chars[idx], "mascot", `小卷修改 ${field} 前自动备份`);
     char.updatedAt = new Date().toISOString();
     chars[idx] = char as typeof chars[number];
     saveCharacters(chars);
-    return { name: "更新角色字段", success: true, data: `已更新 ${args.name} 的 ${field}` };
+    return { name: "更新角色字段", success: true, data: `已自动备份旧卡，并更新 ${args.name} 的 ${field}；当前版本 v${nextVersion}.0` };
 }
 
 // ── Worldbook Handlers ──────────────────────────
