@@ -508,12 +508,7 @@ export async function sendMascotMessage({
     const controller = new AbortController();
     abortController = controller;
     let expandedPackageIds = loadExpandedPackages();
-    // 每次用户发送消息就是一次独立任务；最多 8 轮工具调用共享同一备份集合。
-    const toolCtx: MascotToolContext = {
-        pageContext: context,
-        history: workingMessages,
-        characterBackupIds: new Set<string>(),
-    };
+    const toolCtx: MascotToolContext = { pageContext: context, history: workingMessages };
 
     try {
         for (let round = 0; round < MAX_ROUNDS; round += 1) {
