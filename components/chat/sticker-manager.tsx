@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Trash2, Plus, Smile, ImagePlus, ChevronRight, Sticker, Layers } from "lucide-react";
+import { Trash2, Plus, Smile, ImagePlus, ChevronRight, Sticker, Layers, Pencil } from "lucide-react";
 import { loadCharacters } from "@/lib/character-storage";
 import type { Character } from "@/lib/character-types";
 import {
@@ -210,7 +210,7 @@ function CreatePackDialog({
                             <textarea
                                 value={note}
                                 onChange={e => setNote(e.target.value)}
-                                placeholder="例如：由某某老师整理分享，目前还差 20 个表情待整理"
+                                placeholder="例如：由某某老师整理分享 / 目前还差 20 个表情待整理"
                                 className="ui-input min-h-[88px] resize-y"
                                 rows={3}
                             />
@@ -346,6 +346,7 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
     const [assignedCharIds, setAssignedCharIds] = useState<string[]>([]);
     const [showAddDialog, setShowAddDialog] = useState(false);
     const [showBatchDialog, setShowBatchDialog] = useState(false);
+    const [showRenameDialog, setShowRenameDialog] = useState(false);
     const [packNameDraft, setPackNameDraft] = useState(pack.name);
     const [packNoteDraft, setPackNoteDraft] = useState(pack.note ?? "");
 
@@ -418,46 +419,63 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
         refreshAssignments();
     };
 
-    const handleSavePackInfo = () => {
+    const openRenameDialog = () => {
+        setPackNameDraft(currentPack.name);
+        setShowRenameDialog(true);
+    };
+
+    const handleRenamePack = () => {
         const trimmedName = packNameDraft.trim();
         if (!trimmedName) return;
         renameStickerPack(pack.id, trimmedName);
-        updateStickerPackNote(pack.id, packNoteDraft.trim());
-        setPackNameDraft(trimmedName);
-        setPackNoteDraft(packNoteDraft.trim());
+        setShowRenameDialog(false);
         refreshPack();
     };
 
-    const packInfoChanged = packNameDraft.trim() !== currentPack.name
-        || packNoteDraft.trim() !== (currentPack.note ?? "");
+    const handleSavePackNote = () => {
+        const trimmedNote = packNoteDraft.trim();
+        updateStickerPackNote(pack.id, trimmedNote);
+        setPackNoteDraft(trimmedNote);
+        refreshPack();
+    };
+
+    const packNoteChanged = packNoteDraft.trim() !== (currentPack.note ?? "");
 
     return (
-        <PageShell title={currentPack.name} onBack={onBack} className="absolute inset-0 z-[100]">
+        <PageShell
+            title={currentPack.name}
+            onBack={onBack}
+            rightAction={
+                <button
+                    type="button"
+                    onClick={openRenameDialog}
+                    className="page-back-btn"
+                    aria-label="修改表情包组名称"
+                    title="修改名称"
+                >
+                    <Pencil size={19} strokeWidth={1.8} />
+                </button>
+            }
+            className="absolute inset-0 z-[100]"
+        >
             <div className="flex flex-col h-full bg-[var(--c-page-body-bg)]">
-                {/* 图集名称与备注 */}
+                {/* Pack note section */}
                 <div className="px-6 pt-5 pb-2 shrink-0">
-                    <div className="text-[calc(12px*var(--app-text-scale,1))] font-bold text-[var(--c-text)] opacity-60 uppercase mb-3 px-1 tracking-[0.1em]">图集信息</div>
+                    <div className="text-[calc(12px*var(--app-text-scale,1))] font-bold text-[var(--c-text)] opacity-60 uppercase mb-3 px-1 tracking-[0.1em]">备注</div>
                     <div className="flex flex-col gap-3">
-                        <input
-                            type="text"
-                            value={packNameDraft}
-                            onChange={e => setPackNameDraft(e.target.value)}
-                            placeholder="图集名称"
-                            className="ui-input"
-                        />
                         <textarea
                             value={packNoteDraft}
                             onChange={e => setPackNoteDraft(e.target.value)}
-                            placeholder="备注这套表情包的来源、整理进度等（可选）"
+                            placeholder="由某某老师整理分享 / 目前还差 20 个表情待整理"
                             className="ui-input min-h-[72px] resize-y"
                             rows={2}
                         />
                         <button
                             type="button"
-                            onClick={handleSavePackInfo}
-                            disabled={!packNameDraft.trim() || !packInfoChanged}
+                            onClick={handleSavePackNote}
+                            disabled={!packNoteChanged}
                             className="ui-btn ui-btn-primary self-end"
-                        >保存图集信息</button>
+                        >保存</button>
                     </div>
                 </div>
 
@@ -522,6 +540,36 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
                     </div>
                 </div>
             </div>
+
+            {showRenameDialog && createPortal(
+                <div className="modal-overlay" data-ui="modal" onClick={() => setShowRenameDialog(false)}>
+                    <div className="modal-dialog" onClick={e => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">修改名称</h3>
+                        </div>
+                        <div className="modal-body">
+                            <input
+                                type="text"
+                                value={packNameDraft}
+                                onChange={e => setPackNameDraft(e.target.value)}
+                                onKeyDown={e => { if (e.key === "Enter") handleRenamePack(); }}
+                                placeholder="表情包组名称"
+                                className="ui-input w-full"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="modal-footer">
+                            <button className="ui-btn ui-btn-ghost" onClick={() => setShowRenameDialog(false)}>取消</button>
+                            <button
+                                className="ui-btn ui-btn-primary"
+                                onClick={handleRenamePack}
+                                disabled={!packNameDraft.trim() || packNameDraft.trim() === currentPack.name}
+                            >保存</button>
+                        </div>
+                    </div>
+                </div>,
+                document.querySelector(".phone-shell") ?? document.body
+            )}
 
             {showAddDialog && createPortal(
                 <AddStickerDialog
