@@ -31,6 +31,8 @@ export interface StickerItem {
 export interface StickerPack {
     id: string;
     name: string;
+    /** 整套表情包的可选备注；旧数据可能没有此字段。 */
+    note?: string;
     stickers: StickerItem[];
     createdAt: string;
 }
@@ -72,10 +74,11 @@ export function loadStickerPacks(): StickerPack[] {
     return readPacks();
 }
 
-export function createStickerPack(name: string): StickerPack {
+export function createStickerPack(name: string, note = ""): StickerPack {
     const pack: StickerPack = {
         id: `pack_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         name,
+        note,
         stickers: [],
         createdAt: new Date().toISOString(),
     };
@@ -106,6 +109,14 @@ export function renameStickerPack(packId: string, newName: string): void {
     const pack = packs.find(p => p.id === packId);
     if (!pack) return;
     pack.name = newName;
+    writePacks(packs);
+}
+
+export function updateStickerPackNote(packId: string, note: string): void {
+    const packs = readPacks();
+    const pack = packs.find(p => p.id === packId);
+    if (!pack) return;
+    pack.note = note;
     writePacks(packs);
 }
 
