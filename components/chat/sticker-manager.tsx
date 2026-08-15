@@ -214,6 +214,9 @@ function CreatePackDialog({
                                 className="ui-input min-h-[88px] resize-y"
                                 rows={3}
                             />
+                            <p className="menu-desc ml-1 opacity-60">
+                                仅供你私人整理使用，角色与助手小卷暂无法查看
+                            </p>
                         </div>
 
                         {characters.length > 0 && (
@@ -470,6 +473,9 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
                             className="ui-input min-h-[72px] resize-y"
                             rows={2}
                         />
+                        <p className="menu-desc ml-1 opacity-60">
+                            仅供你私人整理使用，角色与助手小卷暂无法查看
+                        </p>
                         <button
                             type="button"
                             onClick={handleSavePackNote}
