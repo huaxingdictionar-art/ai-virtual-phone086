@@ -508,7 +508,12 @@ export async function sendMascotMessage({
     const controller = new AbortController();
     abortController = controller;
     let expandedPackageIds = loadExpandedPackages();
-    const toolCtx: MascotToolContext = { pageContext: context, history: workingMessages };
+    // 每次用户发送消息就是一次独立任务；最多 8 轮工具调用共享同一备份集合。
+    const toolCtx: MascotToolContext = {
+        pageContext: context,
+        history: workingMessages,
+        characterBackupIds: new Set<string>(),
+    };
 
     try {
         for (let round = 0; round < MAX_ROUNDS; round += 1) {
@@ -654,7 +659,9 @@ export async function sendMascotMessage({
                     publishMessages(workingMessages);
                     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 
-                    const result = await executeMascotToolCall(call, { ...toolCtx, history: workingMessages });
+                    // 复用同一上下文，确保多轮工具调用共享角色备份状态。
+                    toolCtx.history = workingMessages;
+                    const result = await executeMascotToolCall(call, toolCtx);
                     if (result.success) mascotFillField({ field: call.name, value: result.data || "" });
 
                     const resultText = result.success ? (result.data || "完成") : (result.error || "未知错误");
