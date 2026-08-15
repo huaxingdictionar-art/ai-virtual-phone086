@@ -1,5 +1,7 @@
 # AI Virtual Phone
 
+<!-- Netlify test deployment trigger -->
+
 一个基于 Next.js 的 AI 虚拟互动手机：在浏览器中模拟一部完整的手机，支持与你创建的 AI 角色进行仿真聊天、朋友圈互动与剧情创作。
 
 主要功能：
