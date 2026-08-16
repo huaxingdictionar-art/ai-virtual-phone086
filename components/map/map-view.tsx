@@ -184,7 +184,8 @@ export default function MapView({ world, save, onSaveUpdate, onBack }: Props) {
     // Companion avatars
     for (const a of save.agents) {
       const ch = characters.find(c => c.id === a.characterId);
-      if (ch?.avatar) map[ch.name] = ch.avatar;
+      const avatar = ch?.chatAvatar || ch?.avatar;
+      if (avatar && ch) map[ch.name] = avatar;
     }
     return map;
   }, [userIdentity, save.agents, characters]);
