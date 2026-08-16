@@ -178,7 +178,6 @@ import {
 import { ChatFallbackAvatar } from "./chat-fallback-avatar";
 import { MessageBubble, isStandaloneHtmlPreviewContent } from "./message-bubble";
 import { ScreenEffectSettingsModal } from "./screen-effect-settings-modal";
-import { AvatarCropModal } from "./avatar-crop-modal";
 
 type ChatSettingsPanelProps = {
     session: ChatSession;
