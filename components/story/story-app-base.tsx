@@ -938,7 +938,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
                   setDrawerOpen(false);
                 }}
               >
-                <Avatar src={character.avatar || undefined} name={character.name} size="lg" />
+                <Avatar src={character.chatAvatar || character.avatar || undefined} name={character.name} size="lg" />
                 <span className="story-character-name">{character.name}</span>
               </button>
             ))}
@@ -1108,7 +1108,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
                   const avatarUrl = message.role === "user"
                     ? (userIdentity?.avatarUrl || undefined)
                     : message.role === "assistant"
-                      ? (currentCharacter.avatar || undefined)
+                      ? (currentCharacter.chatAvatar || currentCharacter.avatar || undefined)
                       : undefined;
                   return (
                     <article
@@ -1202,7 +1202,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
             {isGenerating ? (
               <StoryGeneratingIndicator
                 characterName={currentCharacter.name}
-                avatar={currentCharacter.avatar || undefined}
+                avatar={currentCharacter.chatAvatar || currentCharacter.avatar || undefined}
               />
             ) : null}
           </div>

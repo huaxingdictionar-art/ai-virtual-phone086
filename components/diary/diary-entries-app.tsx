@@ -579,7 +579,10 @@ export function DiaryEntriesApp({ onBack, onNotice }: DiaryEntriesAppProps) {
     return Array.from(map.entries()).map(([characterId, characterEntries]) => ({
       characterId,
       characterName: characterEntries[0].characterName,
-      avatar: characters.find(character => character.id === characterId)?.avatar ?? "",
+      avatar: (() => {
+        const character = characters.find(item => item.id === characterId);
+        return character?.chatAvatar || character?.avatar || "";
+      })(),
       entries: characterEntries,
     }));
   }, [entries, characters]);
@@ -1102,7 +1105,7 @@ function CharacterAvatarGrid({ characters, selectedIds, busyIds, disabled, onTog
             onClick={() => onToggle(character.id)}
           >
             <span>
-              {character.avatar ? <img src={character.avatar} alt="" /> : <Bot size={18} />}
+              {character.chatAvatar || character.avatar ? <img src={character.chatAvatar || character.avatar} alt="" /> : <Bot size={18} />}
             </span>
             <strong>{character.name}</strong>
             {busy ? <em><DiaryWritingStatus /></em> : null}

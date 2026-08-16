@@ -1048,8 +1048,8 @@ export function CheckPhoneApp({ onClose }: CheckPhoneAppProps) {
                 >
                   <div className="cp-roster-avatar-hud">
                     <div className="cp-roster-avatar">
-                       {character.avatar ? (
-                         <img src={character.avatar} alt="" />
+                       {character.chatAvatar || character.avatar ? (
+                         <img src={character.chatAvatar || character.avatar} alt="" />
                        ) : (
                          <div className="cp-roster-fallback-inner"><span /></div>
                        )}

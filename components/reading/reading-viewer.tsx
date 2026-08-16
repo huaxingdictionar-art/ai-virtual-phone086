@@ -1605,7 +1605,7 @@ export function ReadingViewer({ book, onBack }: Props) {
                                 <div className="chat-contact-avatar"
                                     style={companionId === c.characterId ? { outline: "3px solid var(--c-success)", outlineOffset: "2px" } : undefined}
                                 >
-                                    {c.char.avatar ? <img src={c.char.avatar} alt="" /> : <span className="chat-contact-avatar-fallback">{c.char.name[0]}</span>}
+                                    {c.char.chatAvatar || c.char.avatar ? <img src={c.char.chatAvatar || c.char.avatar} alt="" /> : <span className="chat-contact-avatar-fallback">{c.char.name[0]}</span>}
                                 </div>
                                 <span className="chat-contact-name">{c.char.name}</span>
                             </div>
@@ -1773,8 +1773,8 @@ export function ReadingViewer({ book, onBack }: Props) {
                     onPointerUp={handleChatDragEnd}
                     onPointerCancel={handleChatDragEnd}
                 >
-                    {companion?.avatar ? (
-                        <img src={companion.avatar} alt="" className="w-full h-full object-cover rounded-full" />
+                    {companion?.chatAvatar || companion?.avatar ? (
+                        <img src={companion.chatAvatar || companion.avatar} alt="" className="w-full h-full object-cover rounded-full" />
                     ) : (
                         <span className="ts-13">{companion?.name?.[0] || "?"}</span>
                     )}
@@ -1797,8 +1797,8 @@ export function ReadingViewer({ book, onBack }: Props) {
                                 onClick={() => { if (shouldIgnoreChatAction()) return; setShowCharPicker(!showCharPicker); }}
                                 className="reading-bottom-avatar"
                             >
-                                {companion?.avatar ? (
-                                    <img src={companion.avatar} alt="" className="w-full h-full object-cover rounded-full" />
+                                {companion?.chatAvatar || companion?.avatar ? (
+                                    <img src={companion.chatAvatar || companion.avatar} alt="" className="w-full h-full object-cover rounded-full" />
                                 ) : (
                                     <span className="ts-12">{companion?.name?.[0] || "?"}</span>
                                 )}
@@ -1818,8 +1818,8 @@ export function ReadingViewer({ book, onBack }: Props) {
                         <>
                             <div className="reading-chat-float-header">
                                 <div className="reading-bottom-avatar">
-                                    {companion?.avatar ? (
-                                        <img src={companion.avatar} alt="" className="w-full h-full object-cover rounded-full" />
+                                    {companion?.chatAvatar || companion?.avatar ? (
+                                        <img src={companion.chatAvatar || companion.avatar} alt="" className="w-full h-full object-cover rounded-full" />
                                     ) : (
                                         <span className="ts-12">{companion?.name?.[0] || "?"}</span>
                                     )}
