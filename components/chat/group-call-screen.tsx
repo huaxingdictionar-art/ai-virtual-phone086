@@ -673,8 +673,8 @@ export function GroupCallScreen({ type, session, characters, onEnd, initiator = 
                         return (
                             <div key={char.id} className="gcall-tile" {...(isSpeaking ? { "data-speaking": "" } : {})}>
                                 <div className="gcall-tile-avatar">
-                                    {char.avatar ? (
-                                        <img src={char.avatar} alt={char.name} />
+                                    {char.chatAvatar || char.avatar ? (
+                                        <img src={char.chatAvatar || char.avatar} alt={char.name} />
                                     ) : (
                                         <span className="gcall-tile-initial">{char.name?.[0] || "?"}</span>
                                     )}

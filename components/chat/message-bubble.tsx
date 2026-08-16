@@ -1047,8 +1047,8 @@ function ContactCardBubble({ msg, characterId }: { msg: ChatMessage; characterId
             <div className="chat-contact-card" onClick={handleClick} role="button">
                 <div className="chat-contact-card-main">
                     <div className="chat-contact-card-avatar">
-                        {resolved.character?.avatar
-                            ? <img src={resolved.character.avatar} alt="" />
+                        {resolved.character?.chatAvatar || resolved.character?.avatar
+                            ? <img src={resolved.character?.chatAvatar || resolved.character?.avatar} alt="" />
                             : <CharAvatarFallbackInline name={contactName} />}
                     </div>
                     <div className="chat-contact-card-info">

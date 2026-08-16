@@ -62,8 +62,8 @@ export function GroupCreateModal({ onClose, onCreate }: GroupCreateModalProps) {
                                             onClick={() => toggle(c.characterId)}
                                         >
                                             <div className="chat-contact-avatar" style={isSelected ? { outline: "3px solid var(--c-success)", outlineOffset: "2px" } : undefined}>
-                                                {c.char.avatar ? (
-                                                    <img src={c.char.avatar} alt="" />
+                                                {c.char.chatAvatar || c.char.avatar ? (
+                                                    <img src={c.char.chatAvatar || c.char.avatar} alt="" />
                                                 ) : (
                                                     <ChatFallbackAvatar />
                                                 )}
@@ -102,8 +102,8 @@ export function GroupCreateModal({ onClose, onCreate }: GroupCreateModalProps) {
                             {selectedChars.map(c => (
                                 <div key={c.id} className="chat-contact-item">
                                     <div className="chat-contact-avatar">
-                                        {c.avatar ? (
-                                            <img src={c.avatar} alt="" />
+                                        {c.chatAvatar || c.avatar ? (
+                                            <img src={c.chatAvatar || c.avatar} alt="" />
                                         ) : (
                                             <ChatFallbackAvatar />
                                         )}

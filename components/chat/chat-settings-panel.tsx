@@ -34,7 +34,8 @@ import {
 } from "@/lib/group-admin";
 import { clearChatOfflineTurns } from "@/lib/chat-offline-storage";
 import { triggerDeleteFriendReaction } from "@/lib/friend-request-engine";
-import { loadCharacters } from "@/lib/character-storage";
+import { loadCharacters, saveCharacters } from "@/lib/character-storage";
+import type { Character } from "@/lib/character-types";
 import { isAgentComputerConfigured } from "@/lib/agent-computer";
 import { CharacterComputerPage } from "./character-computer-page";
 import { resolveUserIdentity, loadBindingConfig, loadPresets, resolveBinding } from "@/lib/settings-storage";
@@ -42,6 +43,7 @@ import { getStatusRegionConfig, saveStatusRegionConfig, presetSupportsStatusRegi
 import { downloadFile } from "@/lib/download-utils";
 import { getSchemes, saveScheme, deleteScheme, type CSSScheme } from "@/lib/css-scheme-storage";
 import { CustomStatusFrame } from "@/components/chat/custom-status-frame";
+import { AvatarCropModal } from "@/components/chat/avatar-crop-modal";
 import { ChevronRight, Image as ImageIcon, Video, Mic, UserMinus, UserPlus, Users, Pin, MessageSquare, Search, AlertCircle, Code, Laptop, Trash2, Smile, Sparkles, X, Play, Upload, Download, Save, FolderOpen, type LucideIcon } from "lucide-react";
 import { BINDING_ACCENTS, CONTENT_APP_ACCENTS } from "@/lib/ui-accent-colors";
 import CSSSchemeBar from "@/components/ui/css-scheme-picker";
@@ -176,6 +178,7 @@ import {
 import { ChatFallbackAvatar } from "./chat-fallback-avatar";
 import { MessageBubble, isStandaloneHtmlPreviewContent } from "./message-bubble";
 import { ScreenEffectSettingsModal } from "./screen-effect-settings-modal";
+import { AvatarCropModal } from "./avatar-crop-modal";
 
 type ChatSettingsPanelProps = {
     session: ChatSession;
@@ -185,6 +188,7 @@ type ChatSettingsPanelProps = {
     onToolHistoryCleared?: () => void;
     onOfflineHistoryCleared?: () => void;
     offlineHistoryBusy?: boolean;
+    onCharacterChanged?: (updated: Character) => void;
 };
 
 const chatInfoIconStyle = (color: string): CSSProperties => ({
@@ -285,9 +289,14 @@ export function ChatSettingsPanel({
     onToolHistoryCleared,
     onOfflineHistoryCleared,
     offlineHistoryBusy = false,
+    onCharacterChanged,
 }: ChatSettingsPanelProps) {
     const [backgroundImage, setBackgroundImage] = useState<string>(session.backgroundImage || "");
     const [alias, setAlias] = useState<string>(session.alias || "");
+    // 专属聊天头像（DIY）：裁剪面板状态
+    const [avatarCropImage, setAvatarCropImage] = useState<string | null>(null);
+    const [avatarRevision, setAvatarRevision] = useState(0);
+    const chatAvatarInputRef = useRef<HTMLInputElement | null>(null);
     const [videoBackground, setVideoBackground] = useState<string>(session.videoBackground || "");
     const [voiceBackground, setVoiceBackground] = useState<string>(session.voiceBackground || "");
     const [isPinned, setIsPinned] = useState(session.isPinned || false);
@@ -518,7 +527,7 @@ export function ChatSettingsPanel({
             ...groupChars.map(c => ({
                 key: c!.id,
                 name: c!.name,
-                avatar: c!.avatar || undefined,
+                avatar: c!.chatAvatar || c!.avatar || undefined,
                 muteMs: getGroupMuteRemainingMs(session, c!.id),
             })),
         ]
@@ -638,6 +647,41 @@ export function ChatSettingsPanel({
         setEditingBilingualPrompt(false);
     };
 
+    // ── 专属聊天头像（DIY）：选图 → 裁剪面板 → 保存到角色 chatAvatar ──
+    const handleChatAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = ""; // 允许重复选择同一文件
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => setAvatarCropImage(String(reader.result || ""));
+        reader.readAsDataURL(file);
+    };
+
+    const persistChatAvatar = (dataUrl: string) => {
+        if (!character) return;
+        const chars = loadCharacters();
+        const idx = chars.findIndex(c => c.id === character.id);
+        if (idx < 0) return;
+        chars[idx] = { ...chars[idx], chatAvatar: dataUrl };
+        saveCharacters(chars);
+        setAvatarCropImage(null);
+        setAvatarRevision(v => v + 1); // 强制刷新本页的 character 引用
+        onCharacterChanged?.(chars[idx]);
+    };
+
+    const resetChatAvatar = () => {
+        if (!character) return;
+        const chars = loadCharacters();
+        const idx = chars.findIndex(c => c.id === character.id);
+        if (idx < 0) return;
+        const updated = { ...chars[idx] };
+        delete updated.chatAvatar;
+        chars[idx] = updated;
+        saveCharacters(chars);
+        setAvatarRevision(v => v + 1);
+        onCharacterChanged?.(updated);
+    };
+
     const handleImageUpload = async (
         e: React.ChangeEvent<HTMLInputElement>,
         setter: React.Dispatch<React.SetStateAction<string>>,
@@ -724,8 +768,8 @@ export function ChatSettingsPanel({
                     <div className="chat-msg-wrapper" data-role={resultRole}>
                         {resultRole === "assistant" && (
                             <div className="chat-msg-avatar w-[40px] h-[40px] rounded-[20px] bg-[var(--c-page-body-bg)] shrink-0 flex items-center justify-center overflow-hidden">
-                                {senderChar?.avatar ? (
-                                    <img src={senderChar.avatar} className="w-full h-full object-cover" alt="" />
+                                {(senderChar?.chatAvatar || senderChar?.avatar) ? (
+                                    <img src={senderChar?.chatAvatar || senderChar?.avatar || ""} className="w-full h-full object-cover" alt="" />
                                 ) : (
                                     <ChatFallbackAvatar />
                                 )}
@@ -798,6 +842,29 @@ export function ChatSettingsPanel({
                             <ChevronRight size={16} />
                         </div>
                     </button>
+                    {!session.isGroup && (
+                        <button className="menu-item" onClick={() => chatAvatarInputRef.current?.click()}>
+                            {character?.chatAvatar ? (
+                                <div className="w-[36px] h-[36px] rounded-full overflow-hidden bg-[var(--c-input)] shrink-0 flex items-center justify-center">
+                                    <img src={character.chatAvatar} className="w-full h-full object-cover" alt="" />
+                                </div>
+                            ) : (
+                                <ChatInfoIcon icon={ImageIcon} color={CONTENT_APP_ACCENTS.chat} />
+                            )}
+                            <div className="menu-label-group">
+                                <span className="menu-label">更换聊天头像</span>
+                                <span className="menu-desc">{character?.chatAvatar ? "已设置专属圆形头像，点此更换" : "从角色卡裁出正脸，聊天/列表/朋友圈通用"}</span>
+                            </div>
+                            <div className="menu-right">
+                                {character?.chatAvatar ? (
+                                    <span className="menu-desc mr-1 cursor-pointer" onClick={(e) => { e.stopPropagation(); resetChatAvatar(); }}>恢复默认</span>
+                                ) : (
+                                    <ChevronRight size={16} />
+                                )}
+                            </div>
+                        </button>
+                    )}
+                    <input ref={chatAvatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleChatAvatarFile} />
                     <button className="menu-item" onClick={openSearchPanel}>
                         <ChatInfoIcon icon={Search} color={BINDING_ACCENTS.api} />
                         <div className="menu-label-group"><span className="menu-label">查找聊天记录</span></div>
@@ -1359,6 +1426,15 @@ export function ChatSettingsPanel({
                 </div>
             )}
 
+            {/* Modal: Chat Avatar Crop */}
+            {avatarCropImage && (
+                <AvatarCropModal
+                    image={avatarCropImage}
+                    onCancel={() => setAvatarCropImage(null)}
+                    onConfirm={persistChatAvatar}
+                />
+            )}
+
             {/* Modal: Screen Effects */}
             {showScreenEffects && <ScreenEffectSettingsModal onClose={() => setShowScreenEffects(false)} />}
 
@@ -1640,6 +1716,13 @@ export function ChatSettingsPanel({
                         </div>
                     </div>
                 </div>
+            )}
+            {avatarCropImage && (
+                <AvatarCropModal
+                    image={avatarCropImage}
+                    onCancel={() => setAvatarCropImage(null)}
+                    onConfirm={persistChatAvatar}
+                />
             )}
         </PageShell>
     );

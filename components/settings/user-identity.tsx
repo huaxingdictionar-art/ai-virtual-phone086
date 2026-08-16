@@ -6,6 +6,7 @@ import { SettingsContext } from "../phone-settings-app";
 import { loadUserIdentities, saveUserIdentities } from "@/lib/settings-storage";
 import { Input } from "@/components/ui/form";
 import { ConfirmDialog } from "@/components/ui/modal";
+import { AvatarCropModal } from "@/components/chat/avatar-crop-modal";
 
 export type UserIdentity = {
     id: string;
@@ -67,6 +68,7 @@ export function UserIdentitySettings() {
     const [editingId, setEditingId] = useState<string | null>(null);
     const [isNewIdentity, setIsNewIdentity] = useState(false);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+    const [avatarCropImage, setAvatarCropImage] = useState<string | null>(null);
 
     useEffect(() => {
         const saved = loadUserIdentities();
@@ -232,7 +234,7 @@ export function UserIdentitySettings() {
                                                         if (!file) return;
                                                         try {
                                                             const dataUrl = await fileToDataUrl(file);
-                                                            updateIdentity(identity.id, { avatarUrl: dataUrl });
+                                                            setAvatarCropImage(dataUrl);
                                                         } catch { /* ignore */ }
                                                     };
                                                     input.click();
@@ -341,6 +343,17 @@ export function UserIdentitySettings() {
                         </div>
                     </div>
                 </div>
+            )}
+
+            {avatarCropImage && (
+                <AvatarCropModal
+                    image={avatarCropImage}
+                    onCancel={() => setAvatarCropImage(null)}
+                    onConfirm={(dataUrl) => {
+                        if (editingId) updateIdentity(editingId, { avatarUrl: dataUrl });
+                        setAvatarCropImage(null);
+                    }}
+                />
             )}
 
             {confirmDeleteId && (

@@ -86,7 +86,8 @@ export function MomentPostCard({ post, onUpdate, onRequestDelete, onOpenCommentC
     };
 
     const getCharAvatar = (charId: string): string | null => {
-        return chars.find(c => c.id === charId)?.avatar ?? null;
+        const ch = chars.find(c => c.id === charId);
+        return ch?.chatAvatar || ch?.avatar || null;
     };
 
     const getAuthorName = (authorType: "user" | "character" | "npc", authorId: string, authorName?: string): string => {
