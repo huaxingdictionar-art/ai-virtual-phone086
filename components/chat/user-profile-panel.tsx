@@ -987,8 +987,8 @@ function InlineMomentsSettings({ onBack }: { onBack: () => void }) {
                                     <div className="chat-contact-avatar"
                                         style={selectedIds.has(c.characterId) ? { outline: "3px solid var(--c-success)", outlineOffset: "2px" } : undefined}
                                     >
-                                        {c.char.avatar ? (
-                                            <img src={c.char.avatar} alt="" />
+                                        {c.char.chatAvatar || c.char.avatar ? (
+                                            <img src={c.char.chatAvatar || c.char.avatar} alt="" />
                                         ) : (
                                             <ChatFallbackAvatar />
                                         )}
