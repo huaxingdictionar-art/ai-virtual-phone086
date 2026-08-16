@@ -477,30 +477,42 @@ export function stopMascotGeneration() {
     abortController?.abort();
 }
 
-export async function sendMascotMessage({
+export async function appendMascotMessage({
     text,
     images = [],
-    context = getMascotContext(),
 }: {
     text: string;
     images?: string[];
-    context?: MascotPageContext;
-}): Promise<void> {
+}): Promise<boolean> {
     await hydrateMascotChat();
     const trimmed = text.trim();
-    if ((!trimmed && images.length === 0) || isThinking) return;
+    if ((!trimmed && images.length === 0) || isThinking) return false;
 
     const userMsg: MascotMsg = images.length > 0
         ? { role: "user", text: trimmed, images, createdAt: new Date().toISOString() }
         : { role: "user", text: trimmed, createdAt: new Date().toISOString() };
     const shouldAutoTitle = !messages.some((msg) => msg.role === "user");
-    let workingMessages = normalizeMessages([...messages, userMsg]);
+    const workingMessages = normalizeMessages([...messages, userMsg]);
     if (shouldAutoTitle && activeSessionId) {
         sessions = sessions.map((session) => session.id === activeSessionId
             ? { ...session, title: autoMascotSessionTitle(trimmed || "（图片）") }
             : session);
     }
     publishMessages(workingMessages);
+    return true;
+}
+
+export async function generateMascotReply({
+    context = getMascotContext(),
+}: {
+    context?: MascotPageContext;
+} = {}): Promise<void> {
+    await hydrateMascotChat();
+    if (isThinking) return;
+    const latestVisibleMessage = [...messages].reverse().find((msg) => !msg.hidden && msg.role !== "tool");
+    if (latestVisibleMessage?.role !== "user") return;
+
+    let workingMessages = normalizeMessages(messages);
     setThinking(true);
 
     const MAX_ROUNDS = 8;
@@ -704,6 +716,19 @@ export async function sendMascotMessage({
         setThinking(false);
         abortController = null;
     }
+}
+
+export async function sendMascotMessage({
+    text,
+    images = [],
+    context = getMascotContext(),
+}: {
+    text: string;
+    images?: string[];
+    context?: MascotPageContext;
+}): Promise<void> {
+    const accepted = await appendMascotMessage({ text, images });
+    if (accepted) await generateMascotReply({ context });
 }
 
 export function getMascotLastPreview(): string {
