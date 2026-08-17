@@ -1,3 +1,12 @@
+export type CharacterImageDisplay = {
+  image?: string | null;
+  positionX?: number; // 0-100
+  positionY?: number; // 0-100
+  scale?: number; // 1-3
+};
+
+export type CharacterPolaroidSize = "small" | "medium" | "large";
+
 export type Character = {
   id: string;
   name: string;
@@ -19,6 +28,9 @@ export type Character = {
   canvasRot?: number;
   canvasZIndex?: number;
   polaroidStyle?: number; // 用户选择的拍立得样式索引
+  polaroidSize?: CharacterPolaroidSize; // 未设置时沿用旧版散列自动宽度
+  archiveCover?: CharacterImageDisplay; // 档案墙拍立得封面
+  archivePhoto?: CharacterImageDisplay; // 档案详情、剧情与漫卷主视觉
 };
 
 export type CanvasBgItem = {
