@@ -13,8 +13,6 @@ import {
     addStickersToPack,
     addStickerByUrlToPack,
     checkStickerBlob,
-    renameStickerPack,
-    updateStickerPackNote,
     renameStickerInPack,
     removeStickerFromPack,
     getPackAssignments,
@@ -87,9 +85,6 @@ export function StickerManager({ onBack }: { onBack: () => void }) {
                                 <div className="flex flex-col w-full gap-0.5">
                                     <span className="ts-16 text-[var(--c-text-title)] font-bold truncate max-w-full leading-tight">{pack.name}</span>
                                     <span className="ts-12 text-[var(--c-text)] opacity-70">{pack.stickers.length === 0 ? "空相册" : `${pack.stickers.length} 个表情`}</span>
-                                    {pack.note?.trim() && (
-                                        <span className="ts-11 text-[var(--c-text)] opacity-50 truncate mt-1">{pack.note}</span>
-                                    )}
                                 </div>
 
                                 {assignedNames.length > 0 && (
@@ -166,7 +161,6 @@ function CreatePackDialog({
     onCancel: () => void;
 }) {
     const [name, setName] = useState("");
-    const [note, setNote] = useState("");
     const [selectedCharIds, setSelectedCharIds] = useState<string[]>([]);
 
     const handleToggle = (charId: string) => {
@@ -178,7 +172,7 @@ function CreatePackDialog({
     const handleCreate = () => {
         const trimmed = name.trim();
         if (!trimmed) return;
-        const pack = createStickerPack(trimmed, note.trim());
+        const pack = createStickerPack(trimmed);
         for (const charId of selectedCharIds) {
             togglePackAssignment(pack.id, charId);
         }
@@ -346,8 +340,6 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
     const [assignedCharIds, setAssignedCharIds] = useState<string[]>([]);
     const [showAddDialog, setShowAddDialog] = useState(false);
     const [showBatchDialog, setShowBatchDialog] = useState(false);
-    const [packNameDraft, setPackNameDraft] = useState(pack.name);
-    const [packNoteDraft, setPackNoteDraft] = useState(pack.note ?? "");
 
     const refreshPack = useCallback(() => {
         const fresh = loadStickerPacks().find(p => p.id === pack.id);
@@ -417,19 +409,6 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
         togglePackAssignment(pack.id, charId);
         refreshAssignments();
     };
-
-    const handleSavePackInfo = () => {
-        const trimmedName = packNameDraft.trim();
-        if (!trimmedName) return;
-        renameStickerPack(pack.id, trimmedName);
-        updateStickerPackNote(pack.id, packNoteDraft.trim());
-        setPackNameDraft(trimmedName);
-        setPackNoteDraft(packNoteDraft.trim());
-        refreshPack();
-    };
-
-    const packInfoChanged = packNameDraft.trim() !== currentPack.name
-        || packNoteDraft.trim() !== (currentPack.note ?? "");
 
     return (
         <PageShell title={currentPack.name} onBack={onBack} className="absolute inset-0 z-[100]">
