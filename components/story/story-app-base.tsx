@@ -39,6 +39,7 @@ import CSSSchemeBar from "@/components/ui/css-scheme-picker";
 import { Avatar } from "@/components/ui/primitives";
 import { StoryHtmlRenderer } from "@/components/ui/story-html-renderer";
 import { loadCharacters } from "@/lib/character-storage";
+import { getCharacterArchiveImage, getCharacterImageStyle } from "@/lib/character-images";
 import { maybeRunSummarization } from "@/lib/memory-summarizer";
 import { incrementEventCounter } from "@/lib/memory-storage";
 import { resolveUserIdentity } from "@/lib/settings-storage";
@@ -1054,8 +1055,12 @@ export function StoryApp({ onClose }: StoryAppProps) {
             <div className="story-meta">
               <div className="story-meta-layout">
                 <div className="story-meta-cover">
-                  {currentCharacter.avatar ? (
-                    <img src={currentCharacter.avatar} alt="cover" />
+                  {getCharacterArchiveImage(currentCharacter).image ? (
+                    <img
+                      src={getCharacterArchiveImage(currentCharacter).image!}
+                      alt="cover"
+                      style={getCharacterImageStyle(getCharacterArchiveImage(currentCharacter))}
+                    />
                   ) : (
                     <div className="story-meta-cover-fallback" aria-hidden="true">
                       <span className="story-meta-cover-char">{currentCharacter.name.trim().charAt(0) || "书"}</span>

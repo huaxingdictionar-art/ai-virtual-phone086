@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { Character } from "@/lib/character-types";
+import type { Character, CharacterImageDisplay, CharacterPolaroidSize } from "@/lib/character-types";
+import {
+  getCharacterArchiveCover,
+  getCharacterImageStyle,
+  getPolaroidAspectRatio,
+  getPolaroidRatioClass,
+  getPolaroidWidth,
+  isSafeCharacterImageUrl,
+  normalizeCharacterImageDisplay,
+} from "@/lib/character-images";
 import {
   createCharacter,
   exportCharacterAsJson,
@@ -81,6 +90,7 @@ function loadWorldPan(worldId: string): { x: number; y: number; zoom: number } {
 type TransitionState = {
   char: Character;
   sourceRect: DOMRect;
+  polaroidStyle: number;
   phase: "start" | "fly" | "flip";
   onComplete?: () => void;
   reverse?: boolean;
@@ -186,12 +196,13 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
   }
 
   // Handle clicking a polaroid
-  function handleSelectChar(char: Character, e: React.MouseEvent<HTMLDivElement>) {
+  function handleSelectChar(char: Character, e: React.MouseEvent<HTMLDivElement>, polaroidStyle: number) {
     const rect = e.currentTarget.getBoundingClientRect();
 
     setTransition({
       char,
       sourceRect: rect,
+      polaroidStyle,
       phase: "start",
     });
 
@@ -229,6 +240,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
             onUpdateBgItems={updateBgItems}
             onClose={onClose}
             onSelect={handleSelectChar}
+            onEditArchive={(char: Character) => setView({ type: "detail", id: char.id, isEditing: true })}
             onCreate={(style: number) => { setPendingPolaroidStyle(style); setView({ type: "detail", id: null, isEditing: true }); }}
             pendingPlacementChar={pendingPlacementChar}
             onStartCharPlacement={(char: Character) => setPendingPlacementChar(char)}
@@ -248,7 +260,9 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
 
         {view.type === "detail" && (
           <CharArchiveView
-            char={view.id ? (characters.find((c) => c.id === view.id) ?? createCharacter({ name: "", persona: "", avatar: null })) : createCharacter({ name: "", persona: "", avatar: null })}
+            char={view.id
+              ? (characters.find((c) => c.id === view.id) ?? createCharacter({ name: "", persona: "", avatar: null }))
+              : createCharacter({ name: "", persona: "", avatar: null, polaroidStyle: pendingPolaroidStyle })}
             isEditing={view.isEditing}
             isExisting={Boolean(view.id)}
             onBack={handleBackFromDetail}
@@ -278,7 +292,6 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
                   : `已覆盖旧版本，当前为 V${nextVersion}`);
               } else {
                 const newChar = createCharacter(data);
-                newChar.polaroidStyle = pendingPolaroidStyle;
                 setPendingPlacementChar(newChar);
                 setView({ type: "list", id: null, isEditing: false });
                 onNotice("点击画布放置角色");
@@ -332,7 +345,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
 // ── 过渡动效层 ───────────────────────────────────────
 
 function FlipTransitionOverlay({ transit }: { transit: TransitionState }) {
-  const { char, sourceRect, phase } = transit;
+  const { char, sourceRect, polaroidStyle, phase } = transit;
 
   // Calculate relative bounds based on parent .phone-shell
   const [shellRect, setShellRect] = useState<DOMRect | null>(null);
@@ -363,6 +376,7 @@ function FlipTransitionOverlay({ transit }: { transit: TransitionState }) {
   const isFlipped = phase === "flip";
 
   const duration = isStart ? "0s" : "0.4s";
+  const cover = getCharacterArchiveCover(char);
 
   return (
     <div
@@ -390,11 +404,12 @@ function FlipTransitionOverlay({ transit }: { transit: TransitionState }) {
             {isStart && <div className="char-polaroid-tape" />}
             <div className="char-polaroid-img-wrapper" style={{
               height: isStart ? "auto" : "100%",
-              aspectRatio: isStart ? "1/1" : "auto",
-              transition: `all ${duration} ease`
+              aspectRatio: isStart ? getPolaroidAspectRatio(polaroidStyle) : "auto",
+              transition: `height ${duration} ease`,
+              willChange: "transform",
             }}>
-              {char.avatar ? (
-                <img src={char.avatar} className="char-polaroid-img" alt="" />
+              {cover.image ? (
+                <img src={cover.image} className="char-polaroid-img" style={getCharacterImageStyle(cover)} alt="" />
               ) : (
                 <div className="w-full h-full bg-[#9b8aaa]" />
               )}
@@ -431,6 +446,7 @@ function CharListView({
   onUpdateBgItems,
   onClose,
   onSelect,
+  onEditArchive,
   onCreate,
   pendingPlacementChar,
   onStartCharPlacement,
@@ -446,7 +462,8 @@ function CharListView({
   onUpdateChars: (next: Character[]) => void;
   onUpdateBgItems: (next: CanvasBgItem[]) => void;
   onClose: () => void;
-  onSelect: (char: Character, e: React.MouseEvent<HTMLDivElement>) => void;
+  onSelect: (char: Character, e: React.MouseEvent<HTMLDivElement>, polaroidStyle: number) => void;
+  onEditArchive: (char: Character) => void;
   onCreate: (polaroidStyle: number) => void;
   pendingPlacementChar: Character | null;
   onStartCharPlacement: (char: Character) => void;
@@ -880,7 +897,7 @@ function CharListView({
         const data = parseCharacterFromJson(text);
         if (!data) return onNotice("解析失败，请检查文件格式");
         const c = createCharacter(data);
-        c.polaroidStyle = styleIdx;
+        c.polaroidStyle = data.polaroidStyle ?? styleIdx;
         onStartCharPlacement(c);
         onNotice("点击画布放置角色");
       } else if (file.type === "image/png" || file.name.endsWith(".png")) {
@@ -897,7 +914,7 @@ function CharListView({
           avatar = data.avatar;
         }
         const c = createCharacter({ ...data, avatar });
-        c.polaroidStyle = styleIdx;
+        c.polaroidStyle = data.polaroidStyle ?? styleIdx;
         onStartCharPlacement(c);
         onNotice("点击画布放置角色");
       } else {
@@ -1143,9 +1160,9 @@ function CharListView({
               const styleIdx = char.polaroidStyle ?? (hash % 5);
 
               const sizeMod = (hash % 5);
-              const w = 110 + sizeMod * 10;
-              const ratioClassArray = ["ratio-square", "ratio-portrait", "ratio-landscape", "ratio-16-9", "ratio-9-16"];
-              const ratioClass = ratioClassArray[styleIdx % ratioClassArray.length];
+              const w = getPolaroidWidth(char, 110 + sizeMod * 10);
+              const ratioClass = getPolaroidRatioClass(styleIdx);
+              const cover = getCharacterArchiveCover(char);
 
               const tapeStyles = ["char-polaroid-tape-white", "char-polaroid-tape-red", "char-polaroid-tape-black"];
               const tapeMod = char.polaroidStyle !== undefined ? styleIdx % tapeStyles.length : hash % 3;
@@ -1157,7 +1174,7 @@ function CharListView({
                   key={char.id} id={char.id}
                   x={char.canvasX} y={char.canvasY || 0} rot={char.canvasRot || 0} zIndex={char.canvasZIndex || 100}
                   onDragEnd={handleDragEndChar}
-                  onClick={isEditing ? undefined : (e) => onSelect(char, e)}
+                  onClick={isEditing ? undefined : (e) => onSelect(char, e, styleIdx)}
                   className={`char-polaroid char-polaroid-board-item ${ratioClass} ${linkFromId === char.id ? "wt-link-source" : ""}`}
                   w={w}
                   isEditing={isEditing}
@@ -1178,11 +1195,11 @@ function CharListView({
                     </div>
                   )}
                   <div className="char-polaroid-img-wrapper" style={{ boxShadow: "inset 0 0 10px rgba(0,0,0,0.1)" }}>
-                    {char.avatar ? <img src={char.avatar} alt={char.name} className="char-polaroid-img" draggable={false} /> : <CharAvatarFallback name={char.name} size="100%" />}
+                    {cover.image ? <img src={cover.image} alt={char.name} className="char-polaroid-img" style={getCharacterImageStyle(cover)} draggable={false} /> : <CharAvatarFallback name={char.name} size="100%" />}
                     <button
                       className="char-polaroid-menu-btn absolute top-1 right-1 w-6 h-6 bg-black/20 text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-black/40 transition-colors z-10"
                       onClick={(e) => { e.stopPropagation(); setActiveMoveChar(char); }}
-                      aria-label="转移世界"
+                      aria-label="档案卡片设置"
                     >
                       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
                     </button>
@@ -1260,8 +1277,8 @@ function CharListView({
             {pendingPlacementChar ? (
               <div className="char-polaroid w-[100px]" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
                 <div className="char-polaroid-img-wrapper">
-                  {pendingPlacementChar.avatar ? (
-                    <img src={pendingPlacementChar.avatar} className="char-polaroid-img" alt="" draggable={false} />
+                  {getCharacterArchiveCover(pendingPlacementChar).image ? (
+                    <img src={getCharacterArchiveCover(pendingPlacementChar).image!} className="char-polaroid-img" style={getCharacterImageStyle(getCharacterArchiveCover(pendingPlacementChar))} alt="" draggable={false} />
                   ) : (
                     <CharAvatarFallback name={pendingPlacementChar.name} size="100%" />
                   )}
@@ -1564,8 +1581,24 @@ function CharListView({
         <div className="modal-overlay" data-ui="modal" onPointerDown={() => setActiveMoveChar(null)}>
           <div className="modal-dialog" data-ui="modal-dialog" onPointerDown={(e) => e.stopPropagation()} style={{ padding: 0, overflow: 'hidden' }}>
             <div className="modal-header" data-ui="modal-header" style={{ padding: '20px 20px 10px' }}>
-              <h3 className="modal-title" style={{ margin: 0, fontSize: '16px' }}>转移到其他卷宗</h3>
+              <h3 className="modal-title" style={{ margin: 0, fontSize: '16px' }}>档案卡片设置</h3>
             </div>
+            <div style={{ padding: '0 16px 10px' }}>
+              <button
+                type="button"
+                className="ui-btn ui-btn-primary"
+                style={{ width: '100%' }}
+                onClick={() => {
+                  const target = activeMoveChar;
+                  if (!target) return;
+                  setActiveMoveChar(null);
+                  onEditArchive(target);
+                }}
+              >
+                编辑封面、档案照片、比例与尺寸
+              </button>
+            </div>
+            <div style={{ padding: '4px 20px', fontSize: 12, color: '#777' }}>转移到其他卷宗</div>
             <div role="listbox" style={{ maxHeight: '40dvh', padding: '10px 16px', overflowY: 'auto' }}>
               {worldGroups.filter(g => g.id !== currentWorldId).map(group => (
                 <button
@@ -1801,6 +1834,10 @@ function CharArchiveView({
   const [showTimeZonePicker, setShowTimeZonePicker] = useState(false);
   const [timeZoneSearch, setTimeZoneSearch] = useState(char.timeZone || "");
   const [avatar, setAvatar] = useState<string | null>(char.avatar || null);
+  const [archiveCover, setArchiveCover] = useState<CharacterImageDisplay | undefined>(() => normalizeCharacterImageDisplay(char.archiveCover));
+  const [archivePhoto, setArchivePhoto] = useState<CharacterImageDisplay | undefined>(() => normalizeCharacterImageDisplay(char.archivePhoto));
+  const [polaroidStyle, setPolaroidStyle] = useState<number | undefined>(char.polaroidStyle);
+  const [polaroidSize, setPolaroidSize] = useState<CharacterPolaroidSize | undefined>(char.polaroidSize);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1853,6 +1890,10 @@ function CharArchiveView({
     if (briefPersona !== (char.briefPersona || "")) return true;
     if (timeZone !== (char.timeZone || "")) return true;
     if (avatar !== (char.avatar || null)) return true;
+    if (JSON.stringify(archiveCover) !== JSON.stringify(normalizeCharacterImageDisplay(char.archiveCover))) return true;
+    if (JSON.stringify(archivePhoto) !== JSON.stringify(normalizeCharacterImageDisplay(char.archivePhoto))) return true;
+    if (polaroidStyle !== char.polaroidStyle) return true;
+    if (polaroidSize !== char.polaroidSize) return true;
     const origTags = char.tags || [];
     if (tags.length !== origTags.length || tags.some((t, i) => t !== origTags[i])) return true;
     return false;
@@ -1878,6 +1919,10 @@ function CharArchiveView({
       setShowTimeZonePicker(false);
       setTags(char.tags || []);
       setAvatar(char.avatar || null);
+      setArchiveCover(normalizeCharacterImageDisplay(char.archiveCover));
+      setArchivePhoto(normalizeCharacterImageDisplay(char.archivePhoto));
+      setPolaroidStyle(char.polaroidStyle);
+      setPolaroidSize(char.polaroidSize);
     }
   }, [isEditing, char]);
 
@@ -1888,7 +1933,7 @@ function CharArchiveView({
 
   function handleAvatarUrl() {
     const trimmed = urlInput.trim();
-    if (!trimmed) return;
+    if (!isSafeCharacterImageUrl(trimmed)) return;
     setAvatar(trimmed);
     setShowUrlInput(false);
     setUrlInput("");
@@ -1919,7 +1964,11 @@ function CharArchiveView({
           : undefined,
         timeZone: normalizedTimeZone,
         tags,
-        avatar: avatar ?? null
+        avatar: avatar ?? null,
+        archiveCover,
+        archivePhoto,
+        polaroidStyle,
+        polaroidSize,
       }, createVersion);
     }
   }
@@ -1971,6 +2020,12 @@ function CharArchiveView({
     : timeZoneOptions;
   const filteredTimeZoneOptions = matchedTimeZoneOptions.slice(0, 80);
   const hasMoreTimeZoneOptions = matchedTimeZoneOptions.length > filteredTimeZoneOptions.length;
+  const effectiveArchivePhoto: CharacterImageDisplay = {
+    image: archivePhoto?.image || avatar || null,
+    positionX: archivePhoto?.positionX ?? 50,
+    positionY: archivePhoto?.positionY ?? 50,
+    scale: archivePhoto?.scale ?? 1,
+  };
 
   function openTimeZonePicker() {
     setTimeZoneSearch(timeZone);
@@ -2016,20 +2071,18 @@ function CharArchiveView({
               className="char-archive-photo relative"
               style={{ cursor: isEditing ? "pointer" : "default" }}
               onClick={() => {
-                if (isEditing) {
-                  fileRef.current?.click();
-                }
+                if (isEditing) fileRef.current?.click();
               }}
             >
-              {avatar ? (
-                <img src={avatar} alt="Avatar" />
+              {effectiveArchivePhoto.image ? (
+                <img src={effectiveArchivePhoto.image} alt="Archive portrait" style={getCharacterImageStyle(effectiveArchivePhoto)} />
               ) : (
                 <CharAvatarFallback name={name || char.name} size="100%" />
               )}
               {isEditing && (
                 <div className="absolute inset-0 bg-black/30 flex flex-col items-center justify-center pointer-events-none text-white">
                   <IconCamera size={24} />
-                  <span className="ts-10 mt-1">Change Photo</span>
+                  <span className="ts-10 mt-1">修改基础头像</span>
                 </div>
               )}
             </div>
@@ -2051,7 +2104,7 @@ function CharArchiveView({
                   className="ts-10 px-3 py-1 bg-[#111111] text-white border-none rounded-full cursor-pointer hover:bg-[#222222] transition-colors"
                   onClick={() => setShowUrlInput((v) => !v)}
                 >
-                  Use IMG URL
+                  基础头像 URL
                 </button>
                 {showUrlInput && (
                   <div className="flex gap-1 mt-1">
@@ -2114,6 +2167,67 @@ function CharArchiveView({
 
           </div>
         </div>
+
+        {isEditing && (
+          <div className="char-image-diy-section">
+            <div className="char-image-diy-title">DIY IMAGE PROFILE</div>
+            <p className="char-image-diy-help">封面用于档案墙；档案形象用于详情、剧情顶部和漫卷。可直接在预览图上拖动取景。</p>
+            <CharacterImageEditor
+              label="档案墙封面 / ARCHIVE COVER"
+              value={archiveCover}
+              fallbackImage={avatar}
+              fallbackName={name || char.name}
+              aspectRatio={getPolaroidAspectRatio(polaroidStyle ?? 1)}
+              onChange={setArchiveCover}
+            />
+            <CharacterImageEditor
+              label="基础档案形象 / ARCHIVE PHOTO"
+              value={archivePhoto}
+              fallbackImage={avatar}
+              fallbackName={name || char.name}
+              onChange={setArchivePhoto}
+            />
+            <div className="char-polaroid-options">
+              <div>
+                <span className="char-image-diy-label">拍立得比例</span>
+                <div className="char-image-choice-row">
+                  {[
+                    { value: 0, label: "1:1" },
+                    { value: 1, label: "3:4" },
+                    { value: 2, label: "4:3" },
+                    { value: 3, label: "16:9" },
+                    { value: 4, label: "9:16" },
+                  ].map(option => (
+                    <button
+                      type="button"
+                      key={option.value}
+                      className={polaroidStyle === option.value ? "active" : ""}
+                      onClick={() => setPolaroidStyle(option.value)}
+                    >{option.label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <span className="char-image-diy-label">拍立得尺寸</span>
+                <div className="char-image-choice-row">
+                  {([
+                    { value: undefined, label: "自动（旧版）" },
+                    { value: "small", label: "小" },
+                    { value: "medium", label: "中" },
+                    { value: "large", label: "大" },
+                  ] as const).map(option => (
+                    <button
+                      type="button"
+                      key={option.value ?? "auto"}
+                      className={polaroidSize === option.value ? "active" : ""}
+                      onClick={() => setPolaroidSize(option.value)}
+                    >{option.label}</button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="char-archive-row">
           <div className="char-archive-cell" style={{ flex: 1.8 }}>
@@ -2534,6 +2648,127 @@ function CharArchiveView({
 // The CharEditView component has been removed as editing is now inline within CharArchiveView.
 
 // ── 共享子组件 ───────────────────────────────────────
+
+function CharacterImageEditor({
+  label,
+  value,
+  fallbackImage,
+  fallbackName,
+  aspectRatio = "3 / 4",
+  onChange,
+}: {
+  label: string;
+  value?: CharacterImageDisplay;
+  fallbackImage: string | null;
+  fallbackName: string;
+  aspectRatio?: string;
+  onChange: (value: CharacterImageDisplay | undefined) => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef<{ x: number; y: number; positionX: number; positionY: number } | null>(null);
+  const [url, setUrl] = useState("");
+  const display: CharacterImageDisplay = {
+    image: value?.image || fallbackImage || null,
+    positionX: value?.positionX ?? 50,
+    positionY: value?.positionY ?? 50,
+    scale: value?.scale ?? 1,
+  };
+
+  function patch(partial: Partial<CharacterImageDisplay>) {
+    onChange({
+      image: value?.image ?? null,
+      positionX: value?.positionX ?? 50,
+      positionY: value?.positionY ?? 50,
+      scale: value?.scale ?? 1,
+      ...partial,
+    });
+  }
+
+  function applyUrl() {
+    const next = url.trim();
+    if (!isSafeCharacterImageUrl(next)) return;
+    patch({ image: next });
+    setUrl("");
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (!display.image) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      positionX: display.positionX ?? 50,
+      positionY: display.positionY ?? 50,
+    };
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const start = dragRef.current;
+    const rect = previewRef.current?.getBoundingClientRect();
+    if (!start || !rect) return;
+    const scale = display.scale ?? 1;
+    const positionX = Math.min(100, Math.max(0, start.positionX - ((event.clientX - start.x) / rect.width) * 100 / scale));
+    const positionY = Math.min(100, Math.max(0, start.positionY - ((event.clientY - start.y) / rect.height) * 100 / scale));
+    patch({ positionX, positionY });
+  }
+
+  function stopDragging(event: React.PointerEvent<HTMLDivElement>) {
+    dragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  return (
+    <div className="char-image-editor">
+      <div className="char-image-diy-label">{label}</div>
+      <div className="char-image-editor-layout">
+        <div
+          ref={previewRef}
+          className="char-image-editor-preview"
+          style={{ aspectRatio }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={stopDragging}
+          onPointerCancel={stopDragging}
+        >
+          {display.image ? (
+            <img src={display.image} alt="" draggable={false} style={getCharacterImageStyle(display)} />
+          ) : (
+            <CharAvatarFallback name={fallbackName} size="100%" />
+          )}
+          <span>拖动取景</span>
+        </div>
+        <div className="char-image-editor-controls">
+          <div className="char-image-editor-buttons">
+            <button type="button" onClick={() => fileInputRef.current?.click()}>上传独立图片</button>
+            <button type="button" onClick={() => onChange(undefined)}>清除并回退基础头像</button>
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={async event => {
+              const file = event.target.files?.[0];
+              if (file) patch({ image: await fileToDataUrl(file) });
+              event.target.value = "";
+            }}
+          />
+          <div className="char-image-url-row">
+            <input value={url} onChange={event => setUrl(event.target.value)} onKeyDown={event => { if (event.key === "Enter") applyUrl(); }} placeholder="独立图片 URL" />
+            <button type="button" onClick={applyUrl}>应用</button>
+          </div>
+          <label>X <input type="range" min="0" max="100" step="1" value={display.positionX ?? 50} onChange={event => patch({ positionX: Number(event.target.value) })} /></label>
+          <label>Y <input type="range" min="0" max="100" step="1" value={display.positionY ?? 50} onChange={event => patch({ positionY: Number(event.target.value) })} /></label>
+          <label>缩放 <input type="range" min="1" max="3" step="0.05" value={display.scale ?? 1} onChange={event => patch({ scale: Number(event.target.value) })} /></label>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function CharAvatarFallback({
   name,
