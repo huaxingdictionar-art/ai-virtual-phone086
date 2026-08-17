@@ -3,6 +3,7 @@
 import { useMemo, useState, useRef } from "react";
 import { ArrowLeft, ChevronDown, ImagePlus, MoreHorizontal } from "lucide-react";
 import { loadCharacters } from "@/lib/character-storage";
+import { getCharacterArchiveImage, getCharacterImageStyle } from "@/lib/character-images";
 import { DEFAULT_VN_SUMMARY_PROMPT } from "@/lib/vn-engine";
 import { DEFAULT_VN_BILINGUAL_PROMPT } from "@/lib/bilingual-prompt-defaults";
 import { loadMemoryConfig, saveMemoryConfig } from "@/lib/memory-storage";
@@ -56,7 +57,7 @@ export function VnSelect({ onClose, onSelect, vnTheme, onThemeChange, onOpenAsse
       id: c.id,
       name: c.name,
       subtitle: c.personality?.slice(0, 20) || undefined,
-      avatar: c.avatar || undefined,
+      archiveImage: getCharacterArchiveImage(c),
       gradient: hashGradient(c.id, currentTheme),
     }));
   }, [currentTheme]);
@@ -190,9 +191,16 @@ export function VnSelect({ onClose, onSelect, vnTheme, onThemeChange, onOpenAsse
         .vns-strip-bg {
           position: absolute;
           inset: 0;
+          overflow: hidden;
           background-size: cover;
           background-position: center;
           transition: transform 0.4s ease, filter 0.4s ease;
+        }
+        .vns-strip-bg img {
+          display: block;
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
         }
         .vns-strip:not([data-active="true"]) .vns-strip-bg {
           filter: var(--vns-strip-filter, brightness(0.4) saturate(0.6));
@@ -480,10 +488,12 @@ export function VnSelect({ onClose, onSelect, vnTheme, onThemeChange, onOpenAsse
             >
               <div
                 className="vns-strip-bg"
-                style={{
-                  background: char.avatar ? `url(${char.avatar}) center/cover` : char.gradient,
-                }}
-              />
+                style={!char.archiveImage.image ? { background: char.gradient } : undefined}
+              >
+                {char.archiveImage.image && (
+                  <img src={char.archiveImage.image} alt="" draggable={false} style={getCharacterImageStyle(char.archiveImage)} />
+                )}
+              </div>
               <div className="vns-strip-info">
                 <span className="vns-strip-name">{char.name}</span>
                 <span className="vns-strip-sub">{char.subtitle}</span>

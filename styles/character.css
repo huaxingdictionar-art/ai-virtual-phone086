@@ -1475,3 +1475,156 @@
 
 /* 关系标签在编辑模式下可点（剪断关系） */
 .wt-line-label-editable { cursor: pointer; }
+
+/* ═══ DIY 角色档案图片 ═══ */
+.char-image-diy-section {
+  padding: 12px;
+  border-bottom: 1px solid var(--c-panel-border);
+  background: color-mix(in srgb, var(--c-input) 34%, transparent);
+}
+
+.char-image-diy-title {
+  font-family: "Courier New", monospace;
+  font-size: calc(12px * var(--app-text-scale, 1));
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--c-text-title);
+}
+
+.char-image-diy-help {
+  margin: 4px 0 12px;
+  font-size: calc(10px * var(--app-text-scale, 1));
+  line-height: 1.5;
+  color: var(--c-text);
+  opacity: 0.72;
+}
+
+.char-image-editor {
+  padding: 10px 0;
+  border-top: 1px dashed var(--c-panel-border);
+}
+
+.char-image-diy-label {
+  display: block;
+  margin-bottom: 6px;
+  font-family: "Courier New", monospace;
+  font-size: calc(10px * var(--app-text-scale, 1));
+  font-weight: 700;
+  color: var(--c-text-title);
+}
+
+.char-image-editor-layout {
+  display: grid;
+  grid-template-columns: 104px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+
+.char-image-editor-preview {
+  position: relative;
+  width: 104px;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  border: 1px solid var(--c-panel-border);
+  background: var(--c-input);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.char-image-editor-preview:active {
+  cursor: grabbing;
+}
+
+.char-image-editor-preview img {
+  display: block;
+  pointer-events: none;
+}
+
+.char-image-editor-preview > span {
+  position: absolute;
+  right: 4px;
+  bottom: 4px;
+  padding: 2px 4px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.56);
+  color: #fff;
+  font-size: calc(8px * var(--app-text-scale, 1));
+  pointer-events: none;
+}
+
+.char-image-editor-controls {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.char-image-editor-buttons,
+.char-image-url-row,
+.char-image-choice-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.char-image-editor button,
+.char-image-choice-row button {
+  min-height: 28px;
+  padding: 4px 7px;
+  border: 1px solid var(--c-input-border);
+  border-radius: 3px;
+  background: var(--c-panel);
+  color: var(--c-text-title);
+  font-size: calc(9px * var(--app-text-scale, 1));
+  cursor: pointer;
+}
+
+.char-image-choice-row button.active {
+  border-color: var(--c-text-title);
+  background: var(--c-text-title);
+  color: var(--c-page-body-bg);
+}
+
+.char-image-url-row input {
+  flex: 1;
+  min-width: 80px;
+  padding: 5px 6px;
+  border: 1px solid var(--c-input-border);
+  border-radius: 3px;
+  background: var(--c-input);
+  color: var(--c-text-title);
+  font-size: calc(9px * var(--app-text-scale, 1));
+}
+
+.char-image-editor-controls label {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+  font-size: calc(9px * var(--app-text-scale, 1));
+  color: var(--c-text);
+}
+
+.char-image-editor-controls input[type="range"] {
+  width: 100%;
+  min-width: 0;
+}
+
+.char-polaroid-options {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--c-panel-border);
+}
+
+@media (max-width: 360px) {
+  .char-image-editor-layout {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
+
+  .char-image-editor-preview {
+    width: 88px;
+  }
+}

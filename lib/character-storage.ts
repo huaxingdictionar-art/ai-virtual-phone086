@@ -1,4 +1,9 @@
 import type { Character, CanvasBgItem } from "./character-types";
+import {
+  isCharacterPolaroidSize,
+  isSafeCharacterImageUrl,
+  normalizeCharacterImageDisplay,
+} from "./character-images";
 import { normalizeTimeZone } from "./character-time";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 
@@ -59,14 +64,33 @@ export function loadCharacters(): Character[] {
         else delete char.timeZone;
         needsSave = true;
       }
-      // Sanitize avatars: only keep data-URLs and http(s) URLs
-      if (char.avatar && !char.avatar.startsWith("data:") && !char.avatar.startsWith("http://") && !char.avatar.startsWith("https://")) {
+      // Sanitize all character image URLs consistently.
+      if (char.avatar && !isSafeCharacterImageUrl(char.avatar)) {
         char.avatar = null;
         needsSave = true;
       }
-      // Sanitize chatAvatar the same way
-      if (char.chatAvatar && !char.chatAvatar.startsWith("data:") && !char.chatAvatar.startsWith("http://") && !char.chatAvatar.startsWith("https://")) {
+      if (char.chatAvatar && !isSafeCharacterImageUrl(char.chatAvatar)) {
         char.chatAvatar = null;
+        needsSave = true;
+      }
+      if (char.archiveCover !== undefined) {
+        const normalized = normalizeCharacterImageDisplay(char.archiveCover);
+        if (JSON.stringify(normalized) !== JSON.stringify(char.archiveCover)) needsSave = true;
+        if (normalized) char.archiveCover = normalized;
+        else delete char.archiveCover;
+      }
+      if (char.archivePhoto !== undefined) {
+        const normalized = normalizeCharacterImageDisplay(char.archivePhoto);
+        if (JSON.stringify(normalized) !== JSON.stringify(char.archivePhoto)) needsSave = true;
+        if (normalized) char.archivePhoto = normalized;
+        else delete char.archivePhoto;
+      }
+      if (char.polaroidStyle !== undefined && (!Number.isFinite(char.polaroidStyle) || char.polaroidStyle < 0 || char.polaroidStyle > 4)) {
+        delete char.polaroidStyle;
+        needsSave = true;
+      }
+      if (char.polaroidSize !== undefined && !isCharacterPolaroidSize(char.polaroidSize)) {
+        delete char.polaroidSize;
         needsSave = true;
       }
       return char as Character;
@@ -145,12 +169,16 @@ export function createCharacter(
 export function exportCharacterAsJson(char: Character): void {
   const payload = {
     schema: "ai_phone_character",
-    schema_version: "1.0",
+    schema_version: "1.1",
     name: char.name,
     description: char.persona,
     personality: char.personality || "",
     avatar: char.avatar ?? "none",
     chatAvatar: char.chatAvatar ?? "none",
+    archiveCover: char.archiveCover,
+    archivePhoto: char.archivePhoto,
+    polaroidStyle: char.polaroidStyle,
+    polaroidSize: char.polaroidSize,
     tags: char.tags || [],
     wechatID: char.wechatID || "",
     timeZone: char.timeZone || "",
@@ -172,13 +200,10 @@ export function parseCharacterFromJson(
   try {
     const obj = JSON.parse(text) as Record<string, unknown>;
 
-    // Helper: validate avatar — only accept data-URLs and http(s) URLs
+    // Helper: validate character images — only accept data-URLs and http(s) URLs.
     function validAvatar(v: unknown): string | null {
-      if (typeof v !== "string" || !v.trim()) return null;
-      const s = v.trim();
-      if (s === "none") return null;
-      if (s.startsWith("data:") || s.startsWith("http://") || s.startsWith("https://")) return s;
-      return null;
+      if (typeof v !== "string" || !v.trim() || v.trim() === "none") return null;
+      return isSafeCharacterImageUrl(v) ? v.trim() : null;
     }
 
     const src = (obj.schema === "ai_phone_character" && typeof obj.data === "object" && obj.data !== null)
@@ -194,6 +219,12 @@ export function parseCharacterFromJson(
       persona: String(src.description ?? src.persona ?? ""),
       avatar: validAvatar(src.avatar),
       chatAvatar: validAvatar(src.chatAvatar),
+      archiveCover: normalizeCharacterImageDisplay(src.archiveCover),
+      archivePhoto: normalizeCharacterImageDisplay(src.archivePhoto),
+      polaroidStyle: typeof src.polaroidStyle === "number" && Number.isFinite(src.polaroidStyle)
+        ? Math.max(0, Math.min(4, Math.trunc(src.polaroidStyle)))
+        : undefined,
+      polaroidSize: isCharacterPolaroidSize(src.polaroidSize) ? src.polaroidSize : undefined,
       personality: typeof src.personality === "string" && src.personality.trim() ? src.personality : undefined,
       tags: Array.isArray(src.tags) ? src.tags.map(String) : [],
       wechatID: typeof src.wechatID === "string" && src.wechatID.trim() ? src.wechatID : undefined,
@@ -407,12 +438,16 @@ async function avatarToPngBytes(avatar: string | null, name: string): Promise<Ui
 export async function exportCharacterAsPng(char: Character): Promise<void> {
   const payload = {
     schema: "ai_phone_character",
-    schema_version: "1.0",
+    schema_version: "1.1",
     name: char.name,
     description: char.persona,
     personality: char.personality || "",
     avatar: "none",
     chatAvatar: char.chatAvatar ?? "none",
+    archiveCover: char.archiveCover,
+    archivePhoto: char.archivePhoto,
+    polaroidStyle: char.polaroidStyle,
+    polaroidSize: char.polaroidSize,
     tags: char.tags || [],
     wechatID: char.wechatID || "",
     timeZone: char.timeZone || "",
