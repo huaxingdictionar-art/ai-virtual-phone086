@@ -184,7 +184,8 @@ export default function MapView({ world, save, onSaveUpdate, onBack }: Props) {
     // Companion avatars
     for (const a of save.agents) {
       const ch = characters.find(c => c.id === a.characterId);
-      if (ch?.avatar) map[ch.name] = ch.avatar;
+      const avatar = ch?.chatAvatar || ch?.avatar;
+      if (avatar && ch) map[ch.name] = avatar;
     }
     return map;
   }, [userIdentity, save.agents, characters]);
@@ -2354,7 +2355,14 @@ export default function MapView({ world, save, onSaveUpdate, onBack }: Props) {
                   selectedNodeId={selectedNodeId}
                   discoveredNodes={save.discoveredNodes}
                   visitedNodes={save.visitedNodes}
-                  agentPositions={save.agents.map(a => ({ nodeId: a.currentNodeId, name: charName(a.characterId), avatar: characters.find(c => c.id === a.characterId)?.chatAvatar || characters.find(c => c.id === a.characterId)?.avatar || undefined }))}
+                  agentPositions={save.agents.map(a => ({
+                    nodeId: a.currentNodeId,
+                    name: charName(a.characterId),
+                    avatar:
+                      characters.find(c => c.id === a.characterId)?.chatAvatar ||
+                      characters.find(c => c.id === a.characterId)?.avatar ||
+                      undefined
+                  }))}
                   playerAvatar={userIdentity?.avatarUrl}
                   playerName={userIdentity?.name || "我"}
                   onNodeClick={(id) => {
