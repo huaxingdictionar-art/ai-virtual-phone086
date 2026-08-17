@@ -199,17 +199,6 @@ function CreatePackDialog({
                             />
                         </div>
 
-                        <div className="flex flex-col gap-1">
-                            <label className="menu-desc ml-1">备注（可选）</label>
-                            <textarea
-                                value={note}
-                                onChange={e => setNote(e.target.value)}
-                                placeholder="例如：由某某老师整理分享，目前还差 20 个表情待整理"
-                                className="ui-input min-h-[88px] resize-y"
-                                rows={3}
-                            />
-                        </div>
-
                         {characters.length > 0 && (
                             <div className="flex flex-col gap-1">
                                 <label className="menu-desc ml-1">应用角色</label>
@@ -413,33 +402,6 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
     return (
         <PageShell title={currentPack.name} onBack={onBack} className="absolute inset-0 z-[100]">
             <div className="flex flex-col h-full bg-[var(--c-page-body-bg)]">
-                {/* Pack metadata section */}
-                <div className="px-6 pt-5 pb-2 shrink-0">
-                    <div className="text-[calc(12px*var(--app-text-scale,1))] font-bold text-[var(--c-text)] opacity-60 uppercase mb-3 px-1 tracking-[0.1em]">图集信息</div>
-                    <div className="flex flex-col gap-3">
-                        <input
-                            type="text"
-                            value={packNameDraft}
-                            onChange={e => setPackNameDraft(e.target.value)}
-                            placeholder="图集名称"
-                            className="ui-input"
-                        />
-                        <textarea
-                            value={packNoteDraft}
-                            onChange={e => setPackNoteDraft(e.target.value)}
-                            placeholder="备注这套表情包的来源、整理进度等（可选）"
-                            className="ui-input min-h-[72px] resize-y"
-                            rows={2}
-                        />
-                        <button
-                            type="button"
-                            onClick={handleSavePackInfo}
-                            disabled={!packNameDraft.trim() || !packInfoChanged}
-                            className="ui-btn ui-btn-primary self-end"
-                        >保存图集信息</button>
-                    </div>
-                </div>
-
                 {/* Character assignment section */}
                 <div className="px-6 pt-4 pb-2 shrink-0">
                     <div className="text-[calc(12px*var(--app-text-scale,1))] font-bold text-[var(--c-text)] opacity-60 uppercase mb-3 px-1 tracking-[0.1em]">智能角色绑定</div>
