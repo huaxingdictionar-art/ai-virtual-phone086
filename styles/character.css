@@ -1655,17 +1655,21 @@
 }
 
 .char-avatar-crop-error {
-  position: absolute;
-  z-index: 31;
-  top: 108px;
-  left: 12px;
-  right: 12px;
+  grid-column: 1 / -1;
   padding: 7px 9px;
   border: 1px solid var(--c-danger);
   background: var(--c-panel);
   color: var(--c-danger);
   font-size: calc(9px * var(--app-text-scale, 1));
   line-height: 1.45;
+}
+
+.char-avatar-crop-error-standalone {
+  position: absolute;
+  z-index: 31;
+  top: 108px;
+  left: 12px;
+  right: 12px;
 }
 
 .char-image-diy-section {

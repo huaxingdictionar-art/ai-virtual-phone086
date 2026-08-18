@@ -436,7 +436,11 @@ function FlipTransitionOverlay({ transit }: { transit: TransitionState }) {
             <div className="char-flipper-paper-rule" />
             <div className="char-flipper-paper-grid">
               <div className="char-flipper-paper-portrait">
-                {char.avatar ? <img src={char.avatar} alt="" /> : null}
+                {char.avatar ? (
+                  <img src={char.avatar} alt="" />
+                ) : (
+                  <CharAvatarFallback name={char.name} size="100%" />
+                )}
               </div>
               <div>
                 <strong>{char.name || "UNNAMED"}</strong>
@@ -2120,6 +2124,7 @@ function CharArchiveView({
             {isEditing && avatarCropSource && (
               <AvatarCropEditor
                 source={avatarCropSource}
+                error={avatarCropError}
                 onConfirm={(croppedAvatar) => {
                   setAvatar(croppedAvatar);
                   setAvatarCropSource(null);
@@ -2132,8 +2137,8 @@ function CharArchiveView({
                 onError={setAvatarCropError}
               />
             )}
-            {isEditing && avatarCropError && (
-              <div className="char-avatar-crop-error" role="alert">{avatarCropError}</div>
+            {isEditing && avatarCropError && !avatarCropSource && (
+              <div className="char-avatar-crop-error char-avatar-crop-error-standalone" role="alert">{avatarCropError}</div>
             )}
             {isEditing && (
               <div className="mt-2 flex flex-col gap-1 w-full justify-center">
@@ -2681,11 +2686,13 @@ function CharArchiveView({
 
 function AvatarCropEditor({
   source,
+  error,
   onConfirm,
   onCancel,
   onError,
 }: {
   source: string;
+  error: string;
   onConfirm: (dataUrl: string) => void;
   onCancel: () => void;
   onError: (message: string) => void;
@@ -2768,6 +2775,7 @@ function AvatarCropEditor({
 
   return (
     <div className="char-avatar-crop-editor">
+      {error && <div className="char-avatar-crop-error" role="alert">{error}</div>}
       <div
         ref={previewRef}
         className="char-avatar-crop-preview"
