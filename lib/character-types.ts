@@ -29,7 +29,8 @@ export type Character = {
   polaroidStyle?: number; // 用户选择的拍立得样式索引
   polaroidSize?: CharacterPolaroidSize; // 未设置时沿用旧版散列自动宽度
   archiveCover?: CharacterImageDisplay; // 档案墙拍立得封面
-  archivePhoto?: CharacterImageDisplay; // 档案详情、剧情与漫卷主视觉
+  /** @deprecated 仅用于兼容旧存储/旧角色卡；新界面、保存和导出均不再使用。 */
+  archivePhoto?: CharacterImageDisplay;
 };
 
 export type CanvasBgItem = {

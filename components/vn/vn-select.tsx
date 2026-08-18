@@ -3,7 +3,6 @@
 import { useMemo, useState, useRef } from "react";
 import { ArrowLeft, ChevronDown, ImagePlus, MoreHorizontal } from "lucide-react";
 import { loadCharacters } from "@/lib/character-storage";
-import { getCharacterArchiveImage, getCharacterImageStyle } from "@/lib/character-images";
 import { DEFAULT_VN_SUMMARY_PROMPT } from "@/lib/vn-engine";
 import { DEFAULT_VN_BILINGUAL_PROMPT } from "@/lib/bilingual-prompt-defaults";
 import { loadMemoryConfig, saveMemoryConfig } from "@/lib/memory-storage";
@@ -57,7 +56,7 @@ export function VnSelect({ onClose, onSelect, vnTheme, onThemeChange, onOpenAsse
       id: c.id,
       name: c.name,
       subtitle: c.personality?.slice(0, 20) || undefined,
-      archiveImage: getCharacterArchiveImage(c),
+      avatar: c.avatar,
       gradient: hashGradient(c.id, currentTheme),
     }));
   }, [currentTheme]);
@@ -488,10 +487,10 @@ export function VnSelect({ onClose, onSelect, vnTheme, onThemeChange, onOpenAsse
             >
               <div
                 className="vns-strip-bg"
-                style={!char.archiveImage.image ? { background: char.gradient } : undefined}
+                style={!char.avatar ? { background: char.gradient } : undefined}
               >
-                {char.archiveImage.image && (
-                  <img src={char.archiveImage.image} alt="" draggable={false} style={getCharacterImageStyle(char.archiveImage)} />
+                {char.avatar && (
+                  <img src={char.avatar} alt="" draggable={false} />
                 )}
               </div>
               <div className="vns-strip-info">
