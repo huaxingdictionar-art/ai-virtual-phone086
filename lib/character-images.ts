@@ -51,16 +51,6 @@ export function getCharacterArchiveCover(character: Character): CharacterImageDi
   };
 }
 
-export function getCharacterArchiveImage(character: Character): CharacterImageDisplay {
-  const display = normalizeCharacterImageDisplay(character.archivePhoto);
-  return {
-    image: display?.image || character.avatar || null,
-    positionX: display?.positionX ?? 50,
-    positionY: display?.positionY ?? 50,
-    scale: display?.scale ?? 1,
-  };
-}
-
 export function getCharacterImageStyle(display: CharacterImageDisplay): CSSProperties {
   const positionX = clampNumber(display.positionX, 0, 100, 50);
   const positionY = clampNumber(display.positionY, 0, 100, 50);

@@ -425,7 +425,88 @@
 
 .char-flipper-back {
   transform: rotateY(180deg);
-  pointer-events: auto;
+  pointer-events: none;
+}
+
+.char-flipper-container,
+.char-flipper-inner,
+.char-flipper-front,
+.char-flipper-back {
+  -webkit-backface-visibility: hidden;
+}
+
+.char-flipper-paper {
+  position: relative;
+  overflow: hidden;
+  padding: 22px;
+  background: var(--c-page-body-bg);
+  color: var(--c-text-title);
+  font-family: "Courier New", monospace;
+  box-shadow: inset 0 0 0 1px var(--c-panel-border);
+}
+
+.char-flipper-paper-stamp {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  padding: 4px 8px;
+  border: 2px solid rgba(180, 45, 45, 0.65);
+  color: rgba(180, 45, 45, 0.72);
+  font-size: calc(12px * var(--app-text-scale, 1));
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  transform: rotate(8deg);
+}
+
+.char-flipper-paper-title {
+  padding: 10px 0 12px;
+  font-size: calc(18px * var(--app-text-scale, 1));
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.char-flipper-paper-rule {
+  height: 2px;
+  margin-bottom: 18px;
+  background: var(--c-panel-border);
+}
+
+.char-flipper-paper-grid {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
+}
+
+.char-flipper-paper-grid strong,
+.char-flipper-paper-grid span {
+  display: block;
+}
+
+.char-flipper-paper-grid strong {
+  font-size: calc(17px * var(--app-text-scale, 1));
+}
+
+.char-flipper-paper-grid span {
+  margin-top: 5px;
+  color: var(--c-text);
+  font-size: calc(9px * var(--app-text-scale, 1));
+  letter-spacing: 0.08em;
+}
+
+.char-flipper-paper-portrait {
+  width: 90px;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--c-panel-border);
+  background: var(--c-input);
+}
+
+.char-flipper-paper-portrait img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 /* ── 绝密档案详情页 (Archival Info) ── */
@@ -1477,6 +1558,120 @@
 .wt-line-label-editable { cursor: pointer; }
 
 /* ═══ DIY 角色档案图片 ═══ */
+.char-avatar-crop-editor {
+  position: absolute;
+  z-index: 30;
+  top: 116px;
+  left: 12px;
+  right: 12px;
+  display: grid;
+  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--c-panel-border);
+  background: var(--c-panel);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.26);
+}
+
+.char-avatar-crop-preview {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  overflow: hidden;
+  border: 1px solid var(--c-input-border);
+  background: var(--c-input);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.char-avatar-crop-preview:active {
+  cursor: grabbing;
+}
+
+.char-avatar-crop-preview img {
+  display: block;
+  pointer-events: none;
+}
+
+.char-avatar-crop-preview > span {
+  position: absolute;
+  right: 5px;
+  bottom: 5px;
+  padding: 2px 5px;
+  border-radius: 2px;
+  background: rgba(0, 0, 0, 0.62);
+  color: #fff;
+  font-size: calc(8px * var(--app-text-scale, 1));
+  pointer-events: none;
+}
+
+.char-avatar-crop-controls {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+}
+
+.char-avatar-crop-controls label {
+  display: grid;
+  grid-template-columns: 36px minmax(0, 1fr);
+  align-items: center;
+  gap: 6px;
+  color: var(--c-text);
+  font-size: calc(10px * var(--app-text-scale, 1));
+}
+
+.char-avatar-crop-controls input[type="range"] {
+  width: 100%;
+  min-width: 0;
+}
+
+.char-avatar-crop-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+}
+
+.char-avatar-crop-actions button {
+  min-height: 30px;
+  padding: 5px 10px;
+  border: 1px solid var(--c-input-border);
+  border-radius: 3px;
+  background: var(--c-panel);
+  color: var(--c-text-title);
+  cursor: pointer;
+}
+
+.char-avatar-crop-actions button:last-child {
+  background: var(--c-text-title);
+  color: var(--c-page-body-bg);
+}
+
+.char-avatar-crop-actions button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.char-avatar-crop-error {
+  grid-column: 1 / -1;
+  padding: 7px 9px;
+  border: 1px solid var(--c-danger);
+  background: var(--c-panel);
+  color: var(--c-danger);
+  font-size: calc(9px * var(--app-text-scale, 1));
+  line-height: 1.45;
+}
+
+.char-avatar-crop-error-standalone {
+  position: absolute;
+  z-index: 31;
+  top: 108px;
+  left: 12px;
+  right: 12px;
+}
+
 .char-image-diy-section {
   padding: 12px;
   border-bottom: 1px solid var(--c-panel-border);
@@ -1620,6 +1815,26 @@
 }
 
 @media (max-width: 360px) {
+  .char-avatar-crop-editor {
+    top: 104px;
+    grid-template-columns: 104px minmax(0, 1fr);
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .char-avatar-crop-controls {
+    gap: 5px;
+  }
+
+  .char-avatar-crop-actions {
+    flex-wrap: wrap;
+  }
+
+  .char-avatar-crop-actions button {
+    flex: 1;
+    min-width: 64px;
+  }
+
   .char-image-editor-layout {
     grid-template-columns: 88px minmax(0, 1fr);
   }

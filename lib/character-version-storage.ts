@@ -25,7 +25,8 @@ type CharacterVersionState = {
 type CharacterVersionStore = Record<string, CharacterVersionState>;
 
 function cloneCharacter(character: Character): Character {
-  return JSON.parse(JSON.stringify(character)) as Character;
+  const { archivePhoto: _legacyArchivePhoto, ...cleanCharacter } = character;
+  return JSON.parse(JSON.stringify(cleanCharacter)) as Character;
 }
 
 function loadStore(): CharacterVersionStore {

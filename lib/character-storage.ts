@@ -108,7 +108,9 @@ export function loadCharacters(): Character[] {
 
 export function saveCharacters(chars: Character[]): void {
   if (typeof window === "undefined") return;
-  kvSet(STORAGE_KEY, JSON.stringify(chars));
+  // archivePhoto is a legacy read-only field. Drop it whenever a character is saved again.
+  const sanitized = chars.map(({ archivePhoto: _legacyArchivePhoto, ...char }) => char);
+  kvSet(STORAGE_KEY, JSON.stringify(sanitized));
   _charsCache = null;
 }
 
@@ -154,8 +156,9 @@ export function createCharacter(
   data: Omit<Character, "id" | "createdAt" | "updatedAt" | "wechatID"> & { wechatID?: string }
 ): Character {
   const now = new Date().toISOString();
+  const { archivePhoto: _legacyArchivePhoto, ...cleanData } = data;
   return {
-    ...data,
+    ...cleanData,
     id: `char_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     wechatID: data.wechatID || generateWechatID(),
     tags: data.tags || [],
@@ -176,7 +179,6 @@ export function exportCharacterAsJson(char: Character): void {
     avatar: char.avatar ?? "none",
     chatAvatar: char.chatAvatar ?? "none",
     archiveCover: char.archiveCover,
-    archivePhoto: char.archivePhoto,
     polaroidStyle: char.polaroidStyle,
     polaroidSize: char.polaroidSize,
     tags: char.tags || [],
@@ -220,7 +222,7 @@ export function parseCharacterFromJson(
       avatar: validAvatar(src.avatar),
       chatAvatar: validAvatar(src.chatAvatar),
       archiveCover: normalizeCharacterImageDisplay(src.archiveCover),
-      archivePhoto: normalizeCharacterImageDisplay(src.archivePhoto),
+      // Legacy archivePhoto is accepted in the input but intentionally not propagated.
       polaroidStyle: typeof src.polaroidStyle === "number" && Number.isFinite(src.polaroidStyle)
         ? Math.max(0, Math.min(4, Math.trunc(src.polaroidStyle)))
         : undefined,
@@ -445,7 +447,6 @@ export async function exportCharacterAsPng(char: Character): Promise<void> {
     avatar: "none",
     chatAvatar: char.chatAvatar ?? "none",
     archiveCover: char.archiveCover,
-    archivePhoto: char.archivePhoto,
     polaroidStyle: char.polaroidStyle,
     polaroidSize: char.polaroidSize,
     tags: char.tags || [],
