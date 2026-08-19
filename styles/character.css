@@ -108,6 +108,7 @@
   position: absolute;
   width: 130px;
   /* 固定尺寸，适合散落布局 */
+  transform-style: flat;
 }
 
 /* 设置不同的拍立得长宽比例 */
