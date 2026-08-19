@@ -1647,13 +1647,14 @@
 }
 
 .char-avatar-crop-editor {
+  --char-image-control-blue: #1a73e8;
   position: absolute;
   z-index: 30;
   top: 116px;
   left: 12px;
   right: 12px;
   display: grid;
-  grid-template-columns: minmax(120px, 180px) minmax(0, 1fr);
+  grid-template-columns: minmax(120px, 160px) minmax(0, 1fr);
   gap: 12px;
   padding: 12px;
   border: 1px solid var(--c-panel-border);
@@ -1704,9 +1705,9 @@
 
 .char-avatar-crop-controls label {
   display: grid;
-  grid-template-columns: 36px minmax(0, 1fr);
+  grid-template-columns: 26px minmax(0, 1fr);
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   color: var(--c-text);
   font-size: calc(10px * var(--app-text-scale, 1));
 }
@@ -1714,7 +1715,7 @@
 .char-avatar-crop-controls input[type="range"] {
   width: 100%;
   min-width: 0;
-  accent-color: #0b7fdc;
+  accent-color: var(--char-image-control-blue);
 }
 
 .char-avatar-crop-actions {
@@ -1729,10 +1730,10 @@
   height: 42px;
   min-height: 42px;
   padding: 6px 10px;
-  border: 2px solid #0b7fdc;
-  border-radius: 7px;
+  border: 2px solid var(--char-image-control-blue);
+  border-radius: 999px;
   background: #ffffff;
-  color: #0b7fdc;
+  color: var(--char-image-control-blue);
   font-family: inherit;
   font-size: calc(12px * var(--app-text-scale, 1));
   font-weight: 500;
@@ -1741,8 +1742,8 @@
 }
 
 .char-avatar-crop-actions button:first-child {
-  border-color: #0b7fdc;
-  background: #0b7fdc;
+  border-color: var(--char-image-control-blue);
+  background: var(--char-image-control-blue);
   color: #ffffff;
 }
 
@@ -1792,6 +1793,7 @@
 }
 
 .char-image-editor {
+  --char-image-control-blue: #1a73e8;
   padding: 10px 0;
   border-top: 1px dashed var(--c-panel-border);
 }
@@ -1901,6 +1903,7 @@
 .char-image-editor-controls input[type="range"] {
   width: 100%;
   min-width: 0;
+  accent-color: var(--char-image-control-blue);
 }
 
 .char-polaroid-options {

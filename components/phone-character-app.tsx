@@ -2713,8 +2713,22 @@ function AvatarCropEditor({
     onError("");
     try {
       const image = await loadCropImage(source);
-      const outputWidth = 450;
-      const outputHeight = 600;
+      const cropAspectRatio = 3 / 4;
+      const availableCropWidth = Math.min(
+        image.naturalWidth,
+        image.naturalHeight * cropAspectRatio,
+      ) / scale;
+      const availableCropHeight = availableCropWidth / cropAspectRatio;
+      const outputSizes = [
+        { width: 900, height: 1200 },
+        { width: 675, height: 900 },
+        { width: 450, height: 600 },
+      ];
+      const outputSize = outputSizes.find(size =>
+        availableCropWidth >= size.width && availableCropHeight >= size.height
+      ) ?? outputSizes[outputSizes.length - 1];
+      const outputWidth = outputSize.width;
+      const outputHeight = outputSize.height;
       const coverScale = Math.max(outputWidth / image.naturalWidth, outputHeight / image.naturalHeight);
       const drawWidth = image.naturalWidth * coverScale * scale;
       const drawHeight = image.naturalHeight * coverScale * scale;
@@ -2769,7 +2783,7 @@ function AvatarCropEditor({
         <label>Y <input type="range" min="0" max="100" step="1" value={positionY} onChange={event => setPositionY(Number(event.target.value))} /></label>
         <label>缩放 <input type="range" min="1" max="3" step="0.05" value={scale} onChange={event => setScale(Number(event.target.value))} /></label>
         <div className="char-avatar-crop-actions">
-          <button type="button" onClick={confirmCrop} disabled={busy}>{busy ? "处理中…" : "确认裁剪"}</button>
+          <button type="button" onClick={confirmCrop} disabled={busy}>{busy ? "处理中…" : "确认"}</button>
           <button type="button" onClick={onCancel} disabled={busy}>取消</button>
         </div>
       </div>
