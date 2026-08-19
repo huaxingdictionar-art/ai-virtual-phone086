@@ -1594,17 +1594,14 @@ function CharListView({
       {/* 转移世界 Modal */}
       {activeMoveChar && (
         <div className="modal-overlay" data-ui="modal" onPointerDown={() => setActiveMoveChar(null)}>
-          <div className="modal-dialog" data-ui="modal-dialog" onPointerDown={(e) => e.stopPropagation()} style={{ padding: 0, overflow: 'hidden' }}>
-            <div className="modal-header" data-ui="modal-header" style={{ padding: '20px 20px 10px' }}>
-              <h3 className="modal-title" style={{ margin: 0, fontSize: '16px' }}>档案卡片设置</h3>
-            </div>
-            <div style={{ padding: '4px 20px', fontSize: 12, color: '#777' }}>转移到其他卷宗</div>
-            <div role="listbox" style={{ maxHeight: '40dvh', padding: '10px 16px', overflowY: 'auto' }}>
+          <div className="char-move-world-dialog" role="dialog" aria-modal="true" aria-label="转移到其他卷宗" onPointerDown={(e) => e.stopPropagation()}>
+            <h3 className="char-move-world-title">转移到其他卷宗</h3>
+            <div className="char-move-world-list" role="listbox">
               {worldGroups.filter(g => g.id !== currentWorldId).map(group => (
                 <button
                   key={group.id}
                   type="button"
-                  style={{ width: '100%', padding: '12px 16px', textAlign: 'left', borderRadius: '8px', background: 'rgba(0,0,0,0.03)', marginBottom: '8px', border: '1px solid rgba(0,0,0,0.05)', fontWeight: '500', fontSize: '14px', color: '#333' }}
+                  className="char-move-world-option"
                   onClick={() => {
                     moveCharacterToWorld(activeMoveChar.id, group.id);
                     setActiveMoveChar(null);
@@ -1615,11 +1612,11 @@ function CharListView({
                 </button>
               ))}
               {worldGroups.filter(g => g.id !== currentWorldId).length === 0 && (
-                <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>没有其他卷宗可供转移</div>
+                <div className="char-move-world-empty">没有其他卷宗可供转移</div>
               )}
             </div>
-            <div className="modal-footer" data-ui="modal-footer" style={{ padding: '10px 20px 20px' }}>
-              <button className="ui-btn ui-btn-outline" style={{ width: '100%' }} onClick={() => setActiveMoveChar(null)}>取消</button>
+            <div className="char-move-world-footer">
+              <button type="button" className="char-move-world-cancel" onClick={() => setActiveMoveChar(null)}>取消</button>
             </div>
           </div>
         </div>
