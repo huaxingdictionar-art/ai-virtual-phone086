@@ -71,6 +71,19 @@ type CanvasRelationLine = { key: string; aId: string; bId: string; labels: strin
 // 每个世界一张画布：平移缩放记忆按世界分 key（默认世界沿用旧 key，存量零迁移）
 const PAN_STORAGE_BASE_KEY = 'ai_phone_canvas_pan_v2';
 const WORLD_TAB_KEY = 'ai_phone_character_app_world_v1';
+const ARCHIVE_ANIMATION_KEY = 'ai_phone_character_archive_animation_v1';
+
+type ArchiveAnimationMode = "original" | "clear" | "random";
+type ResolvedArchiveAnimation = Exclude<ArchiveAnimationMode, "random">;
+
+function loadArchiveAnimationMode(): ArchiveAnimationMode {
+  if (typeof window === "undefined") return "original";
+  try {
+    const saved = kvGet(ARCHIVE_ANIMATION_KEY);
+    if (saved === "original" || saved === "clear" || saved === "random") return saved;
+  } catch { }
+  return "original";
+}
 function worldPanKey(worldId: string): string {
   return worldId === DEFAULT_CHARACTER_WORLD_ID ? PAN_STORAGE_BASE_KEY : `${PAN_STORAGE_BASE_KEY}_${worldId}`;
 }
@@ -92,6 +105,7 @@ type TransitionState = {
   sourceRect: DOMRect;
   polaroidStyle: number;
   phase: "start" | "fly" | "flip";
+  animation: ResolvedArchiveAnimation;
   onComplete?: () => void;
   reverse?: boolean;
 };
@@ -162,6 +176,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
   const [characters, setCharacters] = useState<Character[]>(() => loadCharacters());
   const [bgItems, setBgItems] = useState<CanvasBgItem[]>(() => loadBackgroundItems());
   const [transition, setTransition] = useState<TransitionState | null>(null);
+  const [archiveAnimationMode, setArchiveAnimationMode] = useState<ArchiveAnimationMode>(() => loadArchiveAnimationMode());
   const [pendingPlacementChar, setPendingPlacementChar] = useState<Character | null>(null);
   const [pendingPolaroidStyle, setPendingPolaroidStyle] = useState<number>(0);
 
@@ -198,27 +213,42 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
   // Handle clicking a polaroid
   function handleSelectChar(char: Character, e: React.MouseEvent<HTMLDivElement>, polaroidStyle: number) {
     const rect = e.currentTarget.getBoundingClientRect();
+    const animation: ResolvedArchiveAnimation = archiveAnimationMode === "random"
+      ? (Math.random() < 0.5 ? "original" : "clear")
+      : archiveAnimationMode;
 
     setTransition({
       char,
       sourceRect: rect,
       polaroidStyle,
       phase: "start",
+      animation,
     });
 
-    // Animate
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         setTransition((p) => p ? { ...p, phase: "fly" } : null);
+        if (animation === "clear") {
+          setTimeout(() => {
+            setView({ type: "detail", id: char.id });
+            setTransition(null);
+          }, 450);
+          return;
+        }
         setTimeout(() => {
           setTransition((p) => p ? { ...p, phase: "flip" } : null);
           setTimeout(() => {
             setView({ type: "detail", id: char.id });
             setTransition(null);
-          }, 400); // Wait for flip 0.4s
-        }, 400); // Wait for fly 0.4s
+          }, 400);
+        }, 400);
       });
     });
+  }
+
+  function updateArchiveAnimationMode(mode: ArchiveAnimationMode) {
+    setArchiveAnimationMode(mode);
+    try { kvSet(ARCHIVE_ANIMATION_KEY, mode); } catch { }
   }
 
   // Handle back from detail
@@ -240,7 +270,8 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
             onUpdateBgItems={updateBgItems}
             onClose={onClose}
             onSelect={handleSelectChar}
-            onEditArchive={(char: Character) => setView({ type: "detail", id: char.id, isEditing: true })}
+            archiveAnimationMode={archiveAnimationMode}
+            onArchiveAnimationModeChange={updateArchiveAnimationMode}
             onCreate={(style: number) => { setPendingPolaroidStyle(style); setView({ type: "detail", id: null, isEditing: true }); }}
             pendingPlacementChar={pendingPlacementChar}
             onStartCharPlacement={(char: Character) => setPendingPlacementChar(char)}
@@ -337,9 +368,11 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
         )}
       </div>
 
-      {/* Fly & Flip Transition Overlay */}
+      {/* Character archive transition overlay */}
       {transition && (
-        <FlipTransitionOverlay transit={transition} />
+        transition.animation === "clear"
+          ? <ClearTransitionOverlay transit={transition} />
+          : <FlipTransitionOverlay transit={transition} />
       )}
     </>
   );
@@ -455,6 +488,51 @@ function FlipTransitionOverlay({ transit }: { transit: TransitionState }) {
 }
 
 
+function ClearTransitionOverlay({ transit }: { transit: TransitionState }) {
+  const { char, sourceRect, polaroidStyle, phase } = transit;
+  const [shellRect, setShellRect] = useState<DOMRect | null>(null);
+
+  useEffect(() => {
+    const shell = document.querySelector(".char-app");
+    if (shell) setShellRect(shell.getBoundingClientRect());
+  }, []);
+
+  if (!shellRect) return null;
+
+  const isStart = phase === "start";
+  const normalizedStyle = ((polaroidStyle % 5) + 5) % 5;
+  const imageAspectRatio = [1, 3 / 4, 4 / 3, 16 / 9, 9 / 16][normalizedStyle];
+  const targetWidth = Math.min(shellRect.width * 0.72, 300);
+  const targetHeight = (targetWidth - 12) / imageAspectRatio + 38;
+  const cover = getCharacterArchiveCover(char);
+
+  return (
+    <div
+      className="char-clear-transition fixed"
+      style={{
+        top: isStart ? sourceRect.top : shellRect.top + (shellRect.height - targetHeight) / 2,
+        left: isStart ? sourceRect.left : shellRect.left + (shellRect.width - targetWidth) / 2,
+        width: isStart ? sourceRect.width : targetWidth,
+        height: isStart ? sourceRect.height : targetHeight,
+        opacity: isStart ? 1 : 0,
+        transform: isStart ? "scale(1)" : "scale(1.04)",
+        transition: isStart ? "none" : "top 0.45s cubic-bezier(0.25, 1, 0.5, 1), left 0.45s cubic-bezier(0.25, 1, 0.5, 1), width 0.45s cubic-bezier(0.25, 1, 0.5, 1), height 0.45s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.45s ease, transform 0.45s cubic-bezier(0.25, 1, 0.5, 1)",
+      }}
+    >
+      <div className={`char-polaroid ${getPolaroidRatioClass(polaroidStyle)}`}>
+        <div className="char-polaroid-img-wrapper">
+          {cover.image ? (
+            <img src={cover.image} className="char-polaroid-img" style={getCharacterImageStyle(cover)} alt="" />
+          ) : (
+            <CharAvatarFallback name={char.name} size="100%" />
+          )}
+        </div>
+        <div className="char-polaroid-text">{char.name || "UNNAMED"}</div>
+      </div>
+    </div>
+  );
+}
+
 // ── 列表视图（照片墙） ─────────────────────────────────────────
 
 function CharListView({
@@ -467,7 +545,8 @@ function CharListView({
   onUpdateBgItems,
   onClose,
   onSelect,
-  onEditArchive,
+  archiveAnimationMode,
+  onArchiveAnimationModeChange,
   onCreate,
   pendingPlacementChar,
   onStartCharPlacement,
@@ -484,7 +563,8 @@ function CharListView({
   onUpdateBgItems: (next: CanvasBgItem[]) => void;
   onClose: () => void;
   onSelect: (char: Character, e: React.MouseEvent<HTMLDivElement>, polaroidStyle: number) => void;
-  onEditArchive: (char: Character) => void;
+  archiveAnimationMode: ArchiveAnimationMode;
+  onArchiveAnimationModeChange: (mode: ArchiveAnimationMode) => void;
   onCreate: (polaroidStyle: number) => void;
   pendingPlacementChar: Character | null;
   onStartCharPlacement: (char: Character) => void;
@@ -1062,14 +1142,28 @@ function CharListView({
         rightAction={
           <div className="flex items-center gap-2">
             {isEditing && (
-              <button
-                className="flex items-center justify-center w-[34px] h-[34px] rounded-full bg-black/5 text-[#666] hover:bg-black/10 transition-colors"
-                onClick={() => resetViewToFit()}
-                aria-label="恢复视角"
-                title="恢复视角"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path><circle cx="12" cy="12" r="2.5"></circle></svg>
-              </button>
+              <div className="char-edit-tools-stack">
+                <div className="char-animation-mode-control" aria-label="档案打开动画">
+                  <span>动画</span>
+                  <select
+                    value={archiveAnimationMode}
+                    onChange={(event) => onArchiveAnimationModeChange(event.target.value as ArchiveAnimationMode)}
+                    title="档案打开动画"
+                  >
+                    <option value="original">原版立体</option>
+                    <option value="clear">清晰飞入</option>
+                    <option value="random">随机</option>
+                  </select>
+                </div>
+                <button
+                  className="char-reset-view-btn"
+                  onClick={() => resetViewToFit()}
+                  aria-label="恢复视角"
+                  title="恢复视角"
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path><circle cx="12" cy="12" r="2.5"></circle></svg>
+                </button>
+              </div>
             )}
             <button
               className={`flex items-center justify-center w-[34px] h-[34px] rounded-full transition-colors ${
@@ -1603,21 +1697,6 @@ function CharListView({
           <div className="modal-dialog" data-ui="modal-dialog" onPointerDown={(e) => e.stopPropagation()} style={{ padding: 0, overflow: 'hidden' }}>
             <div className="modal-header" data-ui="modal-header" style={{ padding: '20px 20px 10px' }}>
               <h3 className="modal-title" style={{ margin: 0, fontSize: '16px' }}>档案卡片设置</h3>
-            </div>
-            <div style={{ padding: '0 16px 10px' }}>
-              <button
-                type="button"
-                className="ui-btn ui-btn-primary"
-                style={{ width: '100%' }}
-                onClick={() => {
-                  const target = activeMoveChar;
-                  if (!target) return;
-                  setActiveMoveChar(null);
-                  onEditArchive(target);
-                }}
-              >
-                编辑封面、档案照片、比例与尺寸
-              </button>
             </div>
             <div style={{ padding: '4px 20px', fontSize: 12, color: '#777' }}>转移到其他卷宗</div>
             <div role="listbox" style={{ maxHeight: '40dvh', padding: '10px 16px', overflowY: 'auto' }}>
@@ -2737,15 +2816,16 @@ function AvatarCropEditor({
     onError("");
     try {
       const image = await loadCropImage(source);
-      const outputSize = 400;
-      const coverScale = Math.max(outputSize / image.naturalWidth, outputSize / image.naturalHeight);
+      const outputWidth = 450;
+      const outputHeight = 600;
+      const coverScale = Math.max(outputWidth / image.naturalWidth, outputHeight / image.naturalHeight);
       const drawWidth = image.naturalWidth * coverScale * scale;
       const drawHeight = image.naturalHeight * coverScale * scale;
-      const drawX = (outputSize - drawWidth) * (positionX / 100);
-      const drawY = (outputSize - drawHeight) * (positionY / 100);
+      const drawX = (outputWidth - drawWidth) * (positionX / 100);
+      const drawY = (outputHeight - drawHeight) * (positionY / 100);
       const canvas = document.createElement("canvas");
-      canvas.width = outputSize;
-      canvas.height = outputSize;
+      canvas.width = outputWidth;
+      canvas.height = outputHeight;
       const context = canvas.getContext("2d");
       if (!context) throw new Error("当前浏览器无法创建头像画布");
       context.imageSmoothingEnabled = true;
@@ -2785,15 +2865,15 @@ function AvatarCropEditor({
         onPointerCancel={stopDragging}
       >
         <img src={source} alt="头像裁剪预览" draggable={false} style={previewStyle} />
-        <span>拖动取景 · 1:1</span>
+        <span>拖动取景 · 3:4</span>
       </div>
       <div className="char-avatar-crop-controls">
         <label>X <input type="range" min="0" max="100" step="1" value={positionX} onChange={event => setPositionX(Number(event.target.value))} /></label>
         <label>Y <input type="range" min="0" max="100" step="1" value={positionY} onChange={event => setPositionY(Number(event.target.value))} /></label>
         <label>缩放 <input type="range" min="1" max="3" step="0.05" value={scale} onChange={event => setScale(Number(event.target.value))} /></label>
         <div className="char-avatar-crop-actions">
-          <button type="button" onClick={onCancel} disabled={busy}>取消</button>
           <button type="button" onClick={confirmCrop} disabled={busy}>{busy ? "处理中…" : "确认裁剪"}</button>
+          <button type="button" onClick={onCancel} disabled={busy}>取消</button>
         </div>
       </div>
     </div>

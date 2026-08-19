@@ -392,6 +392,25 @@
   perspective: 1200px;
 }
 
+.char-clear-transition {
+  position: fixed;
+  z-index: 100;
+  pointer-events: none;
+  will-change: top, left, width, height, opacity, transform;
+}
+
+.char-clear-transition .char-polaroid {
+  width: 100%;
+  height: 100%;
+  cursor: default;
+  box-sizing: border-box;
+}
+
+.char-clear-transition .char-polaroid-img-wrapper {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
 .char-flipper-inner {
   width: 100%;
   height: 100%;
@@ -1558,6 +1577,52 @@
 .wt-line-label-editable { cursor: pointer; }
 
 /* ═══ DIY 角色档案图片 ═══ */
+.char-edit-tools-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
+}
+
+.char-animation-mode-control {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 30px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.05);
+  color: #666;
+  font-size: calc(9px * var(--app-text-scale, 1));
+}
+
+.char-animation-mode-control select {
+  max-width: 82px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.char-reset-view-btn {
+  display: flex;
+  width: 34px;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.05);
+  color: #666;
+  cursor: pointer;
+}
+
+.char-reset-view-btn:hover {
+  background: rgba(0, 0, 0, 0.1);
+}
+
 .char-avatar-crop-editor {
   position: absolute;
   z-index: 30;
@@ -1576,7 +1641,7 @@
 .char-avatar-crop-preview {
   position: relative;
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 3 / 4;
   overflow: hidden;
   border: 1px solid var(--c-input-border);
   background: var(--c-input);
@@ -1630,21 +1695,22 @@
 
 .char-avatar-crop-actions {
   display: flex;
-  justify-content: flex-end;
+  flex-direction: column;
   gap: 6px;
 }
 
 .char-avatar-crop-actions button {
-  min-height: 30px;
-  padding: 5px 10px;
+  width: 100%;
+  min-height: 32px;
+  padding: 6px 10px;
   border: 1px solid var(--c-input-border);
-  border-radius: 3px;
+  border-radius: 6px;
   background: var(--c-panel);
   color: var(--c-text-title);
   cursor: pointer;
 }
 
-.char-avatar-crop-actions button:last-child {
+.char-avatar-crop-actions button:first-child {
   background: var(--c-text-title);
   color: var(--c-page-body-bg);
 }
@@ -1826,14 +1892,6 @@
     gap: 5px;
   }
 
-  .char-avatar-crop-actions {
-    flex-wrap: wrap;
-  }
-
-  .char-avatar-crop-actions button {
-    flex: 1;
-    min-width: 64px;
-  }
 
   .char-image-editor-layout {
     grid-template-columns: 88px minmax(0, 1fr);
