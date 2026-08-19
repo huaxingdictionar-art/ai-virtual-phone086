@@ -71,19 +71,6 @@ type CanvasRelationLine = { key: string; aId: string; bId: string; labels: strin
 // 每个世界一张画布：平移缩放记忆按世界分 key（默认世界沿用旧 key，存量零迁移）
 const PAN_STORAGE_BASE_KEY = 'ai_phone_canvas_pan_v2';
 const WORLD_TAB_KEY = 'ai_phone_character_app_world_v1';
-const ARCHIVE_ANIMATION_KEY = 'ai_phone_character_archive_animation_v1';
-
-type ArchiveAnimationMode = "original" | "clear" | "random";
-type ResolvedArchiveAnimation = Exclude<ArchiveAnimationMode, "random">;
-
-function loadArchiveAnimationMode(): ArchiveAnimationMode {
-  if (typeof window === "undefined") return "original";
-  try {
-    const saved = kvGet(ARCHIVE_ANIMATION_KEY);
-    if (saved === "original" || saved === "clear" || saved === "random") return saved;
-  } catch { }
-  return "original";
-}
 function worldPanKey(worldId: string): string {
   return worldId === DEFAULT_CHARACTER_WORLD_ID ? PAN_STORAGE_BASE_KEY : `${PAN_STORAGE_BASE_KEY}_${worldId}`;
 }
@@ -105,7 +92,6 @@ type TransitionState = {
   sourceRect: DOMRect;
   polaroidStyle: number;
   phase: "start" | "fly" | "flip";
-  animation: ResolvedArchiveAnimation;
   onComplete?: () => void;
   reverse?: boolean;
 };
@@ -176,7 +162,6 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
   const [characters, setCharacters] = useState<Character[]>(() => loadCharacters());
   const [bgItems, setBgItems] = useState<CanvasBgItem[]>(() => loadBackgroundItems());
   const [transition, setTransition] = useState<TransitionState | null>(null);
-  const [archiveAnimationMode, setArchiveAnimationMode] = useState<ArchiveAnimationMode>(() => loadArchiveAnimationMode());
   const [pendingPlacementChar, setPendingPlacementChar] = useState<Character | null>(null);
   const [pendingPolaroidStyle, setPendingPolaroidStyle] = useState<number>(0);
 
@@ -213,28 +198,17 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
   // Handle clicking a polaroid
   function handleSelectChar(char: Character, e: React.MouseEvent<HTMLDivElement>, polaroidStyle: number) {
     const rect = e.currentTarget.getBoundingClientRect();
-    const animation: ResolvedArchiveAnimation = archiveAnimationMode === "random"
-      ? (Math.random() < 0.5 ? "original" : "clear")
-      : archiveAnimationMode;
 
     setTransition({
       char,
       sourceRect: rect,
       polaroidStyle,
       phase: "start",
-      animation,
     });
 
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
         setTransition((p) => p ? { ...p, phase: "fly" } : null);
-        if (animation === "clear") {
-          setTimeout(() => {
-            setView({ type: "detail", id: char.id });
-            setTransition(null);
-          }, 450);
-          return;
-        }
         setTimeout(() => {
           setTransition((p) => p ? { ...p, phase: "flip" } : null);
           setTimeout(() => {
@@ -244,11 +218,6 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
         }, 400);
       });
     });
-  }
-
-  function updateArchiveAnimationMode(mode: ArchiveAnimationMode) {
-    setArchiveAnimationMode(mode);
-    try { kvSet(ARCHIVE_ANIMATION_KEY, mode); } catch { }
   }
 
   // Handle back from detail
@@ -270,8 +239,6 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
             onUpdateBgItems={updateBgItems}
             onClose={onClose}
             onSelect={handleSelectChar}
-            archiveAnimationMode={archiveAnimationMode}
-            onArchiveAnimationModeChange={updateArchiveAnimationMode}
             onCreate={(style: number) => { setPendingPolaroidStyle(style); setView({ type: "detail", id: null, isEditing: true }); }}
             pendingPlacementChar={pendingPlacementChar}
             onStartCharPlacement={(char: Character) => setPendingPlacementChar(char)}
@@ -369,11 +336,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
       </div>
 
       {/* Character archive transition overlay */}
-      {transition && (
-        transition.animation === "clear"
-          ? <ClearTransitionOverlay transit={transition} />
-          : <FlipTransitionOverlay transit={transition} />
-      )}
+      {transition && <FlipTransitionOverlay transit={transition} />}
     </>
   );
 }
@@ -488,51 +451,6 @@ function FlipTransitionOverlay({ transit }: { transit: TransitionState }) {
 }
 
 
-function ClearTransitionOverlay({ transit }: { transit: TransitionState }) {
-  const { char, sourceRect, polaroidStyle, phase } = transit;
-  const [shellRect, setShellRect] = useState<DOMRect | null>(null);
-
-  useEffect(() => {
-    const shell = document.querySelector(".char-app");
-    if (shell) setShellRect(shell.getBoundingClientRect());
-  }, []);
-
-  if (!shellRect) return null;
-
-  const isStart = phase === "start";
-  const normalizedStyle = ((polaroidStyle % 5) + 5) % 5;
-  const imageAspectRatio = [1, 3 / 4, 4 / 3, 16 / 9, 9 / 16][normalizedStyle];
-  const targetWidth = Math.min(shellRect.width * 0.72, 300);
-  const targetHeight = (targetWidth - 12) / imageAspectRatio + 38;
-  const cover = getCharacterArchiveCover(char);
-
-  return (
-    <div
-      className="char-clear-transition fixed"
-      style={{
-        top: isStart ? sourceRect.top : shellRect.top + (shellRect.height - targetHeight) / 2,
-        left: isStart ? sourceRect.left : shellRect.left + (shellRect.width - targetWidth) / 2,
-        width: isStart ? sourceRect.width : targetWidth,
-        height: isStart ? sourceRect.height : targetHeight,
-        opacity: isStart ? 1 : 0,
-        transform: isStart ? "scale(1)" : "scale(1.04)",
-        transition: isStart ? "none" : "top 0.45s cubic-bezier(0.25, 1, 0.5, 1), left 0.45s cubic-bezier(0.25, 1, 0.5, 1), width 0.45s cubic-bezier(0.25, 1, 0.5, 1), height 0.45s cubic-bezier(0.25, 1, 0.5, 1), opacity 0.45s ease, transform 0.45s cubic-bezier(0.25, 1, 0.5, 1)",
-      }}
-    >
-      <div className={`char-polaroid ${getPolaroidRatioClass(polaroidStyle)}`}>
-        <div className="char-polaroid-img-wrapper">
-          {cover.image ? (
-            <img src={cover.image} className="char-polaroid-img" style={getCharacterImageStyle(cover)} alt="" />
-          ) : (
-            <CharAvatarFallback name={char.name} size="100%" />
-          )}
-        </div>
-        <div className="char-polaroid-text">{char.name || "UNNAMED"}</div>
-      </div>
-    </div>
-  );
-}
-
 // ── 列表视图（照片墙） ─────────────────────────────────────────
 
 function CharListView({
@@ -545,8 +463,6 @@ function CharListView({
   onUpdateBgItems,
   onClose,
   onSelect,
-  archiveAnimationMode,
-  onArchiveAnimationModeChange,
   onCreate,
   pendingPlacementChar,
   onStartCharPlacement,
@@ -563,8 +479,6 @@ function CharListView({
   onUpdateBgItems: (next: CanvasBgItem[]) => void;
   onClose: () => void;
   onSelect: (char: Character, e: React.MouseEvent<HTMLDivElement>, polaroidStyle: number) => void;
-  archiveAnimationMode: ArchiveAnimationMode;
-  onArchiveAnimationModeChange: (mode: ArchiveAnimationMode) => void;
   onCreate: (polaroidStyle: number) => void;
   pendingPlacementChar: Character | null;
   onStartCharPlacement: (char: Character) => void;
@@ -1142,28 +1056,14 @@ function CharListView({
         rightAction={
           <div className="flex items-center gap-2">
             {isEditing && (
-              <div className="char-edit-tools-stack">
-                <div className="char-animation-mode-control" aria-label="档案打开动画">
-                  <span>动画</span>
-                  <select
-                    value={archiveAnimationMode}
-                    onChange={(event) => onArchiveAnimationModeChange(event.target.value as ArchiveAnimationMode)}
-                    title="档案打开动画"
-                  >
-                    <option value="original">原版立体</option>
-                    <option value="clear">清晰飞入</option>
-                    <option value="random">随机</option>
-                  </select>
-                </div>
-                <button
-                  className="char-reset-view-btn"
-                  onClick={() => resetViewToFit()}
-                  aria-label="恢复视角"
-                  title="恢复视角"
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path><circle cx="12" cy="12" r="2.5"></circle></svg>
-                </button>
-              </div>
+              <button
+                className="char-reset-view-btn"
+                onClick={() => resetViewToFit()}
+                aria-label="恢复视角"
+                title="恢复视角"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path><circle cx="12" cy="12" r="2.5"></circle></svg>
+              </button>
             )}
             <button
               className={`flex items-center justify-center w-[34px] h-[34px] rounded-full transition-colors ${
