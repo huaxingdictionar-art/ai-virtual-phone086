@@ -1929,7 +1929,7 @@ function CharArchiveView({
 
   async function handleAvatarFile(file: File) {
     try {
-      const url = await fileToDataUrl(file);
+      const url = await fileToDataUrl(file, { maxSize: 2560, quality: 0.92 });
       setAvatarCropError("");
       setAvatarCropSource(url);
     } catch (error) {
@@ -2914,7 +2914,7 @@ function CharacterImageEditor({
             className="hidden"
             onChange={async event => {
               const file = event.target.files?.[0];
-              if (file) patch({ image: await fileToDataUrl(file) });
+              if (file) patch({ image: await fileToDataUrl(file, { maxSize: 2560, quality: 0.92 }) });
               event.target.value = "";
             }}
           />
@@ -3004,22 +3004,25 @@ function AutoResizingTextarea({
 
 // ── 工具函数 ─────────────────────────────────────────
 
-function fileToDataUrl(file: File): Promise<string> {
+function fileToDataUrl(
+  file: File,
+  options: { maxSize?: number; quality?: number } = {},
+): Promise<string> {
+  const { maxSize = 400, quality = 0.8 } = options;
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const MAX_SIZE = 400;
         let w = img.width;
         let h = img.height;
-        if (w > MAX_SIZE || h > MAX_SIZE) {
+        if (w > maxSize || h > maxSize) {
           if (w > h) {
-            h = Math.round(h * MAX_SIZE / w);
-            w = MAX_SIZE;
+            h = Math.round(h * maxSize / w);
+            w = maxSize;
           } else {
-            w = Math.round(w * MAX_SIZE / h);
-            h = MAX_SIZE;
+            w = Math.round(w * maxSize / h);
+            h = maxSize;
           }
         }
         const canvas = document.createElement("canvas");
@@ -3027,10 +3030,11 @@ function fileToDataUrl(file: File): Promise<string> {
         canvas.height = h;
         const ctx = canvas.getContext("2d");
         if (!ctx) return resolve(reader.result as string);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
         ctx.drawImage(img, 0, 0, w, h);
 
-        // Use webp or jpeg to heavily compress large png files before saving to localstorage
-        resolve(canvas.toDataURL("image/webp", 0.8));
+        resolve(canvas.toDataURL("image/webp", quality));
       };
       img.onerror = () => resolve(reader.result as string); // fallback to raw
       img.src = reader.result as string;
