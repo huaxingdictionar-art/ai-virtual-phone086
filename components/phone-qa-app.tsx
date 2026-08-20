@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExterna
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import { AppWindow, ArrowUp, BrushCleaning, Check, ChevronLeft, ChevronRight, Copy, Drama, Gamepad2, Github, Loader2, Menu, Play, Plus, Square, Trash2, Wrench, X, MoreVertical, Pin, Pencil } from "lucide-react";
+import { AppWindow, ArrowUp, BrushCleaning, Check, ChevronLeft, ChevronRight, Copy, Drama, Gamepad2, Github, Loader2, Menu, Play, Plus, Square, Trash2, Wrench, X, MoreVertical, Pin, PinOff, Pencil } from "lucide-react";
 import { QaFileCard } from "@/components/qa-file-card";
 import { parseQaFileMarker } from "@/lib/qa-computer-tools";
 import { mdiHammerWrench } from "@mdi/js";
@@ -29,11 +29,13 @@ import {
   QA_DEFAULT_CONTEXT_BUDGET_CHARS,
   setQaContextBudgetChars,
   retryQaMessage,
+  renameQaSession,
   revertQaAppliedCommit,
   sendQaMessage,
   stopQaGeneration,
   subscribeQaChat,
   switchQaSession,
+  toggleQaSessionPin,
   type QaMsg,
   type QaSession,
   type QaToolStatus,
@@ -391,8 +393,20 @@ function QaSessionDrawer({
   onOpenSettings: () => void;
 }) {
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState("");
+  const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
+
+  const closeRenameDialog = () => {
+    setRenameTargetId(null);
+    setRenameTitle("");
+  };
+
+  const confirmRename = () => {
+    const title = renameTitle.trim();
+    if (!renameTargetId || !title) return;
+    renameQaSession(renameTargetId, title);
+    closeRenameDialog();
+  };
 
   const sortedSessions = useMemo(() => {
     return [...sessions].sort((a, b) => {
@@ -403,17 +417,14 @@ function QaSessionDrawer({
   }, [sessions]);
 
   return (
-    <aside className="qa-drawer">
+    <aside className="qa-drawer" style={{ position: "relative" }}>
       <div className="qa-drawer-head">
         <span className="qa-drawer-title">对话记录</span>
       </div>
-      <div className="qa-drawer-list hide-scrollbar"
+      <div
+        className="qa-drawer-list hide-scrollbar"
         onClick={() => {
           if (menuOpenId) setMenuOpenId(null);
-          if (editingId) {
-            if (editTitle.trim()) renameQaSession(editingId, editTitle.trim());
-            setEditingId(null);
-          }
         }}
       >
         {sortedSessions.length === 0 && <div className="qa-drawer-empty">还没有对话</div>}
@@ -421,38 +432,14 @@ function QaSessionDrawer({
           <div
             key={session.id}
             className={`qa-drawer-item ${session.id === activeId ? "is-active" : ""}`}
-            onClick={(e) => {
-              if (editingId === session.id) {
-                e.stopPropagation();
-                return;
-              }
-              onSelect(session.id);
-            }}
+            onClick={() => onSelect(session.id)}
             style={{ position: "relative", overflow: "visible" }}
           >
             <div className="qa-drawer-item-main">
-              {editingId === session.id ? (
-                <input
-                  autoFocus
-                  value={editTitle}
-                  onChange={(e) => setEditTitle(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      if (editTitle.trim()) renameQaSession(editingId, editTitle.trim());
-                      setEditingId(null);
-                    } else if (e.key === "Escape") {
-                      setEditingId(null);
-                    }
-                  }}
-                  className="qa-drawer-item-title-input"
-                  style={{ width: "100%", background: "transparent", border: "none", outline: "none", color: "inherit" }}
-                />
-              ) : (
-                <span className="qa-drawer-item-title">
-                  {session.isPinned && <span className="mr-1">📌</span>}
-                  {session.title}
-                </span>
-              )}
+              <span className="qa-drawer-item-title">
+                {session.isPinned && <Pin size={12} aria-hidden="true" />}
+                {session.title}
+              </span>
               <span className="qa-drawer-item-time">{formatRelativeTime(session.updatedAt)}</span>
             </div>
             <button
@@ -462,10 +449,6 @@ function QaSessionDrawer({
               onClick={(e) => {
                 e.stopPropagation();
                 setMenuOpenId(menuOpenId === session.id ? null : session.id);
-                if (editingId) {
-                  if (editTitle.trim()) renameQaSession(editingId, editTitle.trim());
-                  setEditingId(null);
-                }
               }}
             >
               <MoreVertical size={14} />
@@ -476,7 +459,7 @@ function QaSessionDrawer({
                 className="qa-drawer-item-menu"
                 style={{
                   position: "absolute", right: "10px", top: "35px", zIndex: 100, 
-                  background: "var(--c-surface)", borderRadius: "8px", 
+                  background: "#ffffff", borderRadius: "8px", opacity: 1,
                   boxShadow: "0 4px 12px rgba(0,0,0,0.15)", padding: "4px",
                   display: "flex", flexDirection: "column", minWidth: "100px"
                 }}
@@ -491,7 +474,8 @@ function QaSessionDrawer({
                     setMenuOpenId(null);
                   }}
                 >
-                  <Pin size={14} /> {session.isPinned ? "取消置顶" : "置顶"}
+                  {session.isPinned ? <PinOff size={14} /> : <Pin size={14} />}
+                  {session.isPinned ? "取消置顶" : "置顶"}
                 </button>
                 <button 
                   type="button" 
@@ -499,8 +483,8 @@ function QaSessionDrawer({
                   style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", textAlign: "left", borderRadius: "4px", fontSize: "13px" }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setEditTitle(session.title);
-                    setEditingId(session.id);
+                    setRenameTitle(session.title);
+                    setRenameTargetId(session.id);
                     setMenuOpenId(null);
                   }}
                 >
@@ -523,6 +507,89 @@ function QaSessionDrawer({
           </div>
         ))}
       </div>
+      {renameTargetId && (
+        <div
+          role="presentation"
+          onClick={closeRenameDialog}
+          style={{
+            position: "absolute",
+            inset: 0,
+            zIndex: 200,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "20px",
+            background: "rgba(0, 0, 0, 0.22)",
+          }}
+        >
+          <form
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="qa-rename-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              confirmRename();
+            }}
+            style={{
+              width: "100%",
+              maxWidth: "280px",
+              padding: "18px",
+              borderRadius: "8px",
+              background: "#ffffff",
+              boxShadow: "0 12px 32px rgba(0, 0, 0, 0.2)",
+            }}
+          >
+            <div id="qa-rename-dialog-title" style={{ marginBottom: "12px", fontSize: "16px", fontWeight: 600 }}>
+              重命名对话
+            </div>
+            <input
+              autoFocus
+              value={renameTitle}
+              maxLength={80}
+              aria-label="新对话名称"
+              onChange={(e) => setRenameTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") closeRenameDialog();
+              }}
+              style={{
+                width: "100%",
+                height: "40px",
+                padding: "0 10px",
+                border: "1px solid #d4d4d8",
+                borderRadius: "6px",
+                outline: "none",
+                background: "#ffffff",
+                color: "#18181b",
+                fontSize: "14px",
+              }}
+            />
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "16px" }}>
+              <button
+                type="button"
+                onClick={closeRenameDialog}
+                style={{ height: "36px", padding: "0 14px", borderRadius: "6px", color: "#52525b" }}
+              >
+                取消
+              </button>
+              <button
+                type="submit"
+                disabled={!renameTitle.trim()}
+                style={{
+                  height: "36px",
+                  padding: "0 14px",
+                  borderRadius: "6px",
+                  background: "#7452e8",
+                  color: "#ffffff",
+                  opacity: renameTitle.trim() ? 1 : 0.45,
+                }}
+              >
+                确认
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
       <div className="qa-drawer-foot">
         <button type="button" className="qa-drawer-new qa-drawer-settings" onClick={onOpenSettings}>
           <Wrench size={15} strokeWidth={2} />
