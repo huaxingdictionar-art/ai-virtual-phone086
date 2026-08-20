@@ -32,6 +32,7 @@ export type MascotSession = {
     createdAt: number;
     updatedAt: number;
     messages: MascotMsg[];
+    pinned?: boolean;
 };
 
 type PersistedMascotState = {
@@ -286,7 +287,10 @@ function publishMessages(nextMessages: MascotMsg[], options: { persist?: boolean
             .map((session) => session.id === active.id
                 ? { ...session, messages, updatedAt: now }
                 : session)
-            .sort((a, b) => b.updatedAt - a.updatedAt);
+            .sort((a, b) => {
+                if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+                return b.updatedAt - a.updatedAt;
+            });
     }
     if (options.persist !== false) persistState();
     emit();
@@ -346,6 +350,20 @@ export function renameMascotSession(sessionId: string, title: string): boolean {
     const nextTitle = title.replace(/\s+/g, " ").trim();
     if (!nextTitle || !hydrated || isThinking || !sessions.some((session) => session.id === sessionId)) return false;
     sessions = sessions.map((session) => session.id === sessionId ? { ...session, title: nextTitle } : session);
+    persistState();
+    emit();
+    return true;
+}
+
+export function toggleMascotSessionPin(sessionId: string): boolean {
+    if (!hydrated || isThinking) return false;
+    const index = sessions.findIndex((session) => session.id === sessionId);
+    if (index === -1) return false;
+    sessions[index] = { ...sessions[index], pinned: !sessions[index].pinned };
+    sessions.sort((a, b) => {
+        if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+        return b.updatedAt - a.updatedAt;
+    });
     persistState();
     emit();
     return true;

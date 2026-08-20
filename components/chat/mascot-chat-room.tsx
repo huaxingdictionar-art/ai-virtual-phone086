@@ -26,6 +26,7 @@ import {
     stopMascotGeneration,
     subscribeMascotChat,
     switchMascotSession,
+    toggleMascotSessionPin,
 } from "@/lib/mascot-chat-store";
 import type { MascotMsg } from "@/lib/mascot-engine";
 import { getMascotContext, subscribeMascotContext } from "@/lib/mascot-context";
@@ -145,6 +146,7 @@ function MascotInfoPanel({
     const [cssDraft, setCssDraft] = useState(settings.chatCustomCSS || "");
     const [showConfirmClearTools, setShowConfirmClearTools] = useState(false);
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+    const [sessionContextMenu, setSessionContextMenu] = useState<{ id: string; x: number; y: number } | null>(null);
     const chat = useSyncExternalStore(subscribeMascotChat, getMascotChatSnapshot, getMascotChatSnapshot);
     const hasToolHistory = hasMascotToolHistoryMessages(chat.messages);
     const hasCustomAvatar = !!settings.avatarImage && settings.avatarImage !== DEFAULT_MASCOT_AVATAR;
@@ -312,30 +314,63 @@ function MascotInfoPanel({
                                     onClick={() => {
                                         if (switchMascotSession(session.id)) onClose();
                                     }}
+                                    onContextMenu={(e) => {
+                                        e.preventDefault();
+                                        setSessionContextMenu({ id: session.id, x: e.clientX, y: e.clientY });
+                                    }}
                                     style={{ opacity: chat.isThinking ? 0.55 : 1 }}
                                 >
-                                    <span className="menu-label truncate">{session.title}{active ? "（当前）" : ""}</span>
+                                    <span className="menu-label truncate">{session.pinned ? "📌 " : ""}{session.title}{active ? "（当前）" : ""}</span>
                                     <span className="menu-desc">{new Date(session.updatedAt).toLocaleString()}</span>
                                 </button>
-                                <button
-                                    type="button"
-                                    className="menu-desc shrink-0"
-                                    disabled={chat.isThinking}
-                                    onClick={() => {
-                                        const title = window.prompt("重命名对话", session.title);
-                                        if (title !== null) renameMascotSession(session.id, title);
-                                    }}
-                                >改名</button>
-                                <button
-                                    type="button"
-                                    className="menu-desc shrink-0 text-[var(--c-danger)]"
-                                    disabled={chat.isThinking}
-                                    onClick={() => {
-                                        if (window.confirm(`确定删除对话“${session.title}”吗？此操作不会删除角色卡，但无法恢复这段聊天记录。`)) {
-                                            deleteMascotSession(session.id);
-                                        }
-                                    }}
-                                >删除</button>
+                                {sessionContextMenu?.id === session.id && createPortal(
+                                    <div
+                                        className="fixed inset-0 z-[9999]"
+                                        onClick={() => setSessionContextMenu(null)}
+                                        onContextMenu={(e) => { e.preventDefault(); setSessionContextMenu(null); }}
+                                    >
+                                        <div
+                                            className="absolute bg-[var(--c-page-bg)] border border-[var(--c-border)] rounded shadow-lg py-1 w-32"
+                                            style={{
+                                                left: Math.min(sessionContextMenu.x, window.innerWidth - 128),
+                                                top: Math.min(sessionContextMenu.y, window.innerHeight - 150),
+                                            }}
+                                            onClick={(e) => e.stopPropagation()}
+                                        >
+                                            <button
+                                                className="w-full text-left px-4 py-2 ts-14 text-[var(--c-text)] hover:bg-[var(--c-page-body-bg)]"
+                                                onClick={() => {
+                                                    toggleMascotSessionPin(session.id);
+                                                    setSessionContextMenu(null);
+                                                }}
+                                            >
+                                                {session.pinned ? "取消置顶" : "置顶"}
+                                            </button>
+                                            <button
+                                                className="w-full text-left px-4 py-2 ts-14 text-[var(--c-text)] hover:bg-[var(--c-page-body-bg)]"
+                                                onClick={() => {
+                                                    const title = window.prompt("重命名对话", session.title);
+                                                    if (title !== null) renameMascotSession(session.id, title);
+                                                    setSessionContextMenu(null);
+                                                }}
+                                            >
+                                                改名
+                                            </button>
+                                            <button
+                                                className="w-full text-left px-4 py-2 ts-14 text-[var(--c-danger)] hover:bg-[var(--c-page-body-bg)]"
+                                                onClick={() => {
+                                                    if (window.confirm(`确定删除对话“${session.title}”吗？此操作不会删除角色卡，但无法恢复这段聊天记录。`)) {
+                                                        deleteMascotSession(session.id);
+                                                    }
+                                                    setSessionContextMenu(null);
+                                                }}
+                                            >
+                                                删除
+                                            </button>
+                                        </div>
+                                    </div>,
+                                    document.body
+                                )}
                             </div>
                         );
                     })}
