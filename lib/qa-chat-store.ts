@@ -54,6 +54,7 @@ export type QaSession = {
     createdAt: number;
     updatedAt: number;
     messages: QaMsg[];
+    isPinned?: boolean;
     /** 模型侧完整上下文（含工具调用与结果），跨轮保留；触顶时压缩为摘要 */
     context?: QaContextEntry[];
     /** 本会话中 agent 创建/更新过的本机内容（APP/游戏/剧场），供工坊内预览直接打开 */
@@ -264,6 +265,14 @@ export function subscribeQaChat(listener: () => void): () => void {
 
 export function getQaChatSnapshot(): QaChatSnapshot {
     return snapshot;
+}
+
+export function renameQaSession(id: string, title: string) {
+    updateSession(id, (s) => ({ ...s, title }));
+}
+
+export function toggleQaSessionPin(id: string) {
+    updateSession(id, (s) => ({ ...s, isPinned: !s.isPinned }));
 }
 
 export async function hydrateQaChat(): Promise<void> {
