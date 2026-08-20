@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Trash2, Plus, Smile, ImagePlus, ChevronRight, Sticker, Layers } from "lucide-react";
+import { Trash2, Plus, Smile, ImagePlus, ChevronRight, ChevronDown, Pencil, Check, Sticker, Layers } from "lucide-react";
 import { loadCharacters } from "@/lib/character-storage";
 import type { Character } from "@/lib/character-types";
 import {
@@ -19,6 +19,9 @@ import {
     togglePackAssignment,
     resolvePackStickerMap,
     getCharacterPackIds,
+    updateStickerPackInfo,
+    STICKER_PACK_NAME_MAX,
+    STICKER_PACK_NOTE_MAX,
     type StickerItem,
     type StickerPack,
 } from "@/lib/custom-sticker-storage";
@@ -193,6 +196,7 @@ function CreatePackDialog({
                             <input
                                 type="text"
                                 value={name}
+                                maxLength={STICKER_PACK_NAME_MAX}
                                 onChange={e => setName(e.target.value)}
                                 placeholder="例如：可爱猫猫"
                                 className="ui-input"
@@ -329,6 +333,10 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
     const [assignedCharIds, setAssignedCharIds] = useState<string[]>([]);
     const [showAddDialog, setShowAddDialog] = useState(false);
     const [showBatchDialog, setShowBatchDialog] = useState(false);
+    const [isEditingPackName, setIsEditingPackName] = useState(false);
+    const [packNameDraft, setPackNameDraft] = useState(pack.name);
+    const [isNoteExpanded, setIsNoteExpanded] = useState(false);
+    const [packNoteDraft, setPackNoteDraft] = useState(pack.note ?? "");
 
     const refreshPack = useCallback(() => {
         const fresh = loadStickerPacks().find(p => p.id === pack.id);
@@ -399,8 +407,65 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
         refreshAssignments();
     };
 
+    const savePackInfo = useCallback((name: string, note: string) => {
+        const trimmedName = name.trim();
+        if (!trimmedName) return false;
+        updateStickerPackInfo(pack.id, {
+            name: trimmedName,
+            note: note.trim().slice(0, STICKER_PACK_NOTE_MAX),
+        });
+        refreshPack();
+        return true;
+    }, [pack.id, refreshPack]);
+
+    const handlePackNameSave = () => {
+        const trimmedName = packNameDraft.trim();
+        if (savePackInfo(trimmedName, currentPack.note ?? "")) {
+            setPackNameDraft(trimmedName);
+            setIsEditingPackName(false);
+        }
+    };
+
+    const handleNoteSave = () => {
+        const trimmedNote = packNoteDraft.trim().slice(0, STICKER_PACK_NOTE_MAX);
+        if (savePackInfo(currentPack.name, trimmedNote)) {
+            setPackNoteDraft(trimmedNote);
+        }
+    };
+
     return (
-        <PageShell title={currentPack.name} onBack={onBack} className="absolute inset-0 z-[100]">
+        <PageShell
+            title={isEditingPackName ? (
+                <input
+                    autoFocus
+                    type="text"
+                    value={packNameDraft}
+                    maxLength={STICKER_PACK_NAME_MAX}
+                    onChange={e => setPackNameDraft(e.target.value)}
+                    onKeyDown={e => {
+                        if (e.key === "Enter") handlePackNameSave();
+                        if (e.key === "Escape") {
+                            setPackNameDraft(currentPack.name);
+                            setIsEditingPackName(false);
+                        }
+                    }}
+                    className="ui-input h-9 w-full min-w-0 px-2 text-center font-bold"
+                    aria-label="表情包名称"
+                />
+            ) : currentPack.name}
+            onBack={onBack}
+            rightAction={
+                <button
+                    type="button"
+                    onClick={isEditingPackName ? handlePackNameSave : () => setIsEditingPackName(true)}
+                    aria-label={isEditingPackName ? "保存表情包名称" : "编辑表情包名称"}
+                    className="w-10 h-10 flex items-center justify-center rounded-full text-[var(--c-icon)] active:scale-95 transition-transform"
+                >
+                    {isEditingPackName ? <Check size={20} /> : <Pencil size={18} />}
+                </button>
+            }
+            className="absolute inset-0 z-[100]"
+        >
             <div className="flex flex-col h-full bg-[var(--c-page-body-bg)]">
                 {/* Character assignment section */}
                 <div className="px-6 pt-5 pb-2 shrink-0">
@@ -420,6 +485,34 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
                             );
                         })}
                     </div>
+                </div>
+
+                {/* Pack note section */}
+                <div className="px-6 pt-2 pb-4 shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => setIsNoteExpanded(prev => !prev)}
+                        aria-expanded={isNoteExpanded}
+                        className="w-full flex items-center justify-between px-1 py-2 text-left text-[var(--c-text)]"
+                    >
+                        <span className="text-[calc(12px*var(--app-text-scale,1))] font-bold opacity-60 uppercase tracking-[0.1em]">备注</span>
+                        {isNoteExpanded ? <ChevronDown size={17} /> : <ChevronRight size={17} />}
+                    </button>
+                    {isNoteExpanded && (
+                        <div className="flex flex-col gap-2 px-1 pt-1">
+                            <textarea
+                                value={packNoteDraft}
+                                maxLength={STICKER_PACK_NOTE_MAX}
+                                onChange={e => setPackNoteDraft(e.target.value)}
+                                placeholder="为这个表情包添加备注"
+                                className="ui-input min-h-[88px] resize-none"
+                            />
+                            <div className="flex items-center justify-between">
+                                <span className="ts-11 text-[var(--c-text)] opacity-50">{packNoteDraft.length}/{STICKER_PACK_NOTE_MAX}</span>
+                                <button type="button" onClick={handleNoteSave} className="ui-btn ui-btn-primary ts-12">保存</button>
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Sticker grid canvas */}

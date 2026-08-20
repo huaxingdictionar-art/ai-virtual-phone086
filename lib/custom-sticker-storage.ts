@@ -31,6 +31,8 @@ export interface StickerItem {
 export interface StickerPack {
     id: string;
     name: string;
+    /** Optional note for the whole pack. Missing on legacy data. */
+    note?: string;
     stickers: StickerItem[];
     createdAt: string;
 }
@@ -72,10 +74,22 @@ export function loadStickerPacks(): StickerPack[] {
     return readPacks();
 }
 
-export function createStickerPack(name: string): StickerPack {
+export const STICKER_PACK_NAME_MAX = 40;
+export const STICKER_PACK_NOTE_MAX = 500;
+
+function cleanPackName(value: string): string {
+    return value.trim().slice(0, STICKER_PACK_NAME_MAX);
+}
+
+function cleanPackNote(value: string): string {
+    return value.trim().slice(0, STICKER_PACK_NOTE_MAX);
+}
+
+export function createStickerPack(name: string, note = ""): StickerPack {
     const pack: StickerPack = {
         id: `pack_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        name,
+        name: cleanPackName(name),
+        note: cleanPackNote(note),
         stickers: [],
         createdAt: new Date().toISOString(),
     };
@@ -101,11 +115,22 @@ export async function deleteStickerPack(packId: string): Promise<void> {
     writeAssignments(assignments);
 }
 
+export function updateStickerPackInfo(packId: string, info: { name: string; note?: string }): void {
+    const packs = readPacks();
+    const pack = packs.find(p => p.id === packId);
+    const name = cleanPackName(info.name);
+    if (!pack || !name) return;
+    pack.name = name;
+    pack.note = cleanPackNote(info.note ?? "");
+    writePacks(packs);
+}
+
 export function renameStickerPack(packId: string, newName: string): void {
     const packs = readPacks();
     const pack = packs.find(p => p.id === packId);
-    if (!pack) return;
-    pack.name = newName;
+    const name = cleanPackName(newName);
+    if (!pack || !name) return;
+    pack.name = name;
     writePacks(packs);
 }
 
