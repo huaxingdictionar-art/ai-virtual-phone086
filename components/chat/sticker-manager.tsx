@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
-import { Trash2, Plus, Smile, ImagePlus, ChevronRight, ChevronDown, Pencil, Check, Sticker, Layers } from "lucide-react";
+import { Trash2, Plus, Smile, ImagePlus, ChevronRight, ChevronDown, Pencil, Check, Sticker, Layers, Info } from "lucide-react";
 import { loadCharacters } from "@/lib/character-storage";
 import type { Character } from "@/lib/character-types";
 import {
@@ -164,6 +164,7 @@ function CreatePackDialog({
     onCancel: () => void;
 }) {
     const [name, setName] = useState("");
+    const [note, setNote] = useState("");
     const [selectedCharIds, setSelectedCharIds] = useState<string[]>([]);
 
     const handleToggle = (charId: string) => {
@@ -175,7 +176,7 @@ function CreatePackDialog({
     const handleCreate = () => {
         const trimmed = name.trim();
         if (!trimmed) return;
-        const pack = createStickerPack(trimmed);
+        const pack = createStickerPack(trimmed, note.trim());
         for (const charId of selectedCharIds) {
             togglePackAssignment(pack.id, charId);
         }
@@ -200,6 +201,17 @@ function CreatePackDialog({
                                 onChange={e => setName(e.target.value)}
                                 placeholder="例如：可爱猫猫"
                                 className="ui-input"
+                            />
+                        </div>
+
+                        <div className="flex flex-col gap-1">
+                            <label className="menu-desc ml-1">备注 (可选)</label>
+                            <textarea
+                                value={note}
+                                maxLength={STICKER_PACK_NOTE_MAX}
+                                onChange={e => setNote(e.target.value)}
+                                placeholder="例如：由某某老师整理分享，目前还差 20 个表情待整理"
+                                className="ui-input min-h-[64px] resize-none"
                             />
                         </div>
 
@@ -495,7 +507,19 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
                         aria-expanded={isNoteExpanded}
                         className="w-full flex items-center justify-between px-1 py-2 text-left text-[var(--c-text)]"
                     >
-                        <span className="text-[calc(12px*var(--app-text-scale,1))] font-bold opacity-60 uppercase tracking-[0.1em]">备注</span>
+                        <div className="flex items-center gap-1.5">
+                            <span className="text-[calc(12px*var(--app-text-scale,1))] font-bold opacity-60 uppercase tracking-[0.1em]">备注</span>
+                            <div
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    alert("备注仅供用户私人整理使用，角色和助手小卷暂无法查看。");
+                                }}
+                                className="flex items-center justify-center text-[var(--c-icon)] opacity-50 active:opacity-100 transition-opacity"
+                                aria-label="备注说明"
+                            >
+                                <Info size={14} />
+                            </div>
+                        </div>
                         {isNoteExpanded ? <ChevronDown size={17} /> : <ChevronRight size={17} />}
                     </button>
                     {isNoteExpanded && (
