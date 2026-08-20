@@ -88,6 +88,9 @@ export function StickerManager({ onBack }: { onBack: () => void }) {
                                 <div className="flex flex-col w-full gap-0.5">
                                     <span className="ts-16 text-[var(--c-text-title)] font-bold truncate max-w-full leading-tight">{pack.name}</span>
                                     <span className="ts-12 text-[var(--c-text)] opacity-70">{pack.stickers.length === 0 ? "空相册" : `${pack.stickers.length} 个表情`}</span>
+                                    {pack.note && (
+                                        <span className="ts-11 text-[var(--c-text)] opacity-50 truncate max-w-full mt-0.5">{pack.note}</span>
+                                    )}
                                 </div>
 
                                 {assignedNames.length > 0 && (
@@ -349,6 +352,7 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
     const [packNameDraft, setPackNameDraft] = useState(pack.name);
     const [isNoteExpanded, setIsNoteExpanded] = useState(false);
     const [packNoteDraft, setPackNoteDraft] = useState(pack.note ?? "");
+    const [showNoteInfo, setShowNoteInfo] = useState(false);
 
     const refreshPack = useCallback(() => {
         const fresh = loadStickerPacks().find(p => p.id === pack.id);
@@ -512,7 +516,7 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
                             <div
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    alert("备注仅供用户私人整理使用，角色和助手小卷暂无法查看。");
+                                    setShowNoteInfo(true);
                                 }}
                                 className="flex items-center justify-center text-[var(--c-icon)] opacity-50 active:opacity-100 transition-opacity"
                                 aria-label="备注说明"
@@ -595,6 +599,18 @@ function PackEditor({ pack, onBack }: { pack: StickerPack; onBack: () => void })
                     packId={pack.id}
                     onDone={() => { setShowBatchDialog(false); refreshPack(); }}
                     onCancel={() => setShowBatchDialog(false)}
+                />,
+                document.querySelector(".phone-shell") ?? document.body
+            )}
+
+            {showNoteInfo && createPortal(
+                <ConfirmDialog
+                    title="备注说明"
+                    message="备注仅供用户私人整理使用，角色和助手小卷暂无法查看。"
+                    confirmLabel="我知道了"
+                    cancelLabel=""
+                    onConfirm={() => setShowNoteInfo(false)}
+                    onCancel={() => setShowNoteInfo(false)}
                 />,
                 document.querySelector(".phone-shell") ?? document.body
             )}
