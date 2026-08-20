@@ -1,11 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
-import { AlertCircle, Camera, ChevronDown, Image, RefreshCw, Sparkles, Trash2, Upload } from "lucide-react";
-import type { ImageGenerationSettings as ImageGenerationSettingsType } from "@/lib/settings-types";
+import { AlertCircle, Camera, ChevronDown, Image, Plus, RefreshCw, Save, Sparkles, Trash2, Upload } from "lucide-react";
+import type {
+    ImageGenerationPreset,
+    ImageGenerationSettings as ImageGenerationSettingsType,
+} from "@/lib/settings-types";
 import {
     DEFAULT_IMAGE_GENERATION_SETTINGS,
+    MAX_IMAGE_GENERATION_PRESETS,
+    loadActiveImageGenerationPresetId,
+    loadImageGenerationPresets,
     loadImageGenerationSettings,
+    saveActiveImageGenerationPresetId,
+    saveImageGenerationPresets,
     saveImageGenerationSettings,
 } from "@/lib/settings-storage";
 import { loadCharacters } from "@/lib/character-storage";
@@ -56,6 +64,9 @@ type Status = { success: boolean; message: string };
 
 export function ImageGenerationSettings() {
     const [settings, setSettings] = useState<ImageGenerationSettingsType>(DEFAULT_IMAGE_GENERATION_SETTINGS);
+    const [presets, setPresets] = useState<ImageGenerationPreset[]>([]);
+    const [activePresetId, setActivePresetId] = useState<string | null>(null);
+    const [presetName, setPresetName] = useState("");
     const [characters, setCharacters] = useState<Character[]>([]);
     const [referencePreviews, setReferencePreviews] = useState<Record<string, string>>({});
     const [models, setModels] = useState<string[]>([]);
@@ -76,6 +87,13 @@ export function ImageGenerationSettings() {
         } else {
             setSettings(loaded);
         }
+        const loadedPresets = loadImageGenerationPresets();
+        const storedActiveId = loadActiveImageGenerationPresetId();
+        const activePreset = loadedPresets.find(preset => preset.id === storedActiveId) || null;
+        setPresets(loadedPresets);
+        setActivePresetId(activePreset?.id || null);
+        setPresetName(activePreset?.name || "");
+        if (!activePreset && storedActiveId) saveActiveImageGenerationPresetId(null);
         setCharacters(loadCharacters());
     }, []);
 
@@ -127,6 +145,122 @@ export function ImageGenerationSettings() {
             },
         });
     }, [persist, settings]);
+
+    const activePreset = useMemo(
+        () => presets.find(preset => preset.id === activePresetId) || null,
+        [activePresetId, presets],
+    );
+
+    const isPresetDirty = useMemo(() => {
+        if (!activePreset) return false;
+        return presetName.trim() !== activePreset.name
+            || settings.requestMode !== activePreset.requestMode
+            || settings.baseUrl !== activePreset.baseUrl
+            || settings.apiKey !== activePreset.apiKey
+            || settings.model !== activePreset.model
+            || settings.size !== activePreset.size
+            || settings.quality !== activePreset.quality
+            || settings.extraPrompt !== activePreset.extraPrompt;
+    }, [activePreset, presetName, settings]);
+
+    const selectPreset = (presetId: string) => {
+        const preset = presets.find(item => item.id === presetId);
+        if (!preset) return;
+        persist({
+            ...settings,
+            requestMode: preset.requestMode,
+            baseUrl: preset.baseUrl,
+            apiKey: preset.apiKey,
+            model: preset.model,
+            size: preset.size,
+            quality: preset.quality,
+            extraPrompt: preset.extraPrompt,
+        });
+        setActivePresetId(preset.id);
+        setPresetName(preset.name);
+        saveActiveImageGenerationPresetId(preset.id);
+        setModels([]);
+        setStatus({ success: true, message: `已切换到生图预设「${preset.name}」。` });
+    };
+
+    const startNewPreset = () => {
+        if (presets.length >= MAX_IMAGE_GENERATION_PRESETS) {
+            setStatus({ success: false, message: `最多保存 ${MAX_IMAGE_GENERATION_PRESETS} 个生图预设。` });
+            return;
+        }
+        setActivePresetId(null);
+        setPresetName(`生图预设 ${presets.length + 1}`);
+        saveActiveImageGenerationPresetId(null);
+        setStatus({ success: true, message: "已进入新建状态。填写名称后点击保存，即可保存当前页面配置。" });
+    };
+
+    const saveCurrentPreset = () => {
+        const name = presetName.trim();
+        if (!name) {
+            setStatus({ success: false, message: "请先填写预设名称。" });
+            return;
+        }
+        const now = Date.now();
+        if (activePreset) {
+            const updated: ImageGenerationPreset = {
+                ...activePreset,
+                name,
+                requestMode: settings.requestMode,
+                baseUrl: settings.baseUrl,
+                apiKey: settings.apiKey,
+                model: settings.model,
+                size: settings.size,
+                quality: settings.quality,
+                extraPrompt: settings.extraPrompt,
+                updatedAt: now,
+            };
+            const next = presets.map(preset => preset.id === updated.id ? updated : preset);
+            setPresets(next);
+            saveImageGenerationPresets(next);
+            setPresetName(updated.name);
+            setStatus({ success: true, message: `已保存生图预设「${updated.name}」。` });
+            return;
+        }
+        if (presets.length >= MAX_IMAGE_GENERATION_PRESETS) {
+            setStatus({ success: false, message: `最多保存 ${MAX_IMAGE_GENERATION_PRESETS} 个生图预设。` });
+            return;
+        }
+        const created: ImageGenerationPreset = {
+            id: `image_preset_${now}_${Math.random().toString(36).slice(2, 7)}`,
+            name,
+            requestMode: settings.requestMode,
+            baseUrl: settings.baseUrl,
+            apiKey: settings.apiKey,
+            model: settings.model,
+            size: settings.size,
+            quality: settings.quality,
+            extraPrompt: settings.extraPrompt,
+            createdAt: now,
+            updatedAt: now,
+        };
+        const next = [...presets, created];
+        setPresets(next);
+        saveImageGenerationPresets(next);
+        setActivePresetId(created.id);
+        setPresetName(created.name);
+        saveActiveImageGenerationPresetId(created.id);
+        setStatus({ success: true, message: `已新建生图预设「${created.name}」。` });
+    };
+
+    const deleteCurrentPreset = () => {
+        if (!activePreset) {
+            setStatus({ success: false, message: "当前没有可删除的生图预设。" });
+            return;
+        }
+        if (!window.confirm(`确定删除生图预设「${activePreset.name}」吗？当前页面里的配置不会被清空。`)) return;
+        const next = presets.filter(preset => preset.id !== activePreset.id);
+        setPresets(next);
+        saveImageGenerationPresets(next);
+        setActivePresetId(null);
+        setPresetName("");
+        saveActiveImageGenerationPresetId(null);
+        setStatus({ success: true, message: `已删除生图预设「${activePreset.name}」。当前页面配置仍保留。` });
+    };
 
     const likelyModels = useMemo(() => filterLikelyImageModels(models), [models]);
 
@@ -215,6 +349,75 @@ export function ImageGenerationSettings() {
             </div>
 
             <div className="menu-group p-4 flex flex-col gap-4">
+                <div className="flex flex-col gap-3 rounded-2xl border border-[var(--c-card-border)] bg-[var(--c-input)] p-3">
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="flex min-w-0 items-center gap-2">
+                            <span className="menu-label">生图预设</span>
+                            {isPresetDirty && (
+                                <span className="rounded-full bg-amber-100 px-2 py-0.5 ts-11 text-amber-700">未保存</span>
+                            )}
+                        </div>
+                        <span className="menu-desc shrink-0">{presets.length} / {MAX_IMAGE_GENERATION_PRESETS}</span>
+                    </div>
+
+                    <div className="flex gap-2">
+                        <Select
+                            value={activePresetId || ""}
+                            onChange={(event) => selectPreset(event.target.value)}
+                            className="min-w-0 flex-1"
+                            aria-label="选择生图预设"
+                        >
+                            <option value="" disabled>{presets.length > 0 ? "选择已保存的生图预设" : "暂无已保存的生图预设"}</option>
+                            {presets.map(preset => (
+                                <option key={preset.id} value={preset.id}>{preset.name}</option>
+                            ))}
+                        </Select>
+                        <button
+                            type="button"
+                            onClick={startNewPreset}
+                            disabled={presets.length >= MAX_IMAGE_GENERATION_PRESETS}
+                            className="ui-btn ui-btn-soft-action shrink-0 px-3"
+                            aria-label="新建生图预设"
+                            title={presets.length >= MAX_IMAGE_GENERATION_PRESETS ? `最多保存 ${MAX_IMAGE_GENERATION_PRESETS} 个` : "新建生图预设"}
+                        >
+                            <Plus size={18} />
+                        </button>
+                        <button
+                            type="button"
+                            onClick={deleteCurrentPreset}
+                            disabled={!activePreset}
+                            className="ui-btn shrink-0 px-3 text-red-500 disabled:opacity-40"
+                            aria-label="删除当前生图预设"
+                            title="删除当前生图预设"
+                        >
+                            <Trash2 size={18} />
+                        </button>
+                    </div>
+
+                    <div className="flex gap-2">
+                        <Input
+                            type="text"
+                            value={presetName}
+                            onChange={(event) => setPresetName(event.target.value)}
+                            maxLength={40}
+                            placeholder="输入预设名称"
+                            className="min-w-0 flex-1"
+                        />
+                        <button
+                            type="button"
+                            onClick={saveCurrentPreset}
+                            className="ui-btn ui-btn-soft-action shrink-0 px-3"
+                            aria-label={activePreset ? "保存当前生图预设" : "保存为新生图预设"}
+                            title={activePreset ? "保存当前生图预设" : "保存为新生图预设"}
+                        >
+                            <Save size={18} />
+                        </button>
+                    </div>
+                    <span className="menu-desc ml-1">
+                        保存请求方式、地址、Key、模型、尺寸、质量和补充提示词。切换后立即应用当前预设。
+                    </span>
+                </div>
+
                 <div className="flex flex-col gap-1">
                     <label className="menu-desc ml-1">请求方式</label>
                     <Select

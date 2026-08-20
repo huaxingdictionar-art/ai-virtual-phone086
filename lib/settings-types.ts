@@ -174,6 +174,20 @@ export type ImageGenerationSettings = {
     imageHosting: ImageHostingSettings;
 };
 
+export type ImageGenerationPreset = {
+    id: string;
+    name: string;
+    requestMode: ImageGenerationRequestMode;
+    apiKey: string;
+    baseUrl: string;
+    model: string;
+    size: string;
+    quality: string;
+    extraPrompt: string;
+    createdAt: number;
+    updatedAt: number;
+};
+
 // --- Configuration Binding System ---
 
 // Content apps that can have per-character bindings.

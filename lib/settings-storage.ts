@@ -7,6 +7,7 @@ import type {
     ApiConfig,
     VoiceApiConfig,
     ImageGenerationSettings,
+    ImageGenerationPreset,
     BindingConfig,
     BindingSlot,
     CharacterBinding,
@@ -64,6 +65,8 @@ function isUnsupportedWorldBookFormat(obj: Record<string, unknown>): boolean {
 const API_CONFIGS_KEY = "ai_phone_api_configs_v1";
 const VOICE_CONFIGS_KEY = "ai_phone_voice_configs_v1";
 const IMAGE_GENERATION_SETTINGS_KEY = "ai_phone_image_generation_settings_v1";
+const IMAGE_GENERATION_PRESETS_KEY = "ai_phone_image_generation_presets_v1";
+const ACTIVE_IMAGE_GENERATION_PRESET_KEY = "ai_phone_active_image_generation_preset_v1";
 const BINDINGS_KEY = "ai_phone_bindings_v1";
 const FOLLOW_UP_CONFIG_KEY = "ai_phone_follow_up_config_v1";
 const CHAT_SEND_CONFIG_KEY = "ai_phone_chat_send_config_v1";
@@ -74,6 +77,8 @@ const LEGACY_OVERRIDES_KEY = "ai_phone_char_settings_v1";
 registerKvMigration(API_CONFIGS_KEY);
 registerKvMigration(VOICE_CONFIGS_KEY);
 registerKvMigration(IMAGE_GENERATION_SETTINGS_KEY);
+registerKvMigration(IMAGE_GENERATION_PRESETS_KEY);
+registerKvMigration(ACTIVE_IMAGE_GENERATION_PRESET_KEY);
 registerKvMigration(BINDINGS_KEY);
 registerKvMigration(FOLLOW_UP_CONFIG_KEY);
 registerKvMigration(CHAT_SEND_CONFIG_KEY);
@@ -703,6 +708,62 @@ export function saveImageGenerationSettings(settings: ImageGenerationSettings): 
     if (typeof window === "undefined") return;
     kvSet(IMAGE_GENERATION_SETTINGS_KEY, JSON.stringify(normalizeImageGenerationSettings(settings)));
     window.dispatchEvent(new CustomEvent("settings-image-generation-updated"));
+}
+
+export const MAX_IMAGE_GENERATION_PRESETS = 10;
+
+function normalizeImageGenerationPreset(value: Partial<ImageGenerationPreset> | null | undefined): ImageGenerationPreset | null {
+    if (!value || typeof value !== "object" || typeof value.id !== "string" || !value.id.trim()) return null;
+    const now = getNow();
+    return {
+        id: value.id.trim(),
+        name: typeof value.name === "string" && value.name.trim() ? value.name.trim().slice(0, 40) : "未命名预设",
+        requestMode: value.requestMode === "server" ? "server" : "direct",
+        apiKey: typeof value.apiKey === "string" ? value.apiKey : "",
+        baseUrl: typeof value.baseUrl === "string" ? value.baseUrl : "",
+        model: typeof value.model === "string" ? value.model : "",
+        size: typeof value.size === "string" && value.size ? value.size : DEFAULT_IMAGE_GENERATION_SETTINGS.size,
+        quality: typeof value.quality === "string" && value.quality ? value.quality : DEFAULT_IMAGE_GENERATION_SETTINGS.quality,
+        extraPrompt: typeof value.extraPrompt === "string" ? value.extraPrompt : "",
+        createdAt: typeof value.createdAt === "number" ? value.createdAt : now,
+        updatedAt: typeof value.updatedAt === "number" ? value.updatedAt : now,
+    };
+}
+
+export function loadImageGenerationPresets(): ImageGenerationPreset[] {
+    if (typeof window === "undefined") return [];
+    try {
+        const raw = kvGet(IMAGE_GENERATION_PRESETS_KEY);
+        if (!raw) return [];
+        const parsed = JSON.parse(raw) as Partial<ImageGenerationPreset>[];
+        if (!Array.isArray(parsed)) return [];
+        return parsed
+            .map(normalizeImageGenerationPreset)
+            .filter((preset): preset is ImageGenerationPreset => preset !== null)
+            .slice(0, MAX_IMAGE_GENERATION_PRESETS);
+    } catch {
+        return [];
+    }
+}
+
+export function saveImageGenerationPresets(presets: ImageGenerationPreset[]): void {
+    if (typeof window === "undefined") return;
+    const normalized = presets
+        .map(normalizeImageGenerationPreset)
+        .filter((preset): preset is ImageGenerationPreset => preset !== null)
+        .slice(0, MAX_IMAGE_GENERATION_PRESETS);
+    kvSet(IMAGE_GENERATION_PRESETS_KEY, JSON.stringify(normalized));
+}
+
+export function loadActiveImageGenerationPresetId(): string | null {
+    if (typeof window === "undefined") return null;
+    return kvGet(ACTIVE_IMAGE_GENERATION_PRESET_KEY) || null;
+}
+
+export function saveActiveImageGenerationPresetId(id: string | null): void {
+    if (typeof window === "undefined") return;
+    if (id) kvSet(ACTIVE_IMAGE_GENERATION_PRESET_KEY, id);
+    else kvRemove(ACTIVE_IMAGE_GENERATION_PRESET_KEY);
 }
 
 // --- Binding Config ──────────────────────────────────────────
