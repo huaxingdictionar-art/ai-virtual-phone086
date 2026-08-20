@@ -139,6 +139,8 @@ export type VoiceApiConfig = {
     languageBoost?: string;
     /** Minimax voice_setting.speed. Missing values keep the legacy 1.0x behavior. */
     speechSpeed?: number;
+    /** Minimax voice_setting.pitch. Missing values keep the legacy 0 semitone behavior. */
+    speechPitch?: number;
     customVoices?: { id: string; name: string; createdAt?: number }[];
     enableSTT: boolean;
     enableTTS: boolean;
