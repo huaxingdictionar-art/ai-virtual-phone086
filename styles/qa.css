@@ -1344,6 +1344,75 @@
   to { opacity: 1; }
 }
 
+/* ── 会话重命名弹窗：挂在工坊根层，覆盖舞台和抽屉 ── */
+.qa-rename-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.38);
+  animation: qa-fade-in 0.18s ease;
+}
+.qa-rename-dialog {
+  width: min(100%, 320px);
+  padding: 20px;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 12px 36px rgba(40, 34, 20, 0.22);
+}
+.qa-rename-title {
+  margin-bottom: 14px;
+  color: var(--qa-text-primary);
+  font-size: 16px;
+  font-weight: 600;
+}
+.qa-rename-input {
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid rgba(60, 50, 90, 0.18);
+  border-radius: 10px;
+  outline: none;
+  background: #ffffff;
+  color: var(--qa-text-primary);
+  font: inherit;
+  font-size: 14px;
+}
+.qa-rename-input:focus {
+  border-color: var(--qa-accent);
+  box-shadow: 0 0 0 3px var(--qa-accent-subtle);
+}
+.qa-rename-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}
+.qa-rename-cancel {
+  height: 42px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 9999px;
+  background: transparent;
+  color: var(--qa-text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+}
+.qa-rename-confirm {
+  min-width: 88px;
+  height: 42px;
+  justify-content: center;
+  padding: 0 22px;
+}
+.qa-rename-confirm:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 /* ── 会话抽屉（推挤式，白底，在舞台下方左侧）── */
 .qa-drawer {
   position: absolute;

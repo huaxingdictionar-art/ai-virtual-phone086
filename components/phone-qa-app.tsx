@@ -384,6 +384,7 @@ function QaSessionDrawer({
   onDelete,
   onCreate,
   onOpenSettings,
+  onRenameRequest,
 }: {
   sessions: QaSession[];
   activeId: string | null;
@@ -391,22 +392,9 @@ function QaSessionDrawer({
   onDelete: (id: string) => void;
   onCreate: () => void;
   onOpenSettings: () => void;
+  onRenameRequest: (id: string, title: string) => void;
 }) {
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
-  const [renameTargetId, setRenameTargetId] = useState<string | null>(null);
-  const [renameTitle, setRenameTitle] = useState("");
-
-  const closeRenameDialog = () => {
-    setRenameTargetId(null);
-    setRenameTitle("");
-  };
-
-  const confirmRename = () => {
-    const title = renameTitle.trim();
-    if (!renameTargetId || !title) return;
-    renameQaSession(renameTargetId, title);
-    closeRenameDialog();
-  };
 
   const sortedSessions = useMemo(() => {
     return [...sessions].sort((a, b) => {
@@ -417,7 +405,7 @@ function QaSessionDrawer({
   }, [sessions]);
 
   return (
-    <aside className="qa-drawer" style={{ position: "relative" }}>
+    <aside className="qa-drawer">
       <div className="qa-drawer-head">
         <span className="qa-drawer-title">对话记录</span>
       </div>
@@ -483,8 +471,7 @@ function QaSessionDrawer({
                   style={{ display: "flex", alignItems: "center", gap: "8px", padding: "8px 12px", textAlign: "left", borderRadius: "4px", fontSize: "13px" }}
                   onClick={(e) => {
                     e.stopPropagation();
-                    setRenameTitle(session.title);
-                    setRenameTargetId(session.id);
+                    onRenameRequest(session.id, session.title);
                     setMenuOpenId(null);
                   }}
                 >
@@ -507,89 +494,6 @@ function QaSessionDrawer({
           </div>
         ))}
       </div>
-      {renameTargetId && (
-        <div
-          role="presentation"
-          onClick={closeRenameDialog}
-          style={{
-            position: "absolute",
-            inset: 0,
-            zIndex: 200,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: "20px",
-            background: "rgba(0, 0, 0, 0.22)",
-          }}
-        >
-          <form
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="qa-rename-dialog-title"
-            onClick={(e) => e.stopPropagation()}
-            onSubmit={(e) => {
-              e.preventDefault();
-              confirmRename();
-            }}
-            style={{
-              width: "100%",
-              maxWidth: "280px",
-              padding: "18px",
-              borderRadius: "8px",
-              background: "#ffffff",
-              boxShadow: "0 12px 32px rgba(0, 0, 0, 0.2)",
-            }}
-          >
-            <div id="qa-rename-dialog-title" style={{ marginBottom: "12px", fontSize: "16px", fontWeight: 600 }}>
-              重命名对话
-            </div>
-            <input
-              autoFocus
-              value={renameTitle}
-              maxLength={80}
-              aria-label="新对话名称"
-              onChange={(e) => setRenameTitle(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") closeRenameDialog();
-              }}
-              style={{
-                width: "100%",
-                height: "40px",
-                padding: "0 10px",
-                border: "1px solid #d4d4d8",
-                borderRadius: "6px",
-                outline: "none",
-                background: "#ffffff",
-                color: "#18181b",
-                fontSize: "14px",
-              }}
-            />
-            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px", marginTop: "16px" }}>
-              <button
-                type="button"
-                onClick={closeRenameDialog}
-                style={{ height: "36px", padding: "0 14px", borderRadius: "6px", color: "#52525b" }}
-              >
-                取消
-              </button>
-              <button
-                type="submit"
-                disabled={!renameTitle.trim()}
-                style={{
-                  height: "36px",
-                  padding: "0 14px",
-                  borderRadius: "6px",
-                  background: "#7452e8",
-                  color: "#ffffff",
-                  opacity: renameTitle.trim() ? 1 : 0.45,
-                }}
-              >
-                确认
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
       <div className="qa-drawer-foot">
         <button type="button" className="qa-drawer-new qa-drawer-settings" onClick={onOpenSettings}>
           <Wrench size={15} strokeWidth={2} />
@@ -866,6 +770,8 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
   const [repoConnected, setRepoConnected] = useState(false);
   const [clearToolsOpen, setClearToolsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [renameTarget, setRenameTarget] = useState<{ id: string; title: string } | null>(null);
+  const [renameTitle, setRenameTitle] = useState("");
   const [pendingImages, setPendingImages] = useState<string[]>([]);
   const [viewerImage, setViewerImage] = useState<string | null>(null);
   const [visionEnabled, setVisionEnabled] = useState(false);
@@ -913,6 +819,18 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
       ? `已清理 ${result.removed} 条工具记录，整理 ${result.cleaned} 条消息。`
       : "没有可清理的工具调用历史。");
   }, [onNotice]);
+
+  const closeRenameDialog = useCallback(() => {
+    setRenameTarget(null);
+    setRenameTitle("");
+  }, []);
+
+  const confirmRename = useCallback(() => {
+    const title = renameTitle.trim();
+    if (!renameTarget || !title) return;
+    renameQaSession(renameTarget.id, title);
+    closeRenameDialog();
+  }, [renameTarget, renameTitle, closeRenameDialog]);
 
   const toggleWriteMode = useCallback(() => {
     const gh = loadQaGithubConfig();
@@ -1012,6 +930,10 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
         onOpenSettings={() => {
           setSettingsOpen(true);
           setDrawerOpen(false);
+        }}
+        onRenameRequest={(id, title) => {
+          setRenameTarget({ id, title });
+          setRenameTitle(title);
         }}
       />
       <div className={`qa-stage ${drawerOpen ? "is-pushed" : ""}`}>
@@ -1208,6 +1130,43 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
         />
       )}
       </div>
+
+      {renameTarget && (
+        <div className="qa-rename-backdrop" role="presentation" onClick={closeRenameDialog}>
+          <form
+            className="qa-rename-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="qa-rename-dialog-title"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={(e) => {
+              e.preventDefault();
+              confirmRename();
+            }}
+          >
+            <div id="qa-rename-dialog-title" className="qa-rename-title">重命名对话</div>
+            <input
+              className="qa-rename-input"
+              autoFocus
+              value={renameTitle}
+              maxLength={80}
+              aria-label="新对话名称"
+              onChange={(e) => setRenameTitle(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") closeRenameDialog();
+              }}
+            />
+            <div className="qa-rename-actions">
+              <button type="button" className="qa-rename-cancel" onClick={closeRenameDialog}>
+                取消
+              </button>
+              <button type="submit" className="qa-drawer-new qa-rename-confirm" disabled={!renameTitle.trim()}>
+                确认
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
 
       {clearToolsOpen && (
         <div className="qa-devnotice-backdrop" onClick={() => setClearToolsOpen(false)}>
