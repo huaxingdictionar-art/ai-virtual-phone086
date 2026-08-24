@@ -579,7 +579,10 @@ export function DiaryEntriesApp({ onBack, onNotice }: DiaryEntriesAppProps) {
     return Array.from(map.entries()).map(([characterId, characterEntries]) => ({
       characterId,
       characterName: characterEntries[0].characterName,
-      avatar: characters.find(character => character.id === characterId)?.avatar ?? "",
+      avatar: (() => {
+        const character = characters.find(item => item.id === characterId);
+        return character?.chatAvatar || character?.avatar || "";
+      })(),
       entries: characterEntries,
     }));
   }, [entries, characters]);

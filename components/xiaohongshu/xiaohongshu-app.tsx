@@ -843,7 +843,8 @@ export function XiaohongshuApp({ onClose, onNotice, visible = true, onIdle, onBu
   const characterAvatarMap = useMemo(() => {
     const map = new Map<string, string>();
     characters.forEach((character) => {
-      if (character.avatar) map.set(character.id, character.avatar);
+      const avatar = character.chatAvatar || character.avatar;
+      if (avatar) map.set(character.id, avatar);
     });
     return map;
   }, [characters]);
@@ -858,7 +859,7 @@ export function XiaohongshuApp({ onClose, onNotice, visible = true, onIdle, onBu
           account,
           character,
           displayName: account.name || resolveCharacterXiaohongshuDisplayName(character),
-          avatar: account.avatar || character.avatar || "",
+          avatar: character.chatAvatar || account.avatar || character.avatar || "",
         };
       })
       .filter((item): item is { account: XiaohongshuAccount; character: Character; displayName: string; avatar: string } => Boolean(item));
@@ -910,7 +911,7 @@ export function XiaohongshuApp({ onClose, onNotice, visible = true, onIdle, onBu
     const character = characters.find(item =>
       item.name === actorName || resolveCharacterXiaohongshuDisplayName(item) === actorName
     );
-    if (character?.avatar) return character.avatar;
+    if (character?.chatAvatar || character?.avatar) return character.chatAvatar || character.avatar;
     if (actorName === state.profile.nickname || actorName === userIdentity?.name) return userAvatar;
     return pickDefaultAvatar(`notice:${actorName || seed}`);
   }
@@ -1140,7 +1141,7 @@ export function XiaohongshuApp({ onClose, onNotice, visible = true, onIdle, onBu
       type: "character",
       id: character.id,
       name: resolveCharacterXiaohongshuDisplayName(character),
-      avatar: character.avatar || undefined,
+      avatar: character.chatAvatar || character.avatar || undefined,
       followedAt: new Date().toISOString(),
     };
   }

@@ -2195,7 +2195,7 @@ export function CoCreateApp({ onClose, onNotice }: CoCreateAppProps) {
                   data-active={character.id === session.partnerCharacterId ? "1" : undefined}
                   onClick={() => choosePartner(character.id)}
                 >
-                  {character.avatar ? <img src={character.avatar} alt="" /> : <span>{character.name.slice(0, 1)}</span>}
+                  {(character.chatAvatar || character.avatar) ? <img src={character.chatAvatar || character.avatar} alt="" /> : <span>{character.name.slice(0, 1)}</span>}
                   <strong>{character.name}</strong>
                   <small>{character.tags?.slice(0, 3).join(" / ") || "未标记"}</small>
                 </button>

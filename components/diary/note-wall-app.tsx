@@ -1740,7 +1740,7 @@ function TimerSettingsPanel({ characters, settings, generatingCharacterIds, repl
                     }}
                   >
                     <span className="nw-character-avatar">
-                      {character.avatar ? <img src={character.avatar} alt="" /> : <Bot size={18} />}
+                      {character.chatAvatar || character.avatar ? <img src={character.chatAvatar || character.avatar} alt="" /> : <Bot size={18} />}
                     </span>
                     <span>
                       <strong>{character.name}</strong>

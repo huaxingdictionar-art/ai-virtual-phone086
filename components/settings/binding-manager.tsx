@@ -939,8 +939,8 @@ export function BindingManager() {
                                         onClick={() => openCharacterBinding(char.id)}
                                     >
                                         <span className="chat-contact-avatar">
-                                            {char.avatar ? (
-                                                <img src={char.avatar} alt="" />
+                                            {char.chatAvatar || char.avatar ? (
+                                                <img src={char.chatAvatar || char.avatar} alt="" />
                                             ) : (
                                                 <span className="chat-contact-avatar-fallback">
                                                     {name.charAt(0)}

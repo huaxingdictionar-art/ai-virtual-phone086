@@ -2361,8 +2361,8 @@ export function ReadingViewer({ book, onBack }: Props) {
                     onPointerUp={handleChatDragEnd}
                     onPointerCancel={handleChatDragEnd}
                 >
-                    {companion?.avatar ? (
-                        <img src={companion.avatar} alt="" className="w-full h-full object-cover rounded-full" />
+                    {companion?.chatAvatar || companion?.avatar ? (
+                        <img src={companion.chatAvatar || companion.avatar} alt="" className="w-full h-full object-cover rounded-full" />
                     ) : (
                         <span className="ts-13">{companion?.name?.[0] || "?"}</span>
                     )}
@@ -2385,8 +2385,8 @@ export function ReadingViewer({ book, onBack }: Props) {
                                 onClick={() => { if (shouldIgnoreChatAction()) return; setShowCharPicker(!showCharPicker); }}
                                 className="reading-bottom-avatar"
                             >
-                                {companion?.avatar ? (
-                                    <img src={companion.avatar} alt="" className="w-full h-full object-cover rounded-full" />
+                                {companion?.chatAvatar || companion?.avatar ? (
+                                    <img src={companion.chatAvatar || companion.avatar} alt="" className="w-full h-full object-cover rounded-full" />
                                 ) : (
                                     <span className="ts-12">{companion?.name?.[0] || "?"}</span>
                                 )}

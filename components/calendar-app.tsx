@@ -81,7 +81,7 @@ function buildOwnerOptions(): OwnerOption[] {
       ownerType: "character",
       ownerId: char.id,
       name: char.name,
-      avatar: char.avatar,
+      avatar: char.chatAvatar || char.avatar,
     });
   }
   return options;
@@ -113,7 +113,7 @@ function buildPeriodCareCharacterOptions(): PeriodCareCharacterOption[] {
       return {
         characterId: character.id,
         name: session.alias || character.name,
-        avatar: character.avatar,
+        avatar: character.chatAvatar || character.avatar,
       };
     });
 }

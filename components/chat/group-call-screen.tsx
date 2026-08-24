@@ -664,9 +664,9 @@ export function GroupCallScreen({ type, session, characters, onEnd, initiator = 
                             <div key={char.id} className="gcall-video-tile"
                                 style={tileBg ? { backgroundImage: `url(${tileBg})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
                             >
-                                {!tileBg && (char.avatar ? (
+                                {!tileBg && (char.chatAvatar || char.avatar ? (
                                     <img
-                                        src={char.avatar}
+                                        src={char.chatAvatar || char.avatar}
                                         alt={char.name}
                                         className={`w-full h-full object-cover transition-opacity duration-300 ${callState === "CONNECTING" ? "gcall-video-avatar-dim" : "gcall-video-avatar-bright"}`}
                                     />
@@ -772,8 +772,8 @@ export function GroupCallScreen({ type, session, characters, onEnd, initiator = 
                         return (
                             <div key={char.id} className="gcall-tile" {...(isSpeaking ? { "data-speaking": "" } : {})}>
                                 <div className="gcall-tile-avatar">
-                                    {char.avatar ? (
-                                        <img src={char.avatar} alt={char.name} />
+                                    {char.chatAvatar || char.avatar ? (
+                                        <img src={char.chatAvatar || char.avatar} alt={char.name} />
                                     ) : (
                                         <span className="gcall-tile-initial">{char.name?.[0] || "?"}</span>
                                     )}

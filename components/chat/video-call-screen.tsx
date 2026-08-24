@@ -583,8 +583,8 @@ export function VideoCallScreen({ session, character, onEnd, onConnect, initiato
                 style={{
                     backgroundImage: bgImageResolved
                         ? `url(${bgImageResolved})`
-                        : character.avatar
-                            ? `url(${character.avatar})`
+                        : character.chatAvatar || character.avatar
+                            ? `url(${character.chatAvatar || character.avatar})`
                             : "linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%)",
                 }}
             />
@@ -613,9 +613,9 @@ export function VideoCallScreen({ session, character, onEnd, onConnect, initiato
                             <span className="ts-60 text-[var(--c-icon)]">{userNameRef.current?.[0] || "?"}</span>
                         </div>
                     )
-                ) : character.avatar ? (
+                ) : character.chatAvatar || character.avatar ? (
                     <img
-                        src={character.avatar}
+                        src={character.chatAvatar || character.avatar}
                         alt={character.name}
                         className="w-full h-full object-cover transition-opacity duration-500 ease-in-out"
                         style={{
@@ -638,8 +638,8 @@ export function VideoCallScreen({ session, character, onEnd, onConnect, initiato
                 title="点击切换大小画面"
             >
                 {pipSwapped ? (
-                    character.avatar ? (
-                        <img src={character.avatar} alt={character.name} className="w-full h-full object-cover" />
+                    character.chatAvatar || character.avatar ? (
+                        <img src={character.chatAvatar || character.avatar} alt={character.name} className="w-full h-full object-cover" />
                     ) : (
                         <span className="ts-18 text-[var(--c-icon)]">{character.name?.[0] || "?"}</span>
                     )

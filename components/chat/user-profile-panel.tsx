@@ -952,7 +952,7 @@ function InlineMomentsSettings({ onBack }: { onBack: () => void }) {
                     {showAutoPostList && enriched.map(c => (
                         <div key={c.characterId} className="menu-item" style={{ cursor: "default" }}>
                             <div className="chat-contact-avatar" style={{ width: 32, height: 32 }}>
-                                {c.char.avatar ? <img src={c.char.avatar} alt="" /> : <ChatFallbackAvatar />}
+                                {c.char.chatAvatar || c.char.avatar ? <img src={c.char.chatAvatar || c.char.avatar} alt="" /> : <ChatFallbackAvatar />}
                             </div>
                             <div className="menu-label-group">
                                 <span className="menu-label">{c.char.name}</span>
@@ -992,8 +992,8 @@ function InlineMomentsSettings({ onBack }: { onBack: () => void }) {
                                     <div className="chat-contact-avatar"
                                         style={selectedIds.has(c.characterId) ? { outline: "3px solid var(--c-success)", outlineOffset: "2px" } : undefined}
                                     >
-                                        {c.char.avatar ? (
-                                            <img src={c.char.avatar} alt="" />
+                                        {c.char.chatAvatar || c.char.avatar ? (
+                                            <img src={c.char.chatAvatar || c.char.avatar} alt="" />
                                         ) : (
                                             <ChatFallbackAvatar />
                                         )}

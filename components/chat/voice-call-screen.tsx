@@ -613,9 +613,9 @@ export function VoiceCallScreen({ session, character, onEnd, onConnect, initiato
                             className="voicecall-avatar"
                             {...(callState === "AI_SPEAKING" ? { "data-speaking": "" } : {})}
                         >
-                            {character.avatar ? (
+                            {character.chatAvatar || character.avatar ? (
                                 <img
-                                    src={character.avatar}
+                                    src={character.chatAvatar || character.avatar}
                                     alt={character.name}
                                     className="w-full h-full object-cover"
                                 />

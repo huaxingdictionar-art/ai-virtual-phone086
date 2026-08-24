@@ -64,6 +64,11 @@ export function loadCharacters(): Character[] {
         char.avatar = null;
         needsSave = true;
       }
+      // 专属聊天头像沿用相同的安全规则；非法值清空并回退角色卡头像
+      if (char.chatAvatar && !char.chatAvatar.startsWith("data:") && !char.chatAvatar.startsWith("http://") && !char.chatAvatar.startsWith("https://")) {
+        char.chatAvatar = null;
+        needsSave = true;
+      }
       return char as Character;
     });
 
@@ -145,6 +150,7 @@ export function exportCharacterAsJson(char: Character): void {
     description: char.persona,
     personality: char.personality || "",
     avatar: char.avatar ?? "none",
+    chatAvatar: char.chatAvatar ?? "none",
     tags: char.tags || [],
     wechatID: char.wechatID || "",
     timeZone: char.timeZone || "",
@@ -187,6 +193,7 @@ export function parseCharacterFromJson(
       name: String(src.name ?? ""),
       persona: String(src.description ?? src.persona ?? ""),
       avatar: validAvatar(src.avatar),
+      chatAvatar: validAvatar(src.chatAvatar),
       personality: typeof src.personality === "string" && src.personality.trim() ? src.personality : undefined,
       tags: Array.isArray(src.tags) ? src.tags.map(String) : [],
       wechatID: typeof src.wechatID === "string" && src.wechatID.trim() ? src.wechatID : undefined,
@@ -405,6 +412,7 @@ export async function exportCharacterAsPng(char: Character): Promise<void> {
     description: char.persona,
     personality: char.personality || "",
     avatar: "none",
+    chatAvatar: char.chatAvatar ?? "none",
     tags: char.tags || [],
     wechatID: char.wechatID || "",
     timeZone: char.timeZone || "",

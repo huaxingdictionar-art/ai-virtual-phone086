@@ -303,8 +303,8 @@ export function MomentsCompose({ onClose, onPublished }: Props) {
                                         onClick={() => handleToggleMention(c.characterId)}
                                     >
                                         <div className="chat-contact-avatar" style={mentionIds.has(c.characterId) ? { outline: "2px solid var(--c-primary, #07C160)", outlineOffset: "2px" } : undefined}>
-                                            {c.char!.avatar ? (
-                                                <img src={c.char!.avatar} alt="" />
+                                            {c.char!.chatAvatar || c.char!.avatar ? (
+                                                <img src={c.char!.chatAvatar || c.char!.avatar} alt="" />
                                             ) : (
                                                 <ChatFallbackAvatar />
                                             )}
@@ -357,8 +357,8 @@ export function MomentsCompose({ onClose, onPublished }: Props) {
                                         onClick={() => handleToggleChar(c.characterId)}
                                     >
                                         <div className="chat-contact-avatar" style={visibility[c.characterId] ? { outline: "2px solid var(--c-primary, #07C160)", outlineOffset: "2px" } : undefined}>
-                                            {c.char!.avatar ? (
-                                                <img src={c.char!.avatar} alt="" />
+                                            {c.char!.chatAvatar || c.char!.avatar ? (
+                                                <img src={c.char!.chatAvatar || c.char!.avatar} alt="" />
                                             ) : (
                                                 <ChatFallbackAvatar />
                                             )}

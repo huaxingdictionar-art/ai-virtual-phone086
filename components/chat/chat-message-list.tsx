@@ -615,8 +615,8 @@ function ContactPicker({ onClose, onSelect }: { onClose: () => void; onSelect: (
                                 onClick={() => onSelect(c.characterId)}
                             >
                                 <div className="chat-contact-avatar">
-                                    {c.char.avatar ? (
-                                        <img src={c.char.avatar} alt="" />
+                                    {c.char.chatAvatar || c.char.avatar ? (
+                                        <img src={c.char.chatAvatar || c.char.avatar} alt="" />
                                     ) : (
                                         <ChatFallbackAvatar />
                                     )}
@@ -647,7 +647,7 @@ function SessionItem({ session, onSelect, isPinned }: { session: ChatSession, on
             ...((session.participantIds || [])
                 .map(id => chars.find(c => c.id === id))
                 .filter(Boolean) as Character[])
-                .map(c => ({ id: c.id, name: c.name, avatar: c.avatar || "" })),
+                .map(c => ({ id: c.id, name: c.name, avatar: c.chatAvatar || c.avatar || "" })),
         ].slice(0, 4)
         : [];
 
@@ -673,8 +673,8 @@ function SessionItem({ session, onSelect, isPinned }: { session: ChatSession, on
                 </div>
             ) : (
                 <div className="minimal-avatar-wrapper">
-                    {character?.avatar ? (
-                        <img src={character.avatar} className="w-full h-full object-cover pointer-events-none rounded-full" alt="" />
+                    {character?.chatAvatar || character?.avatar ? (
+                        <img src={character.chatAvatar || character.avatar} className="w-full h-full object-cover pointer-events-none rounded-full" alt="" />
                     ) : (
                         <ChatFallbackAvatar className="pointer-events-none rounded-full" />
                     )}

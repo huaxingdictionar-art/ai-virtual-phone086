@@ -34,7 +34,8 @@ import {
 } from "@/lib/group-admin";
 import { clearChatOfflineTurns } from "@/lib/chat-offline-storage";
 import { triggerDeleteFriendReaction } from "@/lib/friend-request-engine";
-import { loadCharacters } from "@/lib/character-storage";
+import { loadCharacters, saveCharacters } from "@/lib/character-storage";
+import { AvatarCropModal } from "./avatar-crop-modal";
 import { isAgentComputerConfigured } from "@/lib/agent-computer";
 import { CharacterComputerPage } from "./character-computer-page";
 import { resolveUserIdentity, loadBindingConfig, loadPresets, resolveBinding } from "@/lib/settings-storage";
@@ -504,8 +505,14 @@ export function ChatSettingsPanel({
     };
 
     const [groupName, setGroupName] = useState(session.groupName || "");
+    const [characterVersion, setCharacterVersion] = useState(0);
+    const [avatarCropImage, setAvatarCropImage] = useState<string | null>(null);
+    const avatarFileInputRef = useRef<HTMLInputElement | null>(null);
 
-    const characters = loadCharacters();
+    const characters = useMemo(() => {
+        void characterVersion;
+        return loadCharacters();
+    }, [characterVersion]);
     const character = characters.find(c => c.id === session.contactId);
 
     const characterName = session.isGroup
@@ -543,7 +550,7 @@ export function ChatSettingsPanel({
             ...groupChars.map(c => ({
                 key: c!.id,
                 name: c!.name,
-                avatar: c!.avatar || undefined,
+                avatar: c!.chatAvatar || c!.avatar || undefined,
                 muteMs: getGroupMuteRemainingMs(session, c!.id),
             })),
         ]
@@ -621,6 +628,51 @@ export function ChatSettingsPanel({
             saveChatSessions(sessions);
             Object.assign(session, updates);
         }
+    };
+
+    const handleAvatarFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        if (!file) return;
+        if (!file.type.startsWith("image/")) {
+            alert("请选择图片文件");
+            return;
+        }
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = String(reader.result || "");
+            if (!result.startsWith("data:image/")) {
+                alert("图片读取失败，请重试");
+                return;
+            }
+            setAvatarCropImage(result);
+        };
+        reader.onerror = () => alert("图片读取失败，请重试");
+        reader.readAsDataURL(file);
+    };
+
+    const handleAvatarCropConfirm = (dataUrl: string) => {
+        const latestCharacters = loadCharacters();
+        const updatedCharacters = latestCharacters.map(item => item.id === session.contactId
+            ? { ...item, chatAvatar: dataUrl, updatedAt: new Date().toISOString() }
+            : item);
+        if (!updatedCharacters.some(item => item.id === session.contactId)) {
+            alert("找不到当前角色，头像未保存");
+            setAvatarCropImage(null);
+            return;
+        }
+        saveCharacters(updatedCharacters);
+        setAvatarCropImage(null);
+        setCharacterVersion(version => version + 1);
+    };
+
+    const handleRestoreCharacterAvatar = () => {
+        const latestCharacters = loadCharacters();
+        const updatedCharacters = latestCharacters.map(item => item.id === session.contactId
+            ? { ...item, chatAvatar: null, updatedAt: new Date().toISOString() }
+            : item);
+        saveCharacters(updatedCharacters);
+        setCharacterVersion(version => version + 1);
     };
 
     const handleClearHistory = () => {
@@ -749,8 +801,8 @@ export function ChatSettingsPanel({
                     <div className="chat-msg-wrapper" data-role={resultRole}>
                         {resultRole === "assistant" && (
                             <div className="chat-msg-avatar w-[40px] h-[40px] rounded-[20px] bg-[var(--c-page-body-bg)] shrink-0 flex items-center justify-center overflow-hidden">
-                                {senderChar?.avatar ? (
-                                    <img src={senderChar.avatar} className="w-full h-full object-cover" alt="" />
+                                {senderChar?.chatAvatar || senderChar?.avatar ? (
+                                    <img src={senderChar.chatAvatar || senderChar.avatar || ""} className="w-full h-full object-cover" alt="" />
                                 ) : (
                                     <ChatFallbackAvatar />
                                 )}
@@ -823,6 +875,43 @@ export function ChatSettingsPanel({
                             <ChevronRight size={16} />
                         </div>
                     </button>
+                    {!session.isGroup && character && (
+                        <>
+                            <button
+                                className="menu-item"
+                                onClick={() => avatarFileInputRef.current?.click()}
+                            >
+                                <ChatInfoIcon icon={ImageIcon} color={CONTENT_APP_ACCENTS.chat} />
+                                <div className="menu-label-group">
+                                    <span className="menu-label">聊天头像</span>
+                                    <span className="menu-desc">单独用于聊天中的圆形头像</span>
+                                </div>
+                                <div className="menu-right">
+                                    {character.chatAvatar && <span className="menu-desc mr-1">已设置</span>}
+                                    <ChevronRight size={16} />
+                                </div>
+                            </button>
+                            <input
+                                ref={avatarFileInputRef}
+                                type="file"
+                                accept="image/*"
+                                onChange={handleAvatarFileChange}
+                                className="hidden"
+                            />
+                            {character.chatAvatar && (
+                                <button
+                                    className="menu-item"
+                                    onClick={handleRestoreCharacterAvatar}
+                                >
+                                    <ChatInfoIcon icon={ImageIcon} color="var(--c-danger)" />
+                                    <div className="menu-label-group">
+                                        <span className="menu-label">恢复角色卡头像</span>
+                                        <span className="menu-desc">移除专属聊天头像设置</span>
+                                    </div>
+                                </button>
+                            )}
+                        </>
+                    )}
                     <button className="menu-item" onClick={openSearchPanel}>
                         <ChatInfoIcon icon={Search} color={BINDING_ACCENTS.api} />
                         <div className="menu-label-group"><span className="menu-label">查找聊天记录</span></div>
@@ -1110,7 +1199,7 @@ export function ChatSettingsPanel({
                             {groupChars.map(c => c && (
                                 <label key={c.id} className="menu-item" style={{ paddingLeft: 72 }}>
                                     <div className="w-[24px] h-[24px] rounded-full overflow-hidden bg-[var(--c-input)] shrink-0">
-                                        {c.avatar ? <img src={c.avatar} className="w-full h-full object-cover" alt="" /> : <ChatFallbackAvatar />}
+                                        {c.chatAvatar || c.avatar ? <img src={c.chatAvatar || c.avatar || ""} className="w-full h-full object-cover" alt="" /> : <ChatFallbackAvatar />}
                                     </div>
                                     <div className="menu-label-group"><span className="menu-label">{c.name}</span></div>
                                     <div className="menu-right">
@@ -1213,6 +1302,14 @@ export function ChatSettingsPanel({
 
             </div>
 
+            {avatarCropImage && (
+                <AvatarCropModal
+                    image={avatarCropImage}
+                    onCancel={() => setAvatarCropImage(null)}
+                    onConfirm={handleAvatarCropConfirm}
+                />
+            )}
+
             {/* Modal: Group member actions */}
             {memberActionKey && (
                 <div className="modal-overlay" onClick={() => setMemberActionKey(null)}>
@@ -1281,7 +1378,7 @@ export function ChatSettingsPanel({
                                         onClick={() => performAdminAction("invite", c.id)}
                                     >
                                         <div className="chat-contact-avatar">
-                                            {c.avatar ? <img src={c.avatar} alt="" /> : <ChatFallbackAvatar />}
+                                            {c.chatAvatar || c.avatar ? <img src={c.chatAvatar || c.avatar || ""} alt="" /> : <ChatFallbackAvatar />}
                                         </div>
                                         <span className="chat-contact-name">{c.name}</span>
                                     </div>

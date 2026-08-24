@@ -2,6 +2,7 @@ export type Character = {
   id: string;
   name: string;
   avatar: string | null; // data URL 或外部 URL
+  chatAvatar?: string | null; // 专属聊天头像；圆形角色头像优先使用，未设置时回退 avatar
   persona: string;       // 人设
   briefPersona?: string; // 简量版人设：注入到同世界有关系角色的「角色关系」marker，供对方了解 TA（防 OOC）
   briefPersonaUpdatedAt?: string; // 简介生成时间；早于 updatedAt 时编辑器提示「设定已更新，建议重新生成」

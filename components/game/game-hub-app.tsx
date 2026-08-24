@@ -2048,7 +2048,7 @@ export function GameHubApp({ onClose, autoOpenLocalId }: { onClose: () => void; 
       return characters.map(character => ({
         id: character.id,
         name: character.name,
-        avatar: character.avatar || "",
+        avatar: character.chatAvatar || character.avatar || "",
         subtitle: character.personality?.split(/\n/)[0]?.slice(0, 42) || "",
       }));
     }

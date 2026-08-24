@@ -499,7 +499,7 @@ export default function MapLobby({ onClose, onStartGame }: Props) {
                         <div style={{ position: "relative" }}>
                           <div style={{
                             width: 36, height: 36, borderRadius: "50%",
-                            background: ch.avatar ? `url(${ch.avatar}) center/cover` : "rgba(200,160,100,0.1)",
+                            background: (ch.chatAvatar || ch.avatar) ? `url(${ch.chatAvatar || ch.avatar}) center/cover` : "rgba(200,160,100,0.1)",
                             border: `2px solid ${active ? "rgba(200,160,100,0.5)" : "rgba(255,255,255,0.06)"}`,
                           }} />
                           {active && (
