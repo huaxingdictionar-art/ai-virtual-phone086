@@ -2017,8 +2017,8 @@ export function ShoppingApp({ onClose, visible = true, onIdle, onBusyChange }: S
                       }}
                     >
                       <div style={{ width: "42px", height: "42px", borderRadius: "16px", background: active ? "#ff6b00" : "#f4f4f5", color: active ? "#fff" : "#555", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, overflow: "hidden" }}>
-                        {target.avatar ? (
-                          <img src={target.avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        {target.chatAvatar || target.avatar ? (
+                          <img src={target.chatAvatar || target.avatar} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                         ) : (
                           <span style={{ fontSize: "calc(15px*var(--app-text-scale,1))", fontWeight: 800 }}>{target.name.slice(0, 1)}</span>
                         )}
