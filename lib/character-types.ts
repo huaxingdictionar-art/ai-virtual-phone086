@@ -1,3 +1,12 @@
+export type CharacterImageDisplay = {
+  image: string;
+  positionX: number;
+  positionY: number;
+  scale: number;
+};
+
+export type CharacterPolaroidSize = "small" | "medium" | "large";
+
 export type Character = {
   id: string;
   name: string;
@@ -18,6 +27,10 @@ export type Character = {
   canvasRot?: number;
   canvasZIndex?: number;
   polaroidStyle?: number; // 用户选择的拍立得样式索引
+  polaroidSize?: CharacterPolaroidSize;
+  archiveCover?: CharacterImageDisplay;
+  /** @deprecated 仅用于读取旧存储；保存与导出时会清除。 */
+  archivePhoto?: CharacterImageDisplay | string;
 };
 
 export type CanvasBgItem = {

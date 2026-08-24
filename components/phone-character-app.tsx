@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { Character } from "@/lib/character-types";
+import type { Character, CharacterImageDisplay, CharacterPolaroidSize } from "@/lib/character-types";
+import {
+  getCharacterArchiveCover,
+  getCharacterImageStyle,
+  getPolaroidAspectRatio,
+  getPolaroidRatioClass,
+  getPolaroidWidth,
+  isSafeCharacterImageUrl,
+  normalizeCharacterImageDisplay,
+} from "@/lib/character-images";
 import {
   createCharacter,
   exportCharacterAsJson,
@@ -266,9 +275,11 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
                 const nextVersion = createVersion
                   ? backupCharacterVersion(existing, "manual", "手动编辑前备份")
                   : overwriteCharacterVersion(existing.id);
+                const { archivePhoto: _legacyExistingArchivePhoto, ...cleanExisting } = existing;
+                const { archivePhoto: _legacyDataArchivePhoto, ...cleanData } = data;
                 const updated: Character = {
-                  ...existing,
-                  ...data,
+                  ...cleanExisting,
+                  ...cleanData,
                   updatedAt: new Date().toISOString(),
                 };
                 updateChars(characters.map((c) => (c.id === existing.id ? updated : c)));
@@ -278,7 +289,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
                   : `已覆盖旧版本，当前为 V${nextVersion}`);
               } else {
                 const newChar = createCharacter(data);
-                newChar.polaroidStyle = pendingPolaroidStyle;
+                newChar.polaroidStyle ??= pendingPolaroidStyle;
                 setPendingPlacementChar(newChar);
                 setView({ type: "list", id: null, isEditing: false });
                 onNotice("点击画布放置角色");
@@ -288,8 +299,9 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
               const existing = view.id ? characters.find((c) => c.id === view.id) : null;
               if (!existing) return;
               const activeVersion = switchCharacterVersion(existing, version);
+              const { archivePhoto: _legacyRestoredArchivePhoto, ...cleanVersionData } = version.data;
               const restored: Character = {
-                ...version.data,
+                ...cleanVersionData,
                 id: existing.id,
                 createdAt: existing.createdAt,
                 updatedAt: new Date().toISOString(),
@@ -333,6 +345,7 @@ export function PhoneCharacterApp({ onClose, onNotice }: PhoneCharacterAppProps)
 
 function FlipTransitionOverlay({ transit }: { transit: TransitionState }) {
   const { char, sourceRect, phase } = transit;
+  const archiveCover = getCharacterArchiveCover(char);
 
   // Calculate relative bounds based on parent .phone-shell
   const [shellRect, setShellRect] = useState<DOMRect | null>(null);
@@ -393,10 +406,10 @@ function FlipTransitionOverlay({ transit }: { transit: TransitionState }) {
               aspectRatio: isStart ? "1/1" : "auto",
               transition: `all ${duration} ease`
             }}>
-              {char.avatar ? (
-                <img src={char.avatar} className="char-polaroid-img" alt="" />
+              {archiveCover ? (
+                <img src={archiveCover.image} style={getCharacterImageStyle(archiveCover)} className="char-polaroid-img" alt="" />
               ) : (
-                <div className="w-full h-full bg-[#9b8aaa]" />
+                <CharAvatarFallback name={char.name} size="100%" />
               )}
             </div>
             {isStart && <div className="char-polaroid-text">{char.name || "UNNAMED"}</div>}
@@ -1143,9 +1156,9 @@ function CharListView({
               const styleIdx = char.polaroidStyle ?? (hash % 5);
 
               const sizeMod = (hash % 5);
-              const w = 110 + sizeMod * 10;
-              const ratioClassArray = ["ratio-square", "ratio-portrait", "ratio-landscape", "ratio-16-9", "ratio-9-16"];
-              const ratioClass = ratioClassArray[styleIdx % ratioClassArray.length];
+              const w = getPolaroidWidth(char.polaroidSize, 110 + sizeMod * 10);
+              const ratioClass = getPolaroidRatioClass(styleIdx);
+              const archiveCover = getCharacterArchiveCover(char);
 
               const tapeStyles = ["char-polaroid-tape-white", "char-polaroid-tape-red", "char-polaroid-tape-black"];
               const tapeMod = char.polaroidStyle !== undefined ? styleIdx % tapeStyles.length : hash % 3;
@@ -1165,6 +1178,7 @@ function CharListView({
                   onEditTap={handleCharEditTap}
                   onDragMoveAt={handleCharDragMoveAt}
                   onDropAt={handleCharDropAt}
+                  use2dTransform
                   trashBinRef={trashBinRef}
                   onDragActiveChange={setIsAnyDragging}
                   onOverTrashChange={setOverTrashBin}
@@ -1178,7 +1192,7 @@ function CharListView({
                     </div>
                   )}
                   <div className="char-polaroid-img-wrapper" style={{ boxShadow: "inset 0 0 10px rgba(0,0,0,0.1)" }}>
-                    {char.avatar ? <img src={char.avatar} alt={char.name} className="char-polaroid-img" draggable={false} /> : <CharAvatarFallback name={char.name} size="100%" />}
+                    {archiveCover ? <img src={archiveCover.image} alt={char.name} className="char-polaroid-img" style={getCharacterImageStyle(archiveCover)} draggable={false} /> : <CharAvatarFallback name={char.name} size="100%" />}
                     <button
                       className="char-polaroid-menu-btn absolute top-1 right-1 w-6 h-6 bg-black/20 text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-black/40 transition-colors z-10"
                       onClick={(e) => { e.stopPropagation(); setActiveMoveChar(char); }}
@@ -1258,10 +1272,10 @@ function CharListView({
             }}
           >
             {pendingPlacementChar ? (
-              <div className="char-polaroid w-[100px]" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
+              <div className={`char-polaroid w-[100px] ${getPolaroidRatioClass(pendingPlacementChar.polaroidStyle)}`} style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
                 <div className="char-polaroid-img-wrapper">
-                  {pendingPlacementChar.avatar ? (
-                    <img src={pendingPlacementChar.avatar} className="char-polaroid-img" alt="" draggable={false} />
+                  {getCharacterArchiveCover(pendingPlacementChar) ? (
+                    <img src={getCharacterArchiveCover(pendingPlacementChar)!.image} style={getCharacterImageStyle(getCharacterArchiveCover(pendingPlacementChar))} className="char-polaroid-img" alt="" draggable={false} />
                   ) : (
                     <CharAvatarFallback name={pendingPlacementChar.name} size="100%" />
                   )}
@@ -1562,16 +1576,14 @@ function CharListView({
       {/* 转移世界 Modal */}
       {activeMoveChar && (
         <div className="modal-overlay" data-ui="modal" onPointerDown={() => setActiveMoveChar(null)}>
-          <div className="modal-dialog" data-ui="modal-dialog" onPointerDown={(e) => e.stopPropagation()} style={{ padding: 0, overflow: 'hidden' }}>
-            <div className="modal-header" data-ui="modal-header" style={{ padding: '20px 20px 10px' }}>
-              <h3 className="modal-title" style={{ margin: 0, fontSize: '16px' }}>转移到其他卷宗</h3>
-            </div>
-            <div role="listbox" style={{ maxHeight: '40dvh', padding: '10px 16px', overflowY: 'auto' }}>
-              {worldGroups.filter(g => g.id !== currentWorldId).map(group => (
+          <div className="char-move-world-dialog" onPointerDown={(event) => event.stopPropagation()}>
+            <h3 className="char-move-world-title">转移到其他卷宗</h3>
+            <div className="char-move-world-list" role="listbox">
+              {worldGroups.filter(group => group.id !== currentWorldId).map(group => (
                 <button
                   key={group.id}
                   type="button"
-                  style={{ width: '100%', padding: '12px 16px', textAlign: 'left', borderRadius: '8px', background: 'rgba(0,0,0,0.03)', marginBottom: '8px', border: '1px solid rgba(0,0,0,0.05)', fontWeight: '500', fontSize: '14px', color: '#333' }}
+                  className="char-move-world-option"
                   onClick={() => {
                     moveCharacterToWorld(activeMoveChar.id, group.id);
                     setActiveMoveChar(null);
@@ -1581,13 +1593,11 @@ function CharListView({
                   {group.name}
                 </button>
               ))}
-              {worldGroups.filter(g => g.id !== currentWorldId).length === 0 && (
-                <div style={{ padding: '20px', textAlign: 'center', color: '#999' }}>没有其他卷宗可供转移</div>
+              {worldGroups.filter(group => group.id !== currentWorldId).length === 0 && (
+                <div className="char-move-world-empty">没有其他卷宗可供转移</div>
               )}
             </div>
-            <div className="modal-footer" data-ui="modal-footer" style={{ padding: '10px 20px 20px' }}>
-              <button className="ui-btn ui-btn-outline" style={{ width: '100%' }} onClick={() => setActiveMoveChar(null)}>取消</button>
-            </div>
+            <button className="char-move-world-cancel" type="button" onClick={() => setActiveMoveChar(null)}>取消</button>
           </div>
         </div>
       )}
@@ -1600,7 +1610,7 @@ function CharListView({
 function DraggableNode({
   id, x, y, rot, zIndex, children, onDragEnd, onClick, className, w, isEditing, onDeleteIntent,
   trashBinRef, onDragActiveChange, onOverTrashChange, zoom = 1, pinchRef,
-  onEditTap, onDragMoveAt, onDropAt
+  onEditTap, onDragMoveAt, onDropAt, use2dTransform = false
 }: {
   id: string; x: number; y: number; rot: number; zIndex: number;
   children: React.ReactNode;
@@ -1619,6 +1629,8 @@ function DraggableNode({
   onDragMoveAt?: (clientX: number, clientY: number) => void;
   /** 松手时的落点处理；返回 true 表示已被消费（如归档进其他世界），位置回弹 */
   onDropAt?: (id: string, clientX: number, clientY: number) => boolean;
+  /** 使用二维位移，避免部分移动端在 3D 合成层中降低图片清晰度。 */
+  use2dTransform?: boolean;
 }) {
   const [pos, setPos] = useState({ x, y });
   const [isDragging, setIsDragging] = useState(false);
@@ -1740,7 +1752,9 @@ function DraggableNode({
       onClickCapture={handleClick}
       style={{
         width: w,
-        transform: `translate3d(${pos.x}px, ${pos.y}px, 0) rotate(${rot}deg)`,
+        transform: use2dTransform
+          ? `translate(${pos.x}px, ${pos.y}px) rotate(${rot}deg)`
+          : `translate3d(${pos.x}px, ${pos.y}px, 0) rotate(${rot}deg)`,
         zIndex: isDragging ? 9999999 : zIndex,
         cursor: isDragging ? 'grabbing' : 'grab',
         touchAction: 'none',
@@ -1801,6 +1815,11 @@ function CharArchiveView({
   const [showTimeZonePicker, setShowTimeZonePicker] = useState(false);
   const [timeZoneSearch, setTimeZoneSearch] = useState(char.timeZone || "");
   const [avatar, setAvatar] = useState<string | null>(char.avatar || null);
+  const [archiveCover, setArchiveCover] = useState<CharacterImageDisplay | undefined>(() => normalizeCharacterImageDisplay(char.archiveCover ?? char.archivePhoto));
+  const [polaroidStyle, setPolaroidStyle] = useState(char.polaroidStyle ?? 0);
+  const [polaroidSize, setPolaroidSize] = useState<CharacterPolaroidSize | undefined>(char.polaroidSize);
+  const [avatarCropSource, setAvatarCropSource] = useState("");
+  const [avatarCropError, setAvatarCropError] = useState("");
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
@@ -1853,6 +1872,10 @@ function CharArchiveView({
     if (briefPersona !== (char.briefPersona || "")) return true;
     if (timeZone !== (char.timeZone || "")) return true;
     if (avatar !== (char.avatar || null)) return true;
+    const originalArchiveCover = normalizeCharacterImageDisplay(char.archiveCover ?? char.archivePhoto);
+    if (JSON.stringify(archiveCover) !== JSON.stringify(originalArchiveCover)) return true;
+    if (polaroidStyle !== (char.polaroidStyle ?? 0)) return true;
+    if (polaroidSize !== char.polaroidSize) return true;
     const origTags = char.tags || [];
     if (tags.length !== origTags.length || tags.some((t, i) => t !== origTags[i])) return true;
     return false;
@@ -1878,17 +1901,32 @@ function CharArchiveView({
       setShowTimeZonePicker(false);
       setTags(char.tags || []);
       setAvatar(char.avatar || null);
+      setArchiveCover(normalizeCharacterImageDisplay(char.archiveCover ?? char.archivePhoto));
+      setPolaroidStyle(char.polaroidStyle ?? 0);
+      setPolaroidSize(char.polaroidSize);
+      setAvatarCropSource("");
+      setAvatarCropError("");
     }
   }, [isEditing, char]);
 
   async function handleAvatarFile(file: File) {
-    const url = await fileToDataUrl(file);
-    setAvatar(url);
+    try {
+      const url = await fileToDataUrl(file, { maxSize: 2560, quality: 0.92 });
+      setAvatarCropError("");
+      setAvatarCropSource(url);
+    } catch (error) {
+      setAvatarCropError(error instanceof Error ? error.message : "无法读取图片");
+    }
   }
 
   function handleAvatarUrl() {
     const trimmed = urlInput.trim();
     if (!trimmed) return;
+    if (!isSafeCharacterImageUrl(trimmed)) {
+      setAvatarCropError("仅支持 data:、http:// 或 https:// 图片地址");
+      return;
+    }
+    setAvatarCropError("");
     setAvatar(trimmed);
     setShowUrlInput(false);
     setUrlInput("");
@@ -1919,7 +1957,10 @@ function CharArchiveView({
           : undefined,
         timeZone: normalizedTimeZone,
         tags,
-        avatar: avatar ?? null
+        avatar: avatar ?? null,
+        archiveCover: normalizeCharacterImageDisplay(archiveCover),
+        polaroidStyle,
+        polaroidSize,
       }, createVersion);
     }
   }
@@ -1998,6 +2039,9 @@ function CharArchiveView({
     setShowTimeZonePicker(false);
   }
 
+  const activeArchiveDisplay = normalizeCharacterImageDisplay(archiveCover)
+    ?? (isSafeCharacterImageUrl(avatar) ? { image: avatar, positionX: 50, positionY: 50, scale: 1 } : undefined);
+
   const archiveFrame = (
       <div className="char-archive-frame">
         <div className="char-archive-stamp">CLASSIFIED</div>
@@ -2021,8 +2065,10 @@ function CharArchiveView({
                 }
               }}
             >
-              {avatar ? (
+              {isEditing && avatar ? (
                 <img src={avatar} alt="Avatar" />
+              ) : !isEditing && activeArchiveDisplay ? (
+                <img src={activeArchiveDisplay.image} alt="Archive cover" style={getCharacterImageStyle(activeArchiveDisplay)} />
               ) : (
                 <CharAvatarFallback name={name || char.name} size="100%" />
               )}
@@ -2045,6 +2091,23 @@ function CharArchiveView({
                 e.target.value = "";
               }}
             />
+            {avatarCropSource && isEditing && (
+              <AvatarCropEditor
+                source={avatarCropSource}
+                onApply={(cropped) => {
+                  setAvatar(cropped);
+                  setAvatarCropSource("");
+                  setAvatarCropError("");
+                }}
+                onCancel={() => setAvatarCropSource("")}
+                onError={setAvatarCropError}
+              />
+            )}
+            {avatarCropError && (
+              <div className={`char-avatar-crop-error ${avatarCropSource ? "" : "char-avatar-crop-error-standalone"}`}>
+                {avatarCropError}
+              </div>
+            )}
             {isEditing && (
               <div className="mt-2 flex flex-col gap-1 w-full justify-center">
                 <button
@@ -2114,6 +2177,18 @@ function CharArchiveView({
 
           </div>
         </div>
+
+        {isEditing && (
+          <CharacterImageEditor
+            value={archiveCover}
+            fallbackImage={avatar}
+            polaroidStyle={polaroidStyle}
+            polaroidSize={polaroidSize}
+            onChange={setArchiveCover}
+            onPolaroidStyleChange={setPolaroidStyle}
+            onPolaroidSizeChange={setPolaroidSize}
+          />
+        )}
 
         <div className="char-archive-row">
           <div className="char-archive-cell" style={{ flex: 1.8 }}>
@@ -2606,24 +2681,277 @@ function AutoResizingTextarea({
   );
 }
 
+function loadCropImage(source: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("图片加载失败；外部地址可能禁止跨域裁剪"));
+    image.src = source;
+  });
+}
+
+function AvatarCropEditor({
+  source,
+  onApply,
+  onCancel,
+  onError,
+}: {
+  source: string;
+  onApply: (image: string) => void;
+  onCancel: () => void;
+  onError: (message: string) => void;
+}) {
+  const [positionX, setPositionX] = useState(50);
+  const [positionY, setPositionY] = useState(50);
+  const [scale, setScale] = useState(1);
+  const [busy, setBusy] = useState(false);
+
+  async function applyCrop() {
+    if (busy) return;
+    setBusy(true);
+    onError("");
+    try {
+      const image = await loadCropImage(source);
+      const cropAspectRatio = 3 / 4;
+      const availableCropWidth = Math.min(
+        image.naturalWidth,
+        image.naturalHeight * cropAspectRatio,
+      ) / scale;
+      const availableCropHeight = availableCropWidth / cropAspectRatio;
+      const outputSizes = [
+        { width: 900, height: 1200 },
+        { width: 675, height: 900 },
+        { width: 450, height: 600 },
+      ];
+      const output = outputSizes.find(size => (
+        size.width <= availableCropWidth && size.height <= availableCropHeight
+      )) ?? outputSizes[outputSizes.length - 1];
+      const sourceWidth = Math.max(1, availableCropWidth);
+      const sourceHeight = Math.max(1, availableCropHeight);
+      const centerX = image.naturalWidth * positionX / 100;
+      const centerY = image.naturalHeight * positionY / 100;
+      const sourceX = Math.min(
+        Math.max(0, centerX - sourceWidth / 2),
+        Math.max(0, image.naturalWidth - sourceWidth),
+      );
+      const sourceY = Math.min(
+        Math.max(0, centerY - sourceHeight / 2),
+        Math.max(0, image.naturalHeight - sourceHeight),
+      );
+      const canvas = document.createElement("canvas");
+      canvas.width = output.width;
+      canvas.height = output.height;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("浏览器无法创建裁剪画布");
+      context.imageSmoothingEnabled = true;
+      context.imageSmoothingQuality = "high";
+      context.drawImage(
+        image,
+        sourceX,
+        sourceY,
+        sourceWidth,
+        sourceHeight,
+        0,
+        0,
+        output.width,
+        output.height,
+      );
+      onApply(canvas.toDataURL("image/webp", 0.92));
+    } catch (error) {
+      onError(error instanceof Error ? error.message : "裁剪失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="char-avatar-crop-editor" onClick={event => event.stopPropagation()}>
+      <div className="char-avatar-crop-preview">
+        <img
+          src={source}
+          alt="头像裁剪预览"
+          style={{
+            objectPosition: `${positionX}% ${positionY}%`,
+            transform: `scale(${scale})`,
+            transformOrigin: `${positionX}% ${positionY}%`,
+          }}
+        />
+      </div>
+      <div className="char-avatar-crop-controls">
+        <strong>3:4 头像裁剪</strong>
+        <label><span>X</span><input type="range" min="0" max="100" value={positionX} onChange={event => setPositionX(Number(event.target.value))} /></label>
+        <label><span>Y</span><input type="range" min="0" max="100" value={positionY} onChange={event => setPositionY(Number(event.target.value))} /></label>
+        <label><span>缩放</span><input type="range" min="1" max="3" step="0.01" value={scale} onChange={event => setScale(Number(event.target.value))} /></label>
+        <div className="char-image-editor-actions">
+          <button type="button" onClick={onCancel}>取消</button>
+          <button type="button" className="primary" disabled={busy} onClick={applyCrop}>{busy ? "处理中…" : "应用裁剪"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CharacterImageEditor({
+  value,
+  fallbackImage,
+  polaroidStyle,
+  polaroidSize,
+  onChange,
+  onPolaroidStyleChange,
+  onPolaroidSizeChange,
+}: {
+  value?: CharacterImageDisplay;
+  fallbackImage: string | null;
+  polaroidStyle: number;
+  polaroidSize?: CharacterPolaroidSize;
+  onChange: (value: CharacterImageDisplay | undefined) => void;
+  onPolaroidStyleChange: (value: number) => void;
+  onPolaroidSizeChange: (value: CharacterPolaroidSize | undefined) => void;
+}) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const dragRef = useRef<{ x: number; y: number; positionX: number; positionY: number } | null>(null);
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState("");
+  const display = normalizeCharacterImageDisplay(value);
+  const previewImage = display?.image ?? fallbackImage;
+
+  function patch(patchValue: Partial<CharacterImageDisplay>) {
+    const image = display?.image ?? fallbackImage;
+    if (!image || !isSafeCharacterImageUrl(image)) return;
+    onChange(normalizeCharacterImageDisplay({
+      image,
+      positionX: display?.positionX ?? 50,
+      positionY: display?.positionY ?? 50,
+      scale: display?.scale ?? 1,
+      ...patchValue,
+    }));
+  }
+
+  async function upload(file: File) {
+    try {
+      setError("");
+      const image = await fileToDataUrl(file, { maxSize: 2560, quality: 0.92 });
+      onChange({ image, positionX: 50, positionY: 50, scale: 1 });
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "图片读取失败");
+    }
+  }
+
+  function applyUrl() {
+    const image = url.trim();
+    if (!isSafeCharacterImageUrl(image)) {
+      setError("仅支持 data:、http:// 或 https:// 图片地址");
+      return;
+    }
+    setError("");
+    onChange({ image, positionX: 50, positionY: 50, scale: 1 });
+    setUrl("");
+  }
+
+  return (
+    <section className="char-image-diy-section">
+      <div className="char-image-diy-heading">
+        <div><strong>ARCHIVE COVER</strong><span>仅用于角色档案与档案墙</span></div>
+        {display && <button type="button" onClick={() => onChange(undefined)}>移除独立封面</button>}
+      </div>
+      <div className="char-image-editor-grid">
+        <div
+          className="char-image-editor-preview"
+          style={{ aspectRatio: getPolaroidAspectRatio(polaroidStyle) }}
+          onPointerDown={event => {
+            if (!display) return;
+            dragRef.current = { x: event.clientX, y: event.clientY, positionX: display.positionX, positionY: display.positionY };
+            event.currentTarget.setPointerCapture(event.pointerId);
+          }}
+          onPointerMove={event => {
+            if (!dragRef.current || !display) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            patch({
+              positionX: dragRef.current.positionX + (event.clientX - dragRef.current.x) / rect.width * 100,
+              positionY: dragRef.current.positionY + (event.clientY - dragRef.current.y) / rect.height * 100,
+            });
+          }}
+          onPointerUp={event => {
+            dragRef.current = null;
+            if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
+          }}
+          onPointerCancel={() => { dragRef.current = null; }}
+        >
+          {previewImage ? (
+            <img src={previewImage} alt="档案封面预览" style={display ? getCharacterImageStyle(display) : undefined} draggable={false} />
+          ) : (
+            <div className="char-image-editor-empty">暂无图片</div>
+          )}
+          {display && <span className="char-image-editor-drag-hint">拖动取景</span>}
+        </div>
+        <div className="char-image-editor-controls">
+          <div className="char-image-source-actions">
+            <button type="button" onClick={() => inputRef.current?.click()}>上传封面</button>
+            <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={async event => {
+              const file = event.target.files?.[0];
+              if (file) await upload(file);
+              event.target.value = "";
+            }} />
+          </div>
+          <div className="char-image-url-row">
+            <input value={url} onChange={event => setUrl(event.target.value)} placeholder="图片 URL" onKeyDown={event => { if (event.key === "Enter") applyUrl(); }} />
+            <button type="button" onClick={applyUrl}>应用</button>
+          </div>
+          {error && <div className="char-image-editor-error">{error}</div>}
+          <label><span>X</span><input disabled={!display} type="range" min="0" max="100" value={display?.positionX ?? 50} onChange={event => patch({ positionX: Number(event.target.value) })} /></label>
+          <label><span>Y</span><input disabled={!display} type="range" min="0" max="100" value={display?.positionY ?? 50} onChange={event => patch({ positionY: Number(event.target.value) })} /></label>
+          <label><span>缩放</span><input disabled={!display} type="range" min="1" max="3" step="0.01" value={display?.scale ?? 1} onChange={event => patch({ scale: Number(event.target.value) })} /></label>
+        </div>
+      </div>
+      <div className="char-polaroid-settings">
+        <fieldset>
+          <legend>拍立得比例</legend>
+          <div className="char-polaroid-choice-row">
+            {["1:1", "3:4", "4:3", "16:9", "9:16"].map((label, index) => (
+              <button type="button" key={label} data-active={polaroidStyle === index || undefined} onClick={() => onPolaroidStyleChange(index)}>{label}</button>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset>
+          <legend>拍立得尺寸</legend>
+          <div className="char-polaroid-choice-row">
+            {([
+              [undefined, "自动"],
+              ["small", "小"],
+              ["medium", "中"],
+              ["large", "大"],
+            ] as const).map(([size, label]) => (
+              <button type="button" key={label} data-active={polaroidSize === size || undefined} onClick={() => onPolaroidSizeChange(size)}>{label}</button>
+            ))}
+          </div>
+        </fieldset>
+      </div>
+    </section>
+  );
+}
+
 // ── 工具函数 ─────────────────────────────────────────
 
-function fileToDataUrl(file: File): Promise<string> {
+function fileToDataUrl(
+  file: File,
+  options: { maxSize?: number; quality?: number } = {},
+): Promise<string> {
+  const { maxSize = 400, quality = 0.8 } = options;
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
       const img = new Image();
       img.onload = () => {
-        const MAX_SIZE = 400;
         let w = img.width;
         let h = img.height;
-        if (w > MAX_SIZE || h > MAX_SIZE) {
+        if (w > maxSize || h > maxSize) {
           if (w > h) {
-            h = Math.round(h * MAX_SIZE / w);
-            w = MAX_SIZE;
+            h = Math.round(h * maxSize / w);
+            w = maxSize;
           } else {
-            w = Math.round(w * MAX_SIZE / h);
-            h = MAX_SIZE;
+            w = Math.round(w * maxSize / h);
+            h = maxSize;
           }
         }
         const canvas = document.createElement("canvas");
@@ -2634,7 +2962,7 @@ function fileToDataUrl(file: File): Promise<string> {
         ctx.drawImage(img, 0, 0, w, h);
 
         // Use webp or jpeg to heavily compress large png files before saving to localstorage
-        resolve(canvas.toDataURL("image/webp", 0.8));
+        resolve(canvas.toDataURL("image/webp", quality));
       };
       img.onerror = () => resolve(reader.result as string); // fallback to raw
       img.src = reader.result as string;

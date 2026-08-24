@@ -1,4 +1,5 @@
 import type { Character, CanvasBgItem } from "./character-types";
+import { isCharacterPolaroidSize, isSafeCharacterImageUrl, normalizeCharacterImageDisplay } from "./character-images";
 import { normalizeTimeZone } from "./character-time";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 
@@ -59,10 +60,30 @@ export function loadCharacters(): Character[] {
         else delete char.timeZone;
         needsSave = true;
       }
-      // Sanitize avatars: only keep data-URLs and http(s) URLs
-      if (char.avatar && !char.avatar.startsWith("data:") && !char.avatar.startsWith("http://") && !char.avatar.startsWith("https://")) {
+      // Sanitize character images and migrate the deprecated archivePhoto field.
+      if (char.avatar && !isSafeCharacterImageUrl(char.avatar)) {
         char.avatar = null;
         needsSave = true;
+      }
+      const normalizedCover = normalizeCharacterImageDisplay(char.archiveCover ?? char.archivePhoto);
+      if (normalizedCover) {
+        if (JSON.stringify(char.archiveCover) !== JSON.stringify(normalizedCover)) needsSave = true;
+        char.archiveCover = normalizedCover;
+      } else if (char.archiveCover) {
+        delete char.archiveCover;
+        needsSave = true;
+      }
+      if ("archivePhoto" in char) {
+        delete char.archivePhoto;
+        needsSave = true;
+      }
+      if (!Number.isInteger(char.polaroidStyle) || Number(char.polaroidStyle) < 0 || Number(char.polaroidStyle) > 4) {
+        if (char.polaroidStyle !== undefined) needsSave = true;
+        delete char.polaroidStyle;
+      }
+      if (!isCharacterPolaroidSize(char.polaroidSize)) {
+        if (char.polaroidSize !== undefined) needsSave = true;
+        delete char.polaroidSize;
       }
       return char as Character;
     });
@@ -79,7 +100,21 @@ export function loadCharacters(): Character[] {
 
 export function saveCharacters(chars: Character[]): void {
   if (typeof window === "undefined") return;
-  kvSet(STORAGE_KEY, JSON.stringify(chars));
+  const sanitized = chars.map((character) => {
+    const { archivePhoto: _legacyArchivePhoto, ...cleanCharacter } = character;
+    const avatar = isSafeCharacterImageUrl(cleanCharacter.avatar) ? cleanCharacter.avatar.trim() : null;
+    const archiveCover = normalizeCharacterImageDisplay(cleanCharacter.archiveCover);
+    const polaroidStyle = Number.isInteger(cleanCharacter.polaroidStyle)
+      && Number(cleanCharacter.polaroidStyle) >= 0
+      && Number(cleanCharacter.polaroidStyle) <= 4
+      ? cleanCharacter.polaroidStyle
+      : undefined;
+    const polaroidSize = isCharacterPolaroidSize(cleanCharacter.polaroidSize)
+      ? cleanCharacter.polaroidSize
+      : undefined;
+    return { ...cleanCharacter, avatar, archiveCover, polaroidStyle, polaroidSize };
+  });
+  kvSet(STORAGE_KEY, JSON.stringify(sanitized));
   _charsCache = null;
 }
 
@@ -148,6 +183,11 @@ export function exportCharacterAsJson(char: Character): void {
     tags: char.tags || [],
     wechatID: char.wechatID || "",
     timeZone: char.timeZone || "",
+    archiveCover: normalizeCharacterImageDisplay(char.archiveCover),
+    polaroidStyle: Number.isInteger(char.polaroidStyle) && Number(char.polaroidStyle) >= 0 && Number(char.polaroidStyle) <= 4
+      ? char.polaroidStyle
+      : undefined,
+    polaroidSize: isCharacterPolaroidSize(char.polaroidSize) ? char.polaroidSize : undefined,
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",
@@ -191,6 +231,11 @@ export function parseCharacterFromJson(
       tags: Array.isArray(src.tags) ? src.tags.map(String) : [],
       wechatID: typeof src.wechatID === "string" && src.wechatID.trim() ? src.wechatID : undefined,
       timeZone: normalizeTimeZone(src.timeZone ?? src.timezone ?? src.time_zone),
+      archiveCover: normalizeCharacterImageDisplay(src.archiveCover ?? src.archivePhoto),
+      polaroidStyle: Number.isInteger(src.polaroidStyle) && Number(src.polaroidStyle) >= 0 && Number(src.polaroidStyle) <= 4
+        ? Number(src.polaroidStyle)
+        : undefined,
+      polaroidSize: isCharacterPolaroidSize(src.polaroidSize) ? src.polaroidSize : undefined,
     };
   } catch (e) {
     if (e instanceof Error && e.message === CHAR_BLOCKED_FIELDS) throw e;
@@ -408,6 +453,11 @@ export async function exportCharacterAsPng(char: Character): Promise<void> {
     tags: char.tags || [],
     wechatID: char.wechatID || "",
     timeZone: char.timeZone || "",
+    archiveCover: normalizeCharacterImageDisplay(char.archiveCover),
+    polaroidStyle: Number.isInteger(char.polaroidStyle) && Number(char.polaroidStyle) >= 0 && Number(char.polaroidStyle) <= 4
+      ? char.polaroidStyle
+      : undefined,
+    polaroidSize: isCharacterPolaroidSize(char.polaroidSize) ? char.polaroidSize : undefined,
   };
   const jsonStr = JSON.stringify(payload);
   const base64 = btoa(unescape(encodeURIComponent(jsonStr)));
