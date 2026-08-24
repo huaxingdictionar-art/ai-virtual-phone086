@@ -1165,6 +1165,7 @@ function CharListView({
                   onEditTap={handleCharEditTap}
                   onDragMoveAt={handleCharDragMoveAt}
                   onDropAt={handleCharDropAt}
+                  use2dTransform
                   trashBinRef={trashBinRef}
                   onDragActiveChange={setIsAnyDragging}
                   onOverTrashChange={setOverTrashBin}
@@ -1600,7 +1601,7 @@ function CharListView({
 function DraggableNode({
   id, x, y, rot, zIndex, children, onDragEnd, onClick, className, w, isEditing, onDeleteIntent,
   trashBinRef, onDragActiveChange, onOverTrashChange, zoom = 1, pinchRef,
-  onEditTap, onDragMoveAt, onDropAt
+  onEditTap, onDragMoveAt, onDropAt, use2dTransform = false
 }: {
   id: string; x: number; y: number; rot: number; zIndex: number;
   children: React.ReactNode;
@@ -1619,6 +1620,8 @@ function DraggableNode({
   onDragMoveAt?: (clientX: number, clientY: number) => void;
   /** 松手时的落点处理；返回 true 表示已被消费（如归档进其他世界），位置回弹 */
   onDropAt?: (id: string, clientX: number, clientY: number) => boolean;
+  /** 使用二维位移，避免 3D 合成导致档案墙图片重采样模糊 */
+  use2dTransform?: boolean;
 }) {
   const [pos, setPos] = useState({ x, y });
   const [isDragging, setIsDragging] = useState(false);
@@ -1740,7 +1743,9 @@ function DraggableNode({
       onClickCapture={handleClick}
       style={{
         width: w,
-        transform: `translate3d(${pos.x}px, ${pos.y}px, 0) rotate(${rot}deg)`,
+        transform: use2dTransform
+          ? `translate(${pos.x}px, ${pos.y}px) rotate(${rot}deg)`
+          : `translate3d(${pos.x}px, ${pos.y}px, 0) rotate(${rot}deg)`,
         zIndex: isDragging ? 9999999 : zIndex,
         cursor: isDragging ? 'grabbing' : 'grab',
         touchAction: 'none',
