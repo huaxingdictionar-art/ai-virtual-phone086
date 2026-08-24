@@ -1792,27 +1792,195 @@
   color: var(--c-page-body-bg);
 }
 
+/* 档案图片 DIY：延续情报档案页的标题、说明与分隔层级 */
+.char-image-diy-section {
+  padding: 20px 16px 18px;
+  background: color-mix(in srgb, var(--c-input) 18%, var(--c-panel));
+}
+
+.char-image-diy-intro {
+  padding: 0 0 17px;
+  border-bottom: 1px dashed var(--c-panel-border);
+}
+
+.char-image-diy-intro strong {
+  display: block;
+  color: var(--c-text-title);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: calc(16px * var(--app-text-scale, 1));
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1.3;
+}
+
+.char-image-diy-intro p {
+  margin: 9px 0 0;
+  color: var(--c-text);
+  font-size: calc(12px * var(--app-text-scale, 1));
+  line-height: 1.75;
+  opacity: 0.58;
+}
+
+.char-image-diy-heading {
+  margin: 17px 0 12px;
+}
+
+.char-image-diy-title {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 10px;
+}
+
+.char-image-diy-title strong {
+  color: var(--c-text-title);
+  font-size: calc(14px * var(--app-text-scale, 1));
+  font-weight: 800;
+  letter-spacing: 0;
+}
+
+.char-image-diy-title span {
+  margin: 0;
+  color: var(--c-text-title);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: calc(13px * var(--app-text-scale, 1));
+  letter-spacing: 0.06em;
+  opacity: 1;
+}
+
+.char-image-editor-grid {
+  grid-template-columns: minmax(140px, 168px) minmax(0, 1fr);
+  gap: 14px;
+  padding-bottom: 17px;
+  border-bottom: 1px dashed var(--c-panel-border);
+}
+
+.char-image-editor-preview {
+  min-height: 168px;
+}
+
+.char-image-editor-empty {
+  min-height: 168px;
+}
+
+.char-image-editor-controls {
+  gap: 10px;
+}
+
+.char-image-source-actions {
+  display: flex;
+  align-items: stretch;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.char-image-source-actions button,
+.char-image-url-row button {
+  min-height: 36px;
+  padding: 7px 11px;
+  background: var(--c-panel);
+  font-size: calc(11px * var(--app-text-scale, 1));
+}
+
+.char-image-url-row {
+  gap: 7px;
+}
+
+.char-image-url-row input {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: calc(11px * var(--app-text-scale, 1));
+}
+
+.char-image-editor-controls label {
+  grid-template-columns: 46px minmax(0, 1fr);
+  gap: 8px;
+  font-size: calc(11px * var(--app-text-scale, 1));
+}
+
+.char-image-editor-drag-hint {
+  right: 7px;
+  bottom: 7px;
+  padding: 3px 6px;
+  font-size: calc(9px * var(--app-text-scale, 1));
+}
+
+.char-polaroid-settings {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-top: 17px;
+}
+
+.char-polaroid-settings fieldset {
+  padding: 0;
+  border: 0;
+}
+
+.char-polaroid-settings fieldset + fieldset {
+  padding-top: 15px;
+  border-top: 1px dashed var(--c-panel-border);
+}
+
+.char-polaroid-settings legend {
+  width: 100%;
+  margin: 0 0 10px;
+  padding: 0;
+  color: var(--c-text-title);
+  font-size: calc(14px * var(--app-text-scale, 1));
+  font-weight: 800;
+}
+
+.char-polaroid-choice-row {
+  gap: 7px;
+}
+
+.char-polaroid-choice-row button {
+  min-width: 48px;
+  min-height: 40px;
+  padding: 8px 12px;
+  background: var(--c-panel);
+  font-size: calc(12px * var(--app-text-scale, 1));
+}
+
 @media (max-width: 430px) {
-  .char-avatar-crop-editor,
+  .char-image-diy-section {
+    padding: 18px 14px 16px;
+  }
+
   .char-image-editor-grid {
-    grid-template-columns: minmax(105px, 135px) minmax(0, 1fr);
-    gap: 8px;
+    grid-template-columns: minmax(126px, 34%) minmax(0, 1fr);
+    gap: 12px;
   }
 
   .char-avatar-crop-editor {
     left: 6px;
     right: 6px;
-    padding: 8px;
+    grid-template-columns: minmax(118px, 34%) minmax(0, 1fr);
+    gap: 10px;
+    padding: 10px;
   }
 
   .char-avatar-crop-controls label,
   .char-image-editor-controls label {
-    grid-template-columns: 26px minmax(0, 1fr);
-    gap: 3px;
+    grid-template-columns: 40px minmax(0, 1fr);
+    gap: 6px;
+  }
+
+  .char-image-diy-intro strong {
+    font-size: calc(15px * var(--app-text-scale, 1));
+  }
+
+  .char-image-diy-intro p {
+    font-size: calc(11.5px * var(--app-text-scale, 1));
+  }
+
+  .char-image-source-actions button,
+  .char-image-url-row button {
+    padding-inline: 9px;
   }
 
   .char-polaroid-settings {
-    grid-template-columns: 1fr;
-    gap: 8px;
+    gap: 14px;
   }
 }

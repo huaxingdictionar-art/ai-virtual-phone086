@@ -2075,7 +2075,7 @@ function CharArchiveView({
               {isEditing && (
                 <div className="absolute inset-0 bg-black/30 flex flex-col items-center justify-center pointer-events-none text-white">
                   <IconCamera size={24} />
-                  <span className="ts-10 mt-1">Change Photo</span>
+                  <span className="ts-10 mt-1">修改基础头像</span>
                 </div>
               )}
             </div>
@@ -2114,7 +2114,7 @@ function CharArchiveView({
                   className="ts-10 px-3 py-1 bg-[#111111] text-white border-none rounded-full cursor-pointer hover:bg-[#222222] transition-colors"
                   onClick={() => setShowUrlInput((v) => !v)}
                 >
-                  Use IMG URL
+                  基础头像 URL
                 </button>
                 {showUrlInput && (
                   <div className="flex gap-1 mt-1">
@@ -2851,9 +2851,15 @@ function CharacterImageEditor({
 
   return (
     <section className="char-image-diy-section">
+      <header className="char-image-diy-intro">
+        <strong>DIY IMAGE PROFILE</strong>
+        <p>基础头像请在上方头像区域上传并裁剪；档案墙封面可独立设置并拖动取景，清除后会回退显示基础头像。</p>
+      </header>
       <div className="char-image-diy-heading">
-        <div><strong>ARCHIVE COVER</strong><span>仅用于角色档案与档案墙</span></div>
-        {display && <button type="button" onClick={() => onChange(undefined)}>移除独立封面</button>}
+        <div className="char-image-diy-title">
+          <strong>档案墙封面</strong>
+          <span>/ ARCHIVE COVER</span>
+        </div>
       </div>
       <div className="char-image-editor-grid">
         <div
@@ -2887,7 +2893,8 @@ function CharacterImageEditor({
         </div>
         <div className="char-image-editor-controls">
           <div className="char-image-source-actions">
-            <button type="button" onClick={() => inputRef.current?.click()}>上传封面</button>
+            <button type="button" onClick={() => inputRef.current?.click()}>上传独立图片</button>
+            {display && <button type="button" onClick={() => onChange(undefined)}>清除并回退基础头像</button>}
             <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={async event => {
               const file = event.target.files?.[0];
               if (file) await upload(file);
@@ -2895,7 +2902,7 @@ function CharacterImageEditor({
             }} />
           </div>
           <div className="char-image-url-row">
-            <input value={url} onChange={event => setUrl(event.target.value)} placeholder="图片 URL" onKeyDown={event => { if (event.key === "Enter") applyUrl(); }} />
+            <input value={url} onChange={event => setUrl(event.target.value)} placeholder="独立图片 URL" onKeyDown={event => { if (event.key === "Enter") applyUrl(); }} />
             <button type="button" onClick={applyUrl}>应用</button>
           </div>
           {error && <div className="char-image-editor-error">{error}</div>}
@@ -2917,7 +2924,7 @@ function CharacterImageEditor({
           <legend>拍立得尺寸</legend>
           <div className="char-polaroid-choice-row">
             {([
-              [undefined, "自动"],
+              [undefined, "自动（旧版）"],
               ["small", "小"],
               ["medium", "中"],
               ["large", "大"],
