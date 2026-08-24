@@ -2702,10 +2702,56 @@ function AvatarCropEditor({
   onCancel: () => void;
   onError: (message: string) => void;
 }) {
+  const previewRef = useRef<HTMLDivElement>(null);
+  const imageSizeRef = useRef({ width: 0, height: 0 });
+  const dragRef = useRef<{ x: number; y: number; positionX: number; positionY: number } | null>(null);
   const [positionX, setPositionX] = useState(50);
   const [positionY, setPositionY] = useState(50);
-  const [scale, setScale] = useState(1);
   const [busy, setBusy] = useState(false);
+
+  function getOverflow() {
+    const preview = previewRef.current;
+    const { width: naturalWidth, height: naturalHeight } = imageSizeRef.current;
+    if (!preview || !naturalWidth || !naturalHeight) return { x: 0, y: 0 };
+    const rect = preview.getBoundingClientRect();
+    const coverScale = Math.max(rect.width / naturalWidth, rect.height / naturalHeight);
+    return {
+      x: Math.max(0, naturalWidth * coverScale - rect.width),
+      y: Math.max(0, naturalHeight * coverScale - rect.height),
+    };
+  }
+
+  function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
+    if (busy) return;
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = {
+      x: event.clientX,
+      y: event.clientY,
+      positionX,
+      positionY,
+    };
+  }
+
+  function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
+    const drag = dragRef.current;
+    if (!drag) return;
+    event.preventDefault();
+    const overflow = getOverflow();
+    if (overflow.x > 0) {
+      setPositionX(Math.min(100, Math.max(0, drag.positionX - (event.clientX - drag.x) / overflow.x * 100)));
+    }
+    if (overflow.y > 0) {
+      setPositionY(Math.min(100, Math.max(0, drag.positionY - (event.clientY - drag.y) / overflow.y * 100)));
+    }
+  }
+
+  function handlePointerEnd(event: React.PointerEvent<HTMLDivElement>) {
+    dragRef.current = null;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
 
   async function applyCrop() {
     if (busy) return;
@@ -2717,7 +2763,7 @@ function AvatarCropEditor({
       const availableCropWidth = Math.min(
         image.naturalWidth,
         image.naturalHeight * cropAspectRatio,
-      ) / scale;
+      );
       const availableCropHeight = availableCropWidth / cropAspectRatio;
       const outputSizes = [
         { width: 900, height: 1200 },
@@ -2729,16 +2775,8 @@ function AvatarCropEditor({
       )) ?? outputSizes[outputSizes.length - 1];
       const sourceWidth = Math.max(1, availableCropWidth);
       const sourceHeight = Math.max(1, availableCropHeight);
-      const centerX = image.naturalWidth * positionX / 100;
-      const centerY = image.naturalHeight * positionY / 100;
-      const sourceX = Math.min(
-        Math.max(0, centerX - sourceWidth / 2),
-        Math.max(0, image.naturalWidth - sourceWidth),
-      );
-      const sourceY = Math.min(
-        Math.max(0, centerY - sourceHeight / 2),
-        Math.max(0, image.naturalHeight - sourceHeight),
-      );
+      const sourceX = Math.max(0, image.naturalWidth - sourceWidth) * positionX / 100;
+      const sourceY = Math.max(0, image.naturalHeight - sourceHeight) * positionY / 100;
       const canvas = document.createElement("canvas");
       canvas.width = output.width;
       canvas.height = output.height;
@@ -2767,26 +2805,34 @@ function AvatarCropEditor({
 
   return (
     <div className="char-avatar-crop-editor" onClick={event => event.stopPropagation()}>
-      <div className="char-avatar-crop-preview">
+      <strong className="char-avatar-crop-title">3:4 头像裁剪</strong>
+      <div
+        ref={previewRef}
+        className="char-avatar-crop-preview"
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+      >
         <img
           src={source}
           alt="头像裁剪预览"
-          style={{
-            objectPosition: `${positionX}% ${positionY}%`,
-            transform: `scale(${scale})`,
-            transformOrigin: `${positionX}% ${positionY}%`,
+          draggable={false}
+          onLoad={event => {
+            imageSizeRef.current = {
+              width: event.currentTarget.naturalWidth,
+              height: event.currentTarget.naturalHeight,
+            };
           }}
+          style={{ objectPosition: `${positionX}% ${positionY}%` }}
         />
-      </div>
-      <div className="char-avatar-crop-controls">
-        <strong>3:4 头像裁剪</strong>
-        <label><span>X</span><input type="range" min="0" max="100" value={positionX} onChange={event => setPositionX(Number(event.target.value))} /></label>
-        <label><span>Y</span><input type="range" min="0" max="100" value={positionY} onChange={event => setPositionY(Number(event.target.value))} /></label>
-        <label><span>缩放</span><input type="range" min="1" max="3" step="0.01" value={scale} onChange={event => setScale(Number(event.target.value))} /></label>
-        <div className="char-image-editor-actions">
-          <button type="button" onClick={onCancel}>取消</button>
-          <button type="button" className="primary" disabled={busy} onClick={applyCrop}>{busy ? "处理中…" : "应用裁剪"}</button>
+        <div className="char-avatar-crop-grid" aria-hidden="true">
+          <i /><i /><i /><i />
         </div>
+      </div>
+      <div className="char-avatar-crop-actions">
+        <button type="button" disabled={busy} onClick={onCancel}>取消</button>
+        <button type="button" className="primary" disabled={busy} onClick={applyCrop}>{busy ? "处理中…" : "确认"}</button>
       </div>
     </div>
   );
