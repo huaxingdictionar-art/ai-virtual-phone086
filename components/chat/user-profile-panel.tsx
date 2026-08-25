@@ -32,7 +32,6 @@ import { armIdleReconnectBailout, armTimedWakeBailout, cancelBailoutKey, cancelB
 import { loadTimedWakeSchedules, makeTimedWakeId, removeTimedWakeSchedule, saveTimedWakeSchedule, type TimedWakeSchedule } from "@/lib/timed-wake-storage";
 import { IDLE_RECONNECT_MAX_CONSECUTIVE, loadIdleReconnectRules, removeIdleReconnectRule, upsertIdleReconnectRule, type IdleReconnectRule } from "@/lib/idle-reconnect-storage";
 import { addChatContact, createOrGetSession } from "@/lib/chat-storage";
-import { isSelfHostedModeEnabled } from "@/lib/self-hosting";
 import { kvGet, kvSet, kvRemove } from "@/lib/kv-db";
 import { formatWalletAmount, getWalletBalance, loadWalletState, WALLET_UPDATED_EVENT } from "@/lib/wallet-storage";
 import { ChatFallbackAvatar } from "./chat-fallback-avatar";
@@ -1072,7 +1071,6 @@ function InlineMomentsSettings({ onBack }: { onBack: () => void }) {
    Offline Push & Timed Messages (sub-page)
    ══════════════════════════════════════════ */
 function OfflinePushSettingsPage({ onBack }: { onBack: () => void }) {
-    const selfHosted = isSelfHostedModeEnabled();
     const [offlinePushState, setOfflinePushState] = useState<OfflinePushState>("unsupported");
     const [isShellApp, setIsShellApp] = useState(false);
     const [offlinePushBusy, setOfflinePushBusy] = useState(false);
@@ -1256,7 +1254,7 @@ function OfflinePushSettingsPage({ onBack }: { onBack: () => void }) {
       <>
         <PageShell title="离线推送" onBack={onBack} className="absolute inset-0 z-[100]">
             <div className="page-menu profile-settings-menu">
-                {!selfHosted && (
+                {(
                     <>
                         <p className="menu-group-desc mx-2">运行位置</p>
                         <div className="menu-group">
@@ -1363,7 +1361,6 @@ function OfflinePushSettingsPage({ onBack }: { onBack: () => void }) {
                         </p>
                     </>
                 )}
-
                 <p className="menu-group-desc mx-2">定时主动消息</p>
                 <div className="menu-group">
                     <div className="menu-item">

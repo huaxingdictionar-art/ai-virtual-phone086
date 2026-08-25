@@ -7,6 +7,7 @@ const GATEWAY_SLUG = "ai-phone-push";
 const GENERATE_SLUG = "push-generate";
 const RESULT_SLUG = "push-shortcut-result";
 const BRIDGE_SLUG = "push-bridge";
+const SCREEN_SLUG = "screen-chat";
 
 type DeployRequest = {
   projectRef?: string;
@@ -15,6 +16,7 @@ type DeployRequest = {
   generateCode?: string;
   resultCode?: string;
   bridgeCode?: string;
+  screenChatCode?: string;
   schemaSql?: string;
 };
 
@@ -67,7 +69,8 @@ async function assertDedicatedProject(params: {
           where n.nspname = 'public' and c.relkind in ('r', 'p')
             and c.relname <> all (array[
               'push_server_config', 'push_subscriptions', 'push_jobs', 'push_outbox',
-              'push_shortcut_commands', 'push_bridge_config', 'push_bridge_snapshots'
+              'push_shortcut_commands', 'push_bridge_config', 'push_bridge_snapshots',
+              'push_screen_sessions', 'push_screen_threads'
             ])
         ) then 'personal-cloud-safe-v2'
         else 'shared-project-blocked'
@@ -110,6 +113,7 @@ export async function POST(request: Request) {
   const generateCode = typeof payload.generateCode === "string" ? payload.generateCode : "";
   const resultCode = typeof payload.resultCode === "string" ? payload.resultCode : "";
   const bridgeCode = typeof payload.bridgeCode === "string" ? payload.bridgeCode : "";
+  const screenChatCode = typeof payload.screenChatCode === "string" ? payload.screenChatCode : "";
   const schemaSql = typeof payload.schemaSql === "string" ? payload.schemaSql : "";
 
   if (!/^[a-z0-9]{15,40}$/.test(projectRef)) {
@@ -143,6 +147,13 @@ export async function POST(request: Request) {
     || bridgeCode.length > 900_000
   ) {
     return NextResponse.json({ ok: false, error: "现实桥联动执行器部署包无效。" }, { status: 400 });
+  }
+  if (
+    !screenChatCode.includes("屏幕速聊·同步问答入口")
+    || !screenChatCode.includes("Deno.serve")
+    || screenChatCode.length > 600_000
+  ) {
+    return NextResponse.json({ ok: false, error: "屏幕速聊入口部署包无效。" }, { status: 400 });
   }
   if (
     !schemaSql.startsWith("-- ai-phone-personal-push-schema-v1")
@@ -193,6 +204,14 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { ok: false, step: "部署现实桥联动执行器失败", error: await upstreamMessage(bridge) },
         { status: bridge.status },
+      );
+    }
+
+    const screenChat = await deployFunction({ projectRef, token, slug: SCREEN_SLUG, code: screenChatCode });
+    if (!screenChat.ok) {
+      return NextResponse.json(
+        { ok: false, step: "部署屏幕速聊入口失败", error: await upstreamMessage(screenChat) },
+        { status: screenChat.status },
       );
     }
 

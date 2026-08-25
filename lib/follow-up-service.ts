@@ -882,6 +882,8 @@ export async function parseAndSaveResponse(
         senderName?: string;
         silent?: boolean;
         responseBatchId?: string;
+        /** 离线回端时沿用云端生成时间，避免多轮补账被“当前时间”打乱因果顺序。 */
+        createdAt?: string;
         rawResponseText?: string;
         reasoningText?: string;
     },
@@ -935,6 +937,7 @@ export async function parseAndSaveResponse(
             sessionId,
             role: "system",
             content: `[我发起了${callLabel}]`,
+            createdAt: options?.createdAt,
             responseBatchId: createResponseBatchId(),
             rawResponseText: `[我发起了${callLabel}]`,
         });
@@ -946,6 +949,7 @@ export async function parseAndSaveResponse(
                 sessionId,
                 role: "assistant",
                 content: "",
+                createdAt: options?.createdAt,
                 responseBatchId,
                 rawResponseText,
                 statusPanel,
@@ -972,10 +976,15 @@ export async function parseAndSaveResponse(
     }
     for (let i = 0; i < filteredParts.length; i++) {
         const generatedPart = buildGeneratedFollowUpImageMessage(filteredParts[i]);
+        const sourceCreatedAt = options?.createdAt ? Date.parse(options.createdAt) : NaN;
+        const createdAt = Number.isFinite(sourceCreatedAt)
+            ? new Date(sourceCreatedAt + i).toISOString()
+            : undefined;
         const saved = pushChatMessage({
             sessionId,
             role: "assistant",
             content: generatedPart.content,
+            createdAt,
             mediaType: generatedPart.mediaType,
             mediaUrl: generatedPart.mediaUrl,
             mediaData: generatedPart.mediaData,

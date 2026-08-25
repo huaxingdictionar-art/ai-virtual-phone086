@@ -4,6 +4,11 @@
 /** prompt 快照里预留的事件文本占位哨兵（私有区字符，正常文本不会出现） */
 export const BRIDGE_EVENT_SENTINEL = "BRIDGE_EVENT_TEXT";
 
+/** 屏幕速聊：快照在 push_bridge_snapshots 里的保留 rule_id（不会与联动规则撞名） */
+export const SCREEN_CHAT_SNAPSHOT_ID = "screen-chat";
+/** 屏幕速聊快照请求体里的对话占位哨兵（screen-chat 函数替换成会话文本） */
+export const SCREEN_CHAT_SENTINEL = "SCREEN_CHAT_TURNS_TEXT";
+
 /** 服务端可执行的精简规则形态（客户端从 BridgeRule 裁剪同步上来） */
 export type ServerBridgeRule = {
     id: string;

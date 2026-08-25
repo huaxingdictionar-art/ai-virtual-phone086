@@ -5,10 +5,23 @@
 
 import { buildChatPromptMessages } from "./chat-engine";
 import { buildProviderRequest, toLlmRequestMessages } from "./llm-provider-adapter";
-import { createOrGetSession, addChatContact, loadChatContacts, type ChatMessage, loadChatMessages } from "./chat-storage";
+import {
+    CHAT_MESSAGES_DELETED_EVENT,
+    CHAT_MESSAGE_PUSHED_EVENT,
+    createOrGetSession,
+    addChatContact,
+    loadChatContacts,
+    type ChatMessage,
+    loadChatMessages,
+} from "./chat-storage";
 import { loadCharacters } from "./character-storage";
 import { kvGet, kvSet } from "./kv-db";
-import { BRIDGE_EVENT_SENTINEL, type ServerBridgeRule } from "./push-bridge-shared";
+import {
+    BRIDGE_EVENT_SENTINEL,
+    SCREEN_CHAT_SENTINEL,
+    SCREEN_CHAT_SNAPSHOT_ID,
+    type ServerBridgeRule,
+} from "./push-bridge-shared";
 import { hasAccountPushSubscription } from "./push-client";
 import {
     buildOfflineShortcutContinuation,
@@ -16,7 +29,11 @@ import {
     maybeAppendShortcutCapability,
     maybeAppendWeixinChannel,
 } from "./offline-shortcut-capability";
-import { isPersonalPushCloudActive, personalPushFetch } from "./personal-push-cloud";
+import {
+    isPersonalPushCloudActive,
+    isPersonalScreenChatCloudReady,
+    personalPushFetch,
+} from "./personal-push-cloud";
 import { isSelfHostedModeEnabled } from "./self-hosting";
 import { loadApiConfigs, resolveAuxiliaryApiConfig } from "./settings-storage";
 import {
@@ -25,6 +42,8 @@ import {
     loadBridgeRules,
     loadBridgeSettings,
     loadBridgeShortcutActions,
+    loadScreenChatSettings,
+    loadScreenChatAck,
 } from "./reality-bridge/storage";
 import type { BridgeRule } from "./reality-bridge/types";
 
@@ -161,16 +180,71 @@ async function buildRuleSnapshot(rule: BridgeRule): Promise<Record<string, unkno
     }
 }
 
+/** 屏幕速聊 prompt 快照：与联动规则快照同链路（rule_id 固定为 screen-chat），
+ *  正文 = 所选角色的完整聊天上下文 + 对话占位哨兵；screen-chat 函数只做替换与注图。 */
+async function buildScreenChatSnapshot(): Promise<Record<string, unknown> | null> {
+    const screen = loadScreenChatSettings();
+    if (!screen.enabled || !screen.characterId) return null;
+    try {
+        const session = ensureSessionFor(screen.characterId);
+        const history = loadChatMessages(session.id);
+        const synthetic: ChatMessage = {
+            id: "_screen_chat_sentinel",
+            sessionId: session.id,
+            role: "user",
+            content: SCREEN_CHAT_SENTINEL,
+            status: "sent",
+            createdAt: new Date().toISOString(),
+        };
+        const { llmMessages, character, config, preset, regexes, userIdentity } = await buildChatPromptMessages(
+            session,
+            [...history, synthetic],
+            { appTags: ["chat", "text"] },
+        );
+        const request = buildProviderRequest(config, preset, toLlmRequestMessages(llmMessages));
+        return {
+            replyRequest: {
+                url: request.url,
+                headers: request.headers,
+                body: request.body,
+                providerKind: request.providerKind,
+            },
+            // 图像识别开关跟随该角色绑定的 API 配置：开 = 服务端注入截图，关 = 代入 OCR 文字
+            enableVision: config.enableImageRecognition === true,
+            // 云端只保留尚未回端的增量；已合并轮次由该水位裁掉，避免和完整本地历史重复。
+            ackSequence: loadScreenChatAck(screen.characterId),
+            chat: { characterId: screen.characterId, sessionId: session.id, characterName: character.name },
+            reply: {
+                sessionId: session.id,
+                regexes,
+                characterName: character.name,
+                userName: userIdentity?.name ?? "用户",
+                appId: "chat",
+                appTags: ["chat", "text"],
+            },
+        };
+    } catch (err) {
+        console.warn("[BridgeSync] screen chat snapshot build failed", err);
+        return null;
+    }
+}
+
 async function runSync(): Promise<void> {
-    if (syncing || typeof window === "undefined" || isSelfHostedModeEnabled()) return;
+    if (syncing || typeof window === "undefined") return;
     syncing = true;
     try {
         const settings = loadBridgeSettings();
+        const screenSettings = loadScreenChatSettings();
         const { config: cloudConfig, ready } = bridgeConnection();
-        if (!settings.enabled || !ready) return;
-        if (!(await hasAccountPushSubscription())) return;
+        const usePersonal = isPersonalPushCloudActive();
+        const screenCloudReady = isPersonalScreenChatCloudReady();
+        if ((!settings.enabled && !screenSettings.enabled) || !ready) return;
+        // 自部署站点没有共享回传身份，但配置好个人云后应完整支持规则和屏幕速聊。
+        if (isSelfHostedModeEnabled() && !usePersonal) return;
+        // 屏幕速聊不依赖推送订阅（快捷指令直连 screen-chat 函数），启用时照常同步快照
+        if (!screenSettings.enabled && !(await hasAccountPushSubscription())) return;
 
-        const rules = loadBridgeRules().filter(rule => rule.enabled);
+        const rules = settings.enabled ? loadBridgeRules().filter(rule => rule.enabled) : [];
         const serverRules = rules.map(toServerRule).filter(Boolean);
         const ruleRuns = getBridgeRuleRunsMap();
 
@@ -190,15 +264,20 @@ async function runSync(): Promise<void> {
             const payload = await buildRuleSnapshot(rule);
             if (payload) snapshots.push({ ruleId: rule.id, payload });
         }
+        // 屏幕截图和包含 API 密钥的生成快照绝不允许回退到站点主项目。
+        const screenSnapshot = usePersonal && screenCloudReady ? await buildScreenChatSnapshot() : null;
+        if (screenSnapshot) snapshots.push({ ruleId: SCREEN_CHAT_SNAPSHOT_ID, payload: screenSnapshot });
         // 个人云激活时规则/快照落到用户自己的库（push-bridge 也部署在那边）；
         // 指纹带上通道标记，切换通道后必然重传一次。
-        const usePersonal = isPersonalPushCloudActive();
         const fullFingerprint = `${usePersonal ? "p" : "s"}:${hashString(configFingerprint)}:${hashString(JSON.stringify(snapshots))}`;
         if (kvGet(SYNC_HASH_KV) === fullFingerprint) return;
 
         const knownIds = new Set(snapshotRules.map(rule => rule.id));
         const allRuleIds = loadBridgeRules().map(rule => rule.id);
         const deleteRuleIds = allRuleIds.filter(id => !knownIds.has(id));
+        // 屏幕速聊被关闭（或角色未选）时删除服务端快照，令 screen-chat 入口随之失效
+        // 只在个人云上管理保留的屏幕快照；共享站点从不收发这项数据。
+        if (usePersonal && !screenSnapshot) deleteRuleIds.push(SCREEN_CHAT_SNAPSHOT_ID);
 
         if (usePersonal) {
             const response = await personalPushFetch("bridge-sync", {
@@ -262,6 +341,10 @@ function scheduleSync(delayMs: number): void {
 export function installBridgeServerSync(): void {
     if (typeof window === "undefined") return;
     window.addEventListener("reality-bridge-rules-updated", () => scheduleSync(3_000));
+    // 唯一聊天窗口一有新增/删除/外部合并就刷新基础快照，云端始终接着本地最新上下文。
+    window.addEventListener(CHAT_MESSAGE_PUSHED_EVENT, () => scheduleSync(3_000));
+    window.addEventListener(CHAT_MESSAGES_DELETED_EVENT, () => scheduleSync(3_000));
+    window.addEventListener("chat-messages-updated", () => scheduleSync(3_000));
     document.addEventListener("visibilitychange", () => {
         if (document.hidden) void runSync();
     });

@@ -7,11 +7,11 @@ import type { RegexConfig } from "./settings-types";
 import { stripHallucinatedTimestamps } from "./llm-provider-adapter";
 import { MacroEngine } from "./macro-engine";
 import { getActiveAppTags } from "./content-tag-utils";
-import { loadChatMessages, loadChatSessions } from "./chat-storage";
+import { loadChatMessages, loadChatSessions, reindexSessionMessageOrdersByTime } from "./chat-storage";
 import { hasAccountPushSubscription } from "./push-client";
 import { isPersonalPushCloudActive, loadPersonalPushCloudState, personalPushFetch } from "./personal-push-cloud";
-import { isSelfHostedModeEnabled } from "./self-hosting";
 import { removeTimedWakeSchedule } from "./timed-wake-storage";
+import { loadScreenChatSettings, saveScreenChatAck } from "./reality-bridge/storage";
 
 type OutboxEntry = {
     id: string;
@@ -53,13 +53,13 @@ function clearTimedWakeIfHandled(triggerKey: string | null): void {
 }
 
 export async function consumeServerOutbox(options?: { silent?: boolean; force?: boolean }): Promise<void> {
-    if (typeof window === "undefined" || isSelfHostedModeEnabled()) return;
+    if (typeof window === "undefined") return;
     // 共享回传箱已紧急停用：没有个人 Supabase 时直接结束，不请求 status/outbox。
     if (!isPersonalPushCloudActive()) return;
     if (consuming) return;
     if (options?.force !== true && Date.now() - lastConsumeAt < OUTBOX_FOREGROUND_CHECK_INTERVAL_MS) return;
     // 没有任何设备订阅推送时，服务端不可能产生普通离线回传；避免所有在线用户空轮询。
-    if (!(await hasAccountPushSubscription())) return;
+    if (!loadScreenChatSettings().enabled && !(await hasAccountPushSubscription())) return;
     consuming = true;
     lastConsumeAt = Date.now();
     const passStartMs = Date.now();
@@ -90,28 +90,54 @@ export async function consumeServerOutbox(options?: { silent?: boolean; force?: 
                     if ((meta as { kind?: string }).kind === "bridge") {
                         const bridgeMeta = meta as Record<string, unknown> & {
                             reply?: { sessionId?: string; regexes?: RegexConfig[]; characterName?: string; userName?: string; appId?: string; appTags?: string[] } | null;
+                            screenChat?: boolean;
+                            screenChatCharacterId?: string;
+                            screenChatSequence?: number;
+                            screenChatResponseBatchId?: string;
+                            screenChatAssistantAt?: string;
                         };
                         const engine = await import("./reality-bridge/engine");
                         const applied = await engine.applyServerBridgeEntry(bridgeMeta as Parameters<typeof engine.applyServerBridgeEntry>[0]);
                         const replyMeta = bridgeMeta.reply || null;
                         const replySessionId = applied.sessionId || replyMeta?.sessionId || "";
                         if (entry.raw_text.trim() && replySessionId) {
-                            let text = stripHallucinatedTimestamps(entry.raw_text.trim());
-                            const regexes = Array.isArray(replyMeta?.regexes) ? replyMeta.regexes : [];
-                            if (regexes.length > 0) {
-                                const macroEngine = new MacroEngine(replyMeta?.characterName ?? "", replyMeta?.userName ?? "用户");
-                                const activeTags = getActiveAppTags(replyMeta?.appId ?? "chat", { appTags: replyMeta?.appTags });
-                                text = applyOutputRegex(text, regexes, { macroEngine, activeTags });
-                            }
-                            const { hasVisible, newCount, stateValues } = await parseAndSaveResponse(
-                                text,
-                                replySessionId,
-                                0,
-                                undefined,
-                                loadChatMessages(replySessionId),
-                                { silent: options?.silent !== false },
+                            const responseBatchId = typeof bridgeMeta.screenChatResponseBatchId === "string"
+                                ? bridgeMeta.screenChatResponseBatchId
+                                : undefined;
+                            const existing = loadChatMessages(replySessionId);
+                            const alreadyImported = Boolean(
+                                responseBatchId && existing.some(message => message.responseBatchId === responseBatchId),
                             );
-                            if (hasVisible && newCount < 10) scheduleFollowUp(replySessionId, newCount, stateValues);
+                            if (!alreadyImported) {
+                                let text = stripHallucinatedTimestamps(entry.raw_text.trim());
+                                const regexes = Array.isArray(replyMeta?.regexes) ? replyMeta.regexes : [];
+                                if (regexes.length > 0) {
+                                    const macroEngine = new MacroEngine(replyMeta?.characterName ?? "", replyMeta?.userName ?? "用户");
+                                    const activeTags = getActiveAppTags(replyMeta?.appId ?? "chat", { appTags: replyMeta?.appTags });
+                                    text = applyOutputRegex(text, regexes, { macroEngine, activeTags });
+                                }
+                                const { hasVisible, newCount, stateValues } = await parseAndSaveResponse(
+                                    text,
+                                    replySessionId,
+                                    0,
+                                    undefined,
+                                    existing,
+                                    {
+                                        silent: options?.silent !== false,
+                                        responseBatchId,
+                                        createdAt: bridgeMeta.screenChatAssistantAt,
+                                    },
+                                );
+                                if (hasVisible && newCount < 10) scheduleFollowUp(replySessionId, newCount, stateValues);
+                            }
+                            if (bridgeMeta.screenChat === true) reindexSessionMessageOrdersByTime(replySessionId);
+                        }
+                        if (
+                            bridgeMeta.screenChat === true
+                            && typeof bridgeMeta.screenChatCharacterId === "string"
+                            && Number.isSafeInteger(bridgeMeta.screenChatSequence)
+                        ) {
+                            saveScreenChatAck(bridgeMeta.screenChatCharacterId, Number(bridgeMeta.screenChatSequence));
                         }
                         consumedIds.push(entry.id);
                         if (entry.trigger_key) handledTriggerKeys.add(entry.trigger_key);
@@ -179,6 +205,8 @@ export async function consumeServerOutbox(options?: { silent?: boolean; force?: 
                     if (entry.trigger_key) handledTriggerKeys.add(entry.trigger_key);
                 } catch (err) {
                     console.warn("[PushOutbox] merge failed for entry:", entry.id, err);
+                    // 屏幕速聊各轮有严格因果顺序；前一轮未合并时不能越过它消费后一轮。
+                    if ((entry.meta as { screenChat?: boolean } | null)?.screenChat === true) break;
                 }
             }
 
@@ -206,7 +234,8 @@ export function installServerOutboxConsumer(): void {
     if (typeof window === "undefined" || consumerInstalled) return;
     consumerInstalled = true;
 
-    // 普通回前台遵守 5 分钟节流；只有 SW 明确告知 outbox 新消息时才强制绕过。
+    // 启动时保留 5 分钟节流；回前台和 SW 明确告知新消息时强制补拉。
+    // iOS 会在后台冻结页面，如果回前台仍被节流，屏幕速聊消息只能等到下次重启才会合并。
     const requestConsume = (force = false) => {
         if (consumeRequestTimer !== null) window.clearTimeout(consumeRequestTimer);
         consumeRequestTimer = window.setTimeout(() => {
@@ -217,7 +246,7 @@ export function installServerOutboxConsumer(): void {
 
     requestConsume(false);
     document.addEventListener("visibilitychange", () => {
-        if (!document.hidden) requestConsume(false);
+        if (!document.hidden) requestConsume(true);
     });
     navigator.serviceWorker?.addEventListener("message", (event) => {
         if (event.data?.type === "push_outbox_ready") {

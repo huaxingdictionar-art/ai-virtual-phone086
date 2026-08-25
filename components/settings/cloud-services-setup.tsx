@@ -209,7 +209,7 @@ export function CloudServicesSetup({ onConfigChanged }: { onConfigChanged?: () =
                     updated_at timestamptz not null default now()
                 );
                 insert into public.ai_phone_cloud_meta (id, schema_version, updated_at)
-                values ('personal-cloud', 2, now())
+                values ('personal-cloud', 3, now())
                 on conflict (id) do update set schema_version = excluded.schema_version, updated_at = excluded.updated_at;`,
             });
 

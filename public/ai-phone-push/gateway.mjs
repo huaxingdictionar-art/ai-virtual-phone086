@@ -555,7 +555,17 @@ Deno.serve(async (request: Request) => {
     if (action === "health") {
       const response = await rest("push_server_config?select=id&limit=1");
       if (!response.ok) throw new Error("离线推送数据库尚未初始化。");
-      return json({ ok: true, service: "ai-phone-personal-push", version: 1 });
+      const meta = await readJson<Array<{ schema_version?: number }>>(await rest(
+        "ai_phone_cloud_meta?id=eq.personal-cloud&select=schema_version&limit=1",
+      ));
+      const schemaVersion = Number(meta[0]?.schema_version) || 1;
+      return json({
+        ok: true,
+        service: "ai-phone-personal-push",
+        version: 2,
+        schemaVersion,
+        capabilities: schemaVersion >= 3 ? ["screen-chat-continuous"] : [],
+      });
     }
 
     if (action === "public-key" && request.method === "GET") {

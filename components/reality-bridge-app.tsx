@@ -14,6 +14,7 @@ import {
   loadBridgeRules,
   loadBridgeSettings,
   loadBridgeShortcutActions,
+  loadScreenChatSettings,
   parseBridgeActionParameterSchema,
   readBridgeStateSnapshot,
   sanitizeBridgeDataKey,
@@ -21,13 +22,19 @@ import {
   saveBridgeRules,
   saveBridgeSettings,
   saveBridgeShortcutActions,
+  saveScreenChatSettings,
   type BridgeDataItem,
   type BridgeShortcutAction,
+  type ScreenChatSettings,
 } from "@/lib/reality-bridge/storage";
 import type { BridgeRule } from "@/lib/reality-bridge/types";
 import { createShortcutCommand, loadRecentShortcutCommands, type ShortcutCommand } from "@/lib/shortcut-command-client";
 import { enableOfflinePush, isShellEnvironment } from "@/lib/push-client";
-import { isPersonalPushCloudActive, personalPushFetch } from "@/lib/personal-push-cloud";
+import {
+  isPersonalPushCloudActive,
+  isPersonalScreenChatCloudReady,
+  personalPushFetch,
+} from "@/lib/personal-push-cloud";
 import { isValidShortcutEmailAddress, shortcutEmailSubjectTag } from "@/lib/shortcut-email";
 
 type TabId = "main" | "history";
@@ -194,6 +201,8 @@ const RB_ICON_CHECK = <svg {...RB_SVG}><path d="M4.5 12.5 10 18 19.5 6.5" /></sv
 const WIZ_STEP_NAMES = ["接通管道", "创建快捷指令", "选择信号", "加工内容", "决定动作", "测试与保存"] as const;
 const SWIZ_STEP_NAMES = ["接通通道", "动作是什么", "触发方式", "参数与结果", "创建快捷指令", "测试与保存"] as const;
 const DWIZ_STEP_NAMES = ["接通通道", "数据项是什么", "创建上传快捷指令", "测试与保存"] as const;
+const SCREEN_WIZ_STEP_NAMES = ["接通个人云", "选择角色", "创建快捷指令", "确认与启用"] as const;
+const SCREEN_CHAT_SHORTCUT_URL = "https://www.icloud.com/shortcuts/d0ce177469a34aceb4c44b6eb14baae0";
 
 function ruleIcon(rule: BridgeRule) {
   const a = rule.actions ?? {};
@@ -235,7 +244,9 @@ export function RealityBridgeApp({ onClose, onNotice }: {
   const [bridgeToken, setBridgeToken] = useState("");
   const [closing, setClosing] = useState(false);
   const [spinTurns, setSpinTurns] = useState(0);
-  const [mainSec, setMainSec] = useState<"rules" | "shortcuts" | "queries">("rules");
+  const [mainSec, setMainSec] = useState<"rules" | "shortcuts" | "queries" | "screen">("rules");
+  const [screenChat, setScreenChat] = useState<ScreenChatSettings>(() => loadScreenChatSettings());
+  const [editingScreenChat, setEditingScreenChat] = useState<ScreenChatSettings | null>(null);
   const [histSec, setHistSec] = useState<"feed" | "commands">("feed");
   const [confirmClear, setConfirmClear] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -247,6 +258,8 @@ export function RealityBridgeApp({ onClose, onNotice }: {
   const [paramAdvanced, setParamAdvanced] = useState(false);
   const [dwizStep, setDwizStep] = useState(1);
   const [dwizMax, setDwizMax] = useState(1);
+  const [screenWizStep, setScreenWizStep] = useState(1);
+  const [screenWizMax, setScreenWizMax] = useState(1);
   const [dataSnapshot, setDataSnapshot] = useState<{ text: string; updatedAt?: string } | "none" | null>(null);
   const [dataSnapshotBusy, setDataSnapshotBusy] = useState(false);
   const characters = useMemo(() => loadCharacters().map(c => ({ id: c.id, name: c.name })), []);
@@ -364,6 +377,14 @@ export function RealityBridgeApp({ onClose, onNotice }: {
     });
   }, []);
 
+  const updateScreenChat = useCallback((patch: Partial<ScreenChatSettings>) => {
+    setScreenChat(prev => {
+      const next = { ...prev, ...patch };
+      saveScreenChatSettings(next);
+      return next;
+    });
+  }, []);
+
   const persistRules = useCallback((next: BridgeRule[]) => {
     setRules(next);
     saveBridgeRules(next);
@@ -428,17 +449,21 @@ export function RealityBridgeApp({ onClose, onNotice }: {
   const siteOrigin = typeof window !== "undefined" ? window.location.origin : "https://你的小手机域名";
   // 个人云激活时唤醒入口在用户自己的网关（离线扫描由用户库的 cron 驱动）；否则走站点
   const personalPushActive = isPersonalPushCloudActive();
+  const personalScreenChatReady = isPersonalScreenChatCloudReady();
   const wakeUrl = bridgeToken
     ? personalPushActive
       ? `${normalizeBackupUrl(config.url)}/functions/v1/ai-phone-push?action=bridge-wake&token=${bridgeToken}`
       : `${siteOrigin}/api/push/bridge-wake?token=${bridgeToken}`
     : "";
 
-  // 离线联动：联动向导打开时按需拉取唤醒令牌——个人云从自己的网关取，
-  // 否则从站点取（未登录/自托管会静默失败，区块隐藏）
-  const wantWakeToken = editing !== null;
+  // 屏幕速聊同步入口（部署在用户个人云上的 screen-chat 函数）
+  const screenChatUrl = `${normalizeBackupUrl(config.url) || "https://你的项目.supabase.co"}/functions/v1/screen-chat`;
+
+  // 屏幕速聊令牌只从个人云读取，绝不回退到站点主项目。
+  const wantWakeToken = editing !== null || mainSec === "screen";
   useEffect(() => {
     if (!wantWakeToken || bridgeToken) return;
+    if (mainSec === "screen" && !personalScreenChatReady) return;
     let cancelled = false;
     const request = personalPushActive
       ? personalPushFetch("bridge-config")
@@ -450,7 +475,7 @@ export function RealityBridgeApp({ onClose, onNotice }: {
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, [wantWakeToken, bridgeToken, personalPushActive]);
+  }, [wantWakeToken, bridgeToken, personalPushActive, personalScreenChatReady, mainSec]);
   const stateUrl = useCallback((key: string) =>
     `${config.url || "https://你的项目.supabase.co"}/storage/v1/object/${CLOUD_BACKUP_BUCKET}/bridge-state/${key || "[标识]"}.json`, [config.url]);
 
@@ -660,6 +685,38 @@ export function RealityBridgeApp({ onClose, onNotice }: {
     setDwizMax(m => Math.max(m, next));
   }, [editingItem, dwizStep, saveEditingItem, onNotice]);
 
+  /* 屏幕速聊向导：单例配置也沿用其他能力的「卡片 → 分步编辑」交互。 */
+  const openScreenChatEditor = useCallback((existing: boolean) => {
+    setEditingScreenChat({
+      enabled: existing ? screenChat.enabled : true,
+      characterId: screenChat.characterId || characters[0]?.id || "",
+    });
+    setScreenWizStep(1);
+    setScreenWizMax(existing ? 4 : 1);
+  }, [screenChat, characters]);
+
+  const screenWizNext = useCallback(() => {
+    if (!editingScreenChat) return;
+    if (screenWizStep === 1 && !personalScreenChatReady) {
+      onNotice?.(personalPushActive ? "请先重新部署最新版个人云" : "请先部署个人云");
+      return;
+    }
+    if (screenWizStep === 2 && !editingScreenChat.characterId) {
+      onNotice?.("请先选择一个角色");
+      return;
+    }
+    if (screenWizStep >= 4) {
+      setScreenChat(editingScreenChat);
+      saveScreenChatSettings(editingScreenChat);
+      setEditingScreenChat(null);
+      onNotice?.("屏幕速聊已保存");
+      return;
+    }
+    const next = screenWizStep + 1;
+    setScreenWizStep(next);
+    setScreenWizMax(max => Math.max(max, next));
+  }, [editingScreenChat, screenWizStep, personalScreenChatReady, personalPushActive, onNotice]);
+
   /* 读取云端最新快照，验证上传链路是否打通 */
   const checkDataSnapshot = useCallback(async () => {
     if (!editingItem || dataSnapshotBusy) return;
@@ -838,11 +895,13 @@ export function RealityBridgeApp({ onClose, onNotice }: {
                 <button
                   type="button"
                   className="rb-add"
-                  aria-label={mainSec === "rules" ? "新建联动" : mainSec === "shortcuts" ? "新建快捷动作" : "新建数据项"}
+                  disabled={mainSec === "screen" && Boolean(screenChat.characterId)}
+                  aria-label={mainSec === "rules" ? "新建联动" : mainSec === "shortcuts" ? "新建快捷动作" : mainSec === "queries" ? "新建数据项" : screenChat.characterId ? "屏幕速聊已配置" : "配置屏幕速聊"}
                   onClick={() => {
                     if (mainSec === "rules") openRuleEditor(newRule(), false);
                     else if (mainSec === "shortcuts") openShortcutEditor(newShortcutAction(), false);
-                    else openDataItemEditor(newDataItem(), false);
+                    else if (mainSec === "queries") openDataItemEditor(newDataItem(), false);
+                    else openScreenChatEditor(false);
                   }}
                 >＋</button>
               </div>
@@ -916,6 +975,7 @@ export function RealityBridgeApp({ onClose, onNotice }: {
                       <button type="button" className={`rb-chip${mainSec === "rules" ? " active" : ""}`} onClick={() => setMainSec("rules")}>自动联动</button>
                       <button type="button" className={`rb-chip${mainSec === "shortcuts" ? " active" : ""}`} onClick={() => setMainSec("shortcuts")}>快捷动作</button>
                       <button type="button" className={`rb-chip${mainSec === "queries" ? " active" : ""}`} onClick={() => setMainSec("queries")}>主动查询</button>
+                      <button type="button" className={`rb-chip${mainSec === "screen" ? " active" : ""}`} onClick={() => setMainSec("screen")}>屏幕速聊</button>
                     </div>
                   </div>
                   {mainSec === "rules" ? (rules.length === 0 ? (
@@ -1017,6 +1077,43 @@ export function RealityBridgeApp({ onClose, onNotice }: {
                       </div>
                     </>
                   )) : null}
+
+                  {mainSec === "screen" ? (
+                    screenChat.characterId ? (
+                      <div className="rb-grid">
+                        <div className={`rb-rcard${screenChat.enabled ? "" : " off"}`} onClick={() => openScreenChatEditor(true)}>
+                          <div className="rb-rtop">
+                            <span className="rb-icchip">{RB_ICON_CHAT}</span>
+                            <span className="rb-type">{personalScreenChatReady ? "个人云已连接" : "需要更新个人云"}</span>
+                          </div>
+                          <b>屏幕速聊</b>
+                          <p className="rb-rsum">双击悬浮球，把当前屏幕交给 {charName(screenChat.characterId)}，并在系统弹窗里连续聊天。</p>
+                          <div className="rb-rfoot">
+                            <span className="rb-rstate">{screenChat.enabled ? "开启" : "已停用"}</span>
+                            <button
+                              type="button"
+                              className={`rb-switch small ${screenChat.enabled ? "on" : ""}`}
+                              onClick={event => {
+                                event.stopPropagation();
+                                if (!screenChat.enabled && !personalScreenChatReady) {
+                                  onNotice?.(personalPushActive ? "请先重新部署最新版个人云" : "请先部署个人云");
+                                  return;
+                                }
+                                updateScreenChat({ enabled: !screenChat.enabled });
+                              }}
+                              aria-label={screenChat.enabled ? "停用屏幕速聊" : "启用屏幕速聊"}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="rb-empty">
+                        <b>还没有配置屏幕速聊</b>
+                        <p>双击 iPhone 悬浮球，把当前屏幕发给角色，并直接在系统弹窗里连续聊天。</p>
+                        <button type="button" className="rb-btn" onClick={() => openScreenChatEditor(false)}>开始配置</button>
+                      </div>
+                    )
+                  ) : null}
               </>
             </section>
           ) : null}
@@ -1862,6 +1959,182 @@ export function RealityBridgeApp({ onClose, onNotice }: {
                   onClick={dwizNext}
                   aria-label={dwizStep === 4 ? "保存数据项" : "下一步"}
                 >{dwizStep === 4 ? RB_ICON_CHECK : RB_ICON_ARROW}</button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {editingScreenChat ? (
+          <div className="rb-modal-mask" onClick={() => setEditingScreenChat(null)}>
+            <div className="rb-modal rb-editor" onClick={event => event.stopPropagation()}>
+              <b className="rb-modal-title">配置屏幕速聊</b>
+
+              <div className="rb-wiz-steps">
+                {[1, 2, 3, 4].map(n => (
+                  <Fragment key={n}>
+                    {n > 1 ? <i className={`rb-wiz-line${n <= screenWizMax ? " done" : ""}`} /> : null}
+                    <button
+                      type="button"
+                      className={`rb-wiz-dot${n === screenWizStep ? " cur" : n < screenWizStep ? " done" : ""}`}
+                      disabled={n > screenWizMax}
+                      onClick={() => setScreenWizStep(n)}
+                      aria-label={`第${n}步 ${SCREEN_WIZ_STEP_NAMES[n - 1]}`}
+                    >{n < screenWizStep ? "✓" : n}</button>
+                  </Fragment>
+                ))}
+              </div>
+              <p className="rb-wiz-label">{SCREEN_WIZ_STEP_NAMES[screenWizStep - 1]}</p>
+
+              {screenWizStep === 1 ? (
+                <div className="rb-wiz-page">
+                  <p className="rb-wiz-intro">屏幕速聊会把当前屏幕交给角色，TA 的回复以系统弹窗直接出现，还能在弹窗里继续聊，全程不用打开小手机。</p>
+                  {personalScreenChatReady ? (
+                    <div className="rb-wiz-ok">✓ 最新版个人云已连接，这一步自动完成</div>
+                  ) : (
+                    <>
+                      <div className="rb-wiz-warn">{personalPushActive ? "个人云版本需要更新" : "尚未部署个人云"}</div>
+                      <p className="rb-help">前往「设置 → 云服务部署」{personalPushActive ? "重新部署最新版个人云" : "完成个人云部署"}，屏幕速聊接口会随部署一起创建。</p>
+                    </>
+                  )}
+                  <p className="rb-hint">截图只用于当前一次 AI 生成，不保存到 Supabase；云端仅暂存尚未同步回小手机的文字消息。</p>
+                </div>
+              ) : null}
+
+              {screenWizStep === 2 ? (
+                <div className="rb-wiz-page">
+                  {characters.length > 0 ? (
+                    <label>谁来接弹窗
+                      <select
+                        value={editingScreenChat.characterId}
+                        onChange={event => setEditingScreenChat({ ...editingScreenChat, characterId: event.target.value })}
+                      >
+                        <option value="" disabled>请选择角色</option>
+                        {characters.map(character => <option key={character.id} value={character.id}>{character.name}</option>)}
+                      </select>
+                    </label>
+                  ) : (
+                    <div className="rb-wiz-warn">请先在小手机里创建一个角色</div>
+                  )}
+                  <p className="rb-hint">屏幕速聊始终接入这个角色原有的同一个聊天窗口。换 App、隔很久再双击也不会新开对话；打开小手机后，云端暂存的问答会按顺序进入原聊天记录。</p>
+                </div>
+              ) : null}
+
+              {screenWizStep === 3 ? (
+                <div className="rb-wiz-page">
+                  <p className="rb-wiz-intro">推荐直接导入已经搭好的「屏幕速聊」，导入时按提示填写你的接口地址和令牌。</p>
+                  <a
+                    className="rb-btn rb-shortcut-import"
+                    href={SCREEN_CHAT_SHORTCUT_URL}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    aria-label="打开 iCloud 导入屏幕速聊快捷指令"
+                  >一键导入屏幕速聊</a>
+                  <div>
+                    <p className="rb-wiz-tip">问题 1 · 接口地址</p>
+                    <div className="rb-code" onClick={() => copy(screenChatUrl, "接口地址")}><code>{screenChatUrl}</code><span className="rb-copy">复制</span></div>
+                  </div>
+                  <div>
+                    <p className="rb-wiz-tip">问题 2 · 令牌</p>
+                    {bridgeToken ? (
+                      <div className="rb-code" onClick={() => copy(bridgeToken, "令牌")}><code>{bridgeToken}</code><span className="rb-copy">复制</span></div>
+                    ) : (
+                      <p className="rb-hint">个人云连通后这里会显示你的专属令牌。</p>
+                    )}
+                  </div>
+                  <p className="rb-hint rb-screen-chat-bind-hint">导入完成后，到系统「设置 → 辅助功能 → 触控 → 辅助触控」，把「轻点两下」设为这条快捷指令。</p>
+
+                  <details className="rb-more rb-screen-chat-manual">
+                    <summary>需要手动搭建？展开完整步骤</summary>
+                    <div className="rb-more-body">
+                      <div className="rb-substep">
+                        <i>1</i>
+                        <div className="rb-substep-body">
+                          <p><b>新建快捷指令</b>：新建一条快捷指令（不是自动化），起名如「屏幕速聊」。</p>
+                        </div>
+                      </div>
+                      <div className="rb-substep">
+                        <i>2</i>
+                        <div className="rb-substep-body">
+                          <p><b>截屏并压缩</b>：依次添加「截屏」→「调整图像大小」（宽度 960，高度自动）→「转换图像」（JPEG）→「Base64 编码」。</p>
+                          <p className="rb-hint">再加「从图像中提取文本」，输入选择调整大小后的图像，作为图像识别不可用时的兜底。</p>
+                        </div>
+                      </div>
+                      <div className="rb-substep">
+                        <i>3</i>
+                        <div className="rb-substep-body">
+                          <p><b>发给角色</b>：添加「获取 URL 内容」，URL 填：</p>
+                          <div className="rb-code" onClick={() => copy(screenChatUrl, "接口地址")}><code>{screenChatUrl}</code><span className="rb-copy">复制</span></div>
+                          <p>方法选 <b>POST</b>，请求体选 <b>JSON</b>，添加 4 个文本字段：
+                            <button type="button" className="rb-copychip" onClick={() => copy("token", "字段名")}>token</button> 填下方令牌、
+                            <button type="button" className="rb-copychip" onClick={() => copy("image", "字段名")}>image</button> 插入 Base64 变量、
+                            <button type="button" className="rb-copychip" onClick={() => copy("imageType", "字段名")}>imageType</button> 填 <button type="button" className="rb-copychip" onClick={() => copy("image/jpeg", "字段值")}>image/jpeg</button>、
+                            <button type="button" className="rb-copychip" onClick={() => copy("ocr", "字段名")}>ocr</button> 插入图像文本变量。</p>
+                          {bridgeToken ? (
+                            <div className="rb-code" onClick={() => copy(bridgeToken, "令牌")}><code>{bridgeToken}</code><span className="rb-copy">复制</span></div>
+                          ) : (
+                            <p className="rb-hint">个人云连通后这里会显示你的专属令牌。</p>
+                          )}
+                        </div>
+                      </div>
+                      <div className="rb-substep">
+                        <i>4</i>
+                        <div className="rb-substep-body">
+                          <p><b>弹出回复</b>：从「URL 内容」获取字典值 <button type="button" className="rb-copychip" onClick={() => copy("reply", "键名")}>reply</button>，再用「显示提醒」弹出它。</p>
+                          <p className="rb-hint">也可读取 <button type="button" className="rb-copychip" onClick={() => copy("error", "键名")}>error</button>，在请求失败时显示原因。</p>
+                        </div>
+                      </div>
+                      <div className="rb-substep">
+                        <i>5</i>
+                        <div className="rb-substep-body">
+                          <p><b>续聊循环</b>：添加「重复」（15 次），内部放「要求输入」→ 再次 POST 同一地址（<button type="button" className="rb-copychip" onClick={() => copy("token", "字段名")}>token</button> 与 <button type="button" className="rb-copychip" onClick={() => copy("text", "字段名")}>text</button>）→ 获取 reply →「显示提醒」。</p>
+                          <p className="rb-hint">弹窗点「取消」即可结束本次对话。</p>
+                        </div>
+                      </div>
+                      <div className="rb-substep">
+                        <i>6</i>
+                        <div className="rb-substep-body">
+                          <p><b>绑定悬浮球</b>：系统「设置 → 辅助功能 → 触控 → 辅助触控」，把「轻点两下」设为这条快捷指令。</p>
+                          <p className="rb-hint">首次运行请允许网络与截屏权限；每轮回复通常需要 3～8 秒。</p>
+                        </div>
+                      </div>
+                    </div>
+                  </details>
+                </div>
+              ) : null}
+
+              {screenWizStep === 4 ? (
+                <div className="rb-wiz-page">
+                  <div className="rb-wiz-summary">
+                    <b>屏幕速聊</b>
+                    <p>{editingScreenChat.characterId ? `${charName(editingScreenChat.characterId)} 会接收屏幕并在原聊天窗口连续回复。` : "尚未选择角色"}</p>
+                  </div>
+                  <div className="rb-main-row">
+                    <span className="rb-icchip">{RB_ICON_CHAT}</span>
+                    <div className="rb-main-text">
+                      <b>启用屏幕速聊</b>
+                      <p>保存后可随时在配置卡片上暂停或恢复</p>
+                    </div>
+                    <button
+                      type="button"
+                      className={`rb-switch ${editingScreenChat.enabled ? "on" : ""}`}
+                      onClick={() => setEditingScreenChat({ ...editingScreenChat, enabled: !editingScreenChat.enabled })}
+                      aria-label={editingScreenChat.enabled ? "保存后停用屏幕速聊" : "保存后启用屏幕速聊"}
+                    />
+                  </div>
+                  <p className="rb-hint">保存只更新小手机里的配置，不会重建个人云，也不会清空已有聊天或同步记录。</p>
+                </div>
+              ) : null}
+
+              <div className="rb-wiz-nav">
+                {screenWizStep > 1 ? (
+                  <button type="button" className="rb-wiz-back" onClick={() => setScreenWizStep(screenWizStep - 1)} aria-label="上一步">{RB_ICON_CHEVRON}</button>
+                ) : null}
+                <button
+                  type="button"
+                  className={`rb-wiz-next${(screenWizStep === 1 && !personalScreenChatReady) || (screenWizStep === 2 && !editingScreenChat.characterId) ? " dim" : ""}`}
+                  onClick={screenWizNext}
+                  aria-label={screenWizStep === 4 ? "保存屏幕速聊" : "下一步"}
+                >{screenWizStep === 4 ? RB_ICON_CHECK : RB_ICON_ARROW}</button>
               </div>
             </div>
           </div>

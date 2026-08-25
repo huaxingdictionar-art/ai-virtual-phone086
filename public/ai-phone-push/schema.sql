@@ -17,7 +17,8 @@ begin
       and c.relname <> all (array[
         'ai_phone_cloud_meta',
         'push_server_config', 'push_subscriptions', 'push_jobs', 'push_outbox',
-        'push_shortcut_commands', 'push_bridge_config', 'push_bridge_snapshots'
+        'push_shortcut_commands', 'push_bridge_config', 'push_bridge_snapshots',
+        'push_screen_sessions', 'push_screen_threads'
       ])
   ) into has_unknown_public_table;
 
@@ -33,7 +34,7 @@ create table if not exists public.ai_phone_cloud_meta (
   updated_at timestamptz not null default now()
 );
 insert into public.ai_phone_cloud_meta (id, schema_version, updated_at)
-values ('personal-cloud', 2, now())
+values ('personal-cloud', 3, now())
 on conflict (id) do update set schema_version = excluded.schema_version, updated_at = excluded.updated_at;
 
 create table if not exists public.push_server_config (
@@ -156,6 +157,136 @@ create table if not exists public.push_bridge_snapshots (
   primary key (user_id, rule_id)
 );
 
+-- v2 的 push_screen_sessions 是按时间切分的第二套聊天记录，还会持久化原始截图。
+-- 屏幕速聊现在只是小手机唯一聊天窗口的远程入口，因此升级时移除这份临时缓存。
+drop table if exists public.push_screen_sessions;
+
+create table if not exists public.push_screen_threads (
+  user_id text not null,
+  character_id text not null,
+  session_id text not null,
+  pending_turns jsonb not null default '[]'::jsonb,
+  next_sequence integer not null default 0,
+  lock_token text,
+  lock_expires_at timestamptz,
+  usage_day date not null default ((now() at time zone 'utc')::date),
+  usage_count integer not null default 0,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, character_id),
+  constraint push_screen_threads_pending_array check (jsonb_typeof(pending_turns) = 'array')
+);
+
+-- 原子取得每个角色的生成锁并扣减日额度。不同悬浮球请求不会同时覆盖上下文。
+create or replace function public.ai_phone_screen_chat_begin(
+  p_user_id text,
+  p_character_id text,
+  p_session_id text,
+  p_lock_token text,
+  p_daily_cap integer
+) returns jsonb
+language plpgsql
+security invoker
+set search_path = public
+as $function$
+declare
+  v_pending jsonb;
+  v_sequence integer;
+  v_session text;
+  v_today date := (now() at time zone 'utc')::date;
+begin
+  insert into public.push_screen_threads (user_id, character_id, session_id)
+  values (p_user_id, p_character_id, p_session_id)
+  on conflict (user_id, character_id) do nothing;
+
+  update public.push_screen_threads
+     set pending_turns = case when session_id = p_session_id then pending_turns else '[]'::jsonb end,
+         next_sequence = case when session_id = p_session_id then next_sequence else 0 end,
+         session_id = p_session_id,
+         lock_token = p_lock_token,
+         lock_expires_at = now() + interval '130 seconds',
+         usage_count = case when usage_day = v_today then usage_count + 1 else 1 end,
+         usage_day = v_today,
+         updated_at = now()
+   where user_id = p_user_id
+     and character_id = p_character_id
+     and (lock_token is null or lock_expires_at is null or lock_expires_at <= now())
+     and (usage_day <> v_today or usage_count < greatest(1, least(p_daily_cap, 500)))
+  returning pending_turns, next_sequence, session_id
+       into v_pending, v_sequence, v_session;
+
+  if found then
+    return jsonb_build_object(
+      'status', 'ok',
+      'pendingTurns', v_pending,
+      'nextSequence', v_sequence,
+      'sessionId', v_session
+    );
+  end if;
+
+  if exists (
+    select 1 from public.push_screen_threads
+     where user_id = p_user_id and character_id = p_character_id
+       and lock_token is not null and lock_expires_at > now()
+  ) then
+    return jsonb_build_object('status', 'busy');
+  end if;
+  return jsonb_build_object('status', 'daily_cap');
+end;
+$function$;
+
+-- 上下文水位与回传箱在同一事务提交；任何一步失败，本轮都不会伪装成成功。
+create or replace function public.ai_phone_screen_chat_finish(
+  p_user_id text,
+  p_character_id text,
+  p_lock_token text,
+  p_pending_turns jsonb,
+  p_next_sequence integer,
+  p_outbox_id text,
+  p_session_id text,
+  p_trigger_key text,
+  p_raw_text text,
+  p_meta jsonb
+) returns boolean
+language plpgsql
+security invoker
+set search_path = public
+as $function$
+begin
+  if jsonb_typeof(p_pending_turns) <> 'array' then return false; end if;
+  update public.push_screen_threads
+     set pending_turns = p_pending_turns,
+         next_sequence = greatest(next_sequence, p_next_sequence),
+         lock_token = null,
+         lock_expires_at = null,
+         updated_at = now()
+   where user_id = p_user_id and character_id = p_character_id and lock_token = p_lock_token;
+  if not found then return false; end if;
+
+  insert into public.push_outbox (
+    id, user_id, job_id, session_id, trigger_key, raw_text, meta
+  ) values (
+    p_outbox_id, p_user_id, null, p_session_id, p_trigger_key, p_raw_text, p_meta
+  ) on conflict (id) do nothing;
+  return true;
+end;
+$function$;
+
+create or replace function public.ai_phone_screen_chat_abort(
+  p_user_id text,
+  p_character_id text,
+  p_lock_token text
+) returns boolean
+language sql
+security invoker
+set search_path = public
+as $function$
+  update public.push_screen_threads
+     set lock_token = null, lock_expires_at = null, updated_at = now()
+   where user_id = p_user_id and character_id = p_character_id and lock_token = p_lock_token
+  returning true;
+$function$;
+
 alter table public.push_server_config enable row level security;
 alter table public.ai_phone_cloud_meta enable row level security;
 alter table public.push_subscriptions enable row level security;
@@ -164,6 +295,10 @@ alter table public.push_outbox enable row level security;
 alter table public.push_shortcut_commands enable row level security;
 alter table public.push_bridge_config enable row level security;
 alter table public.push_bridge_snapshots enable row level security;
+alter table public.push_screen_threads enable row level security;
+
+-- 屏幕速聊表和 RPC 只由 Edge Function 的 service_role 使用；客户端角色没有表级权限。
+revoke all on table public.push_screen_threads from public, anon, authenticated;
 
 -- 2026 年起新项目不会自动把 public 新表暴露给 Data API。
 -- 网关和生成器只以 service_role 访问，绝不授予 anon 或 authenticated。
@@ -176,8 +311,16 @@ grant select, insert, update, delete on table
   public.push_outbox,
   public.push_shortcut_commands,
   public.push_bridge_config,
-  public.push_bridge_snapshots
+  public.push_bridge_snapshots,
+  public.push_screen_threads
 to service_role;
+
+revoke all on function public.ai_phone_screen_chat_begin(text, text, text, text, integer) from public, anon, authenticated;
+revoke all on function public.ai_phone_screen_chat_finish(text, text, text, jsonb, integer, text, text, text, text, jsonb) from public, anon, authenticated;
+revoke all on function public.ai_phone_screen_chat_abort(text, text, text) from public, anon, authenticated;
+grant execute on function public.ai_phone_screen_chat_begin(text, text, text, text, integer) to service_role;
+grant execute on function public.ai_phone_screen_chat_finish(text, text, text, jsonb, integer, text, text, text, text, jsonb) to service_role;
+grant execute on function public.ai_phone_screen_chat_abort(text, text, text) to service_role;
 
 create extension if not exists pg_cron;
 create extension if not exists pg_net;

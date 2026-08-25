@@ -266,6 +266,8 @@ export async function applyServerBridgeEntry(meta: {
   ranAt?: string;
   executed?: boolean;
   processedText?: string;
+  /** 聊天气泡仍显示 processedText；可另给模型一份更完整但不打扰 UI 的历史文本。 */
+  historyText?: string;
   feedNote?: string;
   shortcutNote?: string;
   capped?: boolean;
@@ -309,7 +311,10 @@ export async function applyServerBridgeEntry(meta: {
       content: expandBridgeMacros(text, session.contactId),
       status: "sent",
       createdAt,
-      mediaData: historyRole ? ({ appHistoryRole: historyRole } as ChatMessage["mediaData"]) : undefined,
+      mediaData: (historyRole || meta.historyText) ? ({
+        ...(historyRole ? { appHistoryRole: historyRole } : {}),
+        ...(meta.historyText ? { appHistoryText: expandBridgeMacros(meta.historyText, session.contactId) } : {}),
+      } as ChatMessage["mediaData"]) : undefined,
     });
     // 服务端回端补账发生在 App 重开时，不能用“此刻”作为桥事件时间；按收件箱
     // 原始 createdAt 重排，确保桥输入位于它触发的云端微信回复之前。

@@ -9,6 +9,7 @@
   --rb-acc: #7a5af8;
   --rb-acc-soft: #efeafe;
   --rb-acc-ink: #ffffff;
+  --rb-acc-text: #5f3cc4;
   --rb-ok: #2fa46a;
   --rb-warn: #e8a33d;
   --rb-shadow: 0 2px 8px rgba(23, 23, 28, 0.04);
@@ -380,6 +381,28 @@
   box-shadow: var(--rb-shadow);
 }
 .rb-btn.danger { color: #d9534f; }
+.rb-shortcut-import {
+  min-height: 44px;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+}
+.rb-screen-chat-manual {
+  border-top: 1px solid var(--rb-line);
+  padding-top: 10px;
+}
+.rb-screen-chat-manual > summary {
+  min-height: 44px;
+  box-sizing: border-box;
+  padding: 12px 0;
+}
+.rb-screen-chat-bind-hint {
+  color: var(--rb-acc-text);
+  font-weight: 700;
+}
 
 /* ── 首页 · 问候 ── */
 .rb-hello {
@@ -458,6 +481,14 @@
   transition: transform 0.18s ease;
 }
 .rb-add:active { transform: scale(0.92); }
+.rb-add:disabled {
+  background: var(--rb-line);
+  color: var(--rb-sub);
+  cursor: default;
+  box-shadow: none;
+  opacity: 0.72;
+}
+.rb-add:disabled:active { transform: none; }
 .rb-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 9px; }
 .rb-rcard {
   background: var(--rb-card);
