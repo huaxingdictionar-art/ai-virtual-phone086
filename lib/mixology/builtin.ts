@@ -5,7 +5,7 @@
 
 import type { MixTextMaterial } from "./types";
 
-export const MIX_BUILTIN_VERSION = 1;
+export const MIX_BUILTIN_VERSION = 2;
 
 export const MIX_BUILTIN_BASE_ID = "mix_builtin_base";
 export const MIX_BUILTIN_GLASS_ID = "mix_builtin_glass";
@@ -44,8 +44,6 @@ export function createBuiltinGlass(): MixTextMaterial {
         author: "独家特调",
         content: [
             "以小说正文的形式输出，第三人称叙述，每轮 2~4 个自然段，段落之间空一行。",
-            "- 角色说出口的话用「」包裹。",
-            "- 角色未说出口的内心念头用 * * 包裹，一次一句，点到即止。",
             "- 叙述里穿插动作、神态与环境细节，让画面能被看见；不要写成流水账。",
             "- 每轮在留有余韵处收笔，给{{user}}接话的空间；不要替{{user}}总结感受。",
         ].join("\n"),

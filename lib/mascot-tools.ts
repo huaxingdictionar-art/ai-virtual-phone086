@@ -14,7 +14,7 @@ import type { LlmToolDefinition } from "./llm-provider-adapter";
 import type { ToolCall, ToolResult } from "./tool-executor";
 import type { MascotPageContext } from "./mascot-context";
 import type { Prompt } from "./settings-types";
-import { CHARACTER_CARD_PROMPT, CHARACTER_WORLD_PROMPT, WORLDBOOK_PROMPT, PRESET_PROMPT, GENERAL_PRESET_PROMPT, REGEX_PROMPT, CSS_PROMPT, WIDGET_PROMPT } from "./mascot-prompts";
+import { CHARACTER_CARD_PROMPT, CHARACTER_WORLD_PROMPT, WORLDBOOK_PROMPT, PRESET_PROMPT, GENERAL_PRESET_PROMPT, REGEX_PROMPT, CSS_PROMPT, WIDGET_PROMPT, MIXOLOGY_PROMPT } from "./mascot-prompts";
 import {
     buildCssAssetNineSliceCss,
     calibrateCssAssetNineSlice,
@@ -541,7 +541,10 @@ const REGEX_RULE_OBJ = {
         disabled: { type: "boolean" },
         markdownOnly: { type: "boolean", description: "仅显示层应用，不影响存储" },
         promptOnly: { type: "boolean", description: "仅 prompt 应用，不影响显示" },
+        historyOnly: { type: "boolean", description: "仅历史消息（true=这条规则只作用于聊天历史消息，不碰系统提示词/预设/世界书）。与「用户输入」位置 + promptOnly 组合时，可精确剥离历史消息里的自定义标签（如 <thinking>/<pixel-console>），且不会误删系统提示词里的格式约束示例" },
         substituteRegex: { type: "string", enum: ["0", "1", "2"], description: "0=不替换 1=原始替换 2=转义后替换宏（如{{user}}）" },
+        minDepth: { type: "number", description: "最小消息深度（可选）。最近一条消息 depth=0，越旧数字越大；-1=不限制最小深度，即只看最新一条往前的范围下界。不传=不限" },
+        maxDepth: { type: "number", description: "最大消息深度（可选）。0=只处理最新一条消息；不传=不限（含 ∞ 语义）。只处理最近几条时配合 minDepth 使用" },
     },
     required: ["scriptName", "findRegex", "replaceString"],
 };
@@ -677,6 +680,213 @@ const IMAGE_ASSET_USAGE_GUIDE = [
 
 // ── 套件定义 ────────────────────────────────────────────
 
+// ── 线上聊天状态栏（自定义状态栏）──────────────────────
+const STATUS_BAR_SESSION_DESC = "会话名：单聊填角色名/备注名，群聊填群名。不传则用当前页面正在打开的会话；没打开时工具会返回可选会话列表。";
+
+const READ_STATUS_BAR_SCHEMA = {
+    type: "object",
+    properties: {
+        sessionName: { type: "string", description: STATUS_BAR_SESSION_DESC },
+    },
+    required: [],
+    additionalProperties: false,
+};
+
+const WRITE_STATUS_BAR_SCHEMA = {
+    type: "object",
+    properties: {
+        sessionName: { type: "string", description: STATUS_BAR_SESSION_DESC },
+        contract: { type: "string", description: "输出契约：提示词「状态栏」章节的整段正文。必须含【逻辑】【格式】，且明确要求把内容整块用 [状态栏]...[/状态栏] 包裹。禁止使用 {{char}} 宏。" },
+        renderHtml: { type: "string", description: "输出渲染：完整 HTML（可含 <style>/<script>），沙盒 iframe 执行。数据从 window.STATUS_RAW 取（原文字符串），或用 {{RAW}} 直插（已 HTML 转义）。" },
+        previewRaw: { type: "string", description: "示例数据：按契约格式编造的一份样例，供编辑弹窗预览。不给的话用户打开弹窗会看到与契约对不上的默认样例。" },
+    },
+    required: ["contract", "renderHtml", "previewRaw"],
+    additionalProperties: false,
+};
+
+const PREVIEW_STATUS_BAR_SCHEMA = {
+    type: "object",
+    properties: {
+        sessionName: { type: "string", description: STATUS_BAR_SESSION_DESC },
+    },
+    required: [],
+    additionalProperties: false,
+};
+
+const STATUS_BAR_PROMPT = `线上聊天状态栏 = 让 AI 每轮在 [状态栏]...[/状态栏] 里吐一小段数据，
+再由一段固定的 HTML 把它画成卡片（微博主页、心情面板、随身物品……随意）。
+数据每轮变、画法不变，所以比"让 AI 每轮直接吐 HTML"省很多 token，长相也稳定。
+
+===== 适用范围（务必先确认）=====
+· 只适用于**线上聊天**：单聊 + 群聊，都支持。
+· **不适用**：线下模式、剧情/漫卷、语音视频通话、朋友圈、查手机、小红书等。
+  这些场景要做状态栏，只能用老办法（让 AI 输出 [状态栏]...[/状态栏]，再配 placement=[2] 的正则渲染）。
+· 用户说"聊天状态栏"通常就是指这个；说"剧情里的状态栏"要走正则那条路，别用本套件。
+
+===== 工作流（3 个工具）=====
+1. 读取线上状态栏 —— 看该会话现在是什么模式、有没有已存在的契约/渲染。**改之前必读**，
+   已有内容要先问用户是覆盖还是在原基础上改。
+2. 写线上状态栏 —— 契约 + 渲染 + 示例数据一次写入，自动置为自定义模式并启用。
+3. 预览线上状态栏 —— 弹窗里用示例数据跑一遍给用户看。写完建议顺手预览。
+
+===== 契约怎么写（硬规则，违反会被工具拒绝）=====
+· **必须出现成对的 [状态栏] 与 [/状态栏]**：既要在【格式】里画出成对标签，也要用一句话
+  明确要求"按生成的内容整块用 [状态栏]...[/状态栏] 包裹输出"。
+  漏了这条，AI 会把字段当成普通聊天消息发出来——这是最常见的翻车方式。
+· **禁止使用 {{char}}**：群聊的输出格式条目是全群共享的，{{char}} 在那里会展开成
+  全体成员名字的拼接（如"甲、乙、丙"）。一律用第二人称"你"。
+· **只让 AI 吐数据，不要让它吐 HTML**。一行一个字段、用 = 分隔最稳，例如：
+  心情=有点烦躁
+  位置=公司楼下便利店
+  多值字段用 | 分隔，重复字段（如多条评论）就重复写同一个键。
+· 结构建议：【逻辑】说清这是什么场景、字段怎么取值、要不要跟着剧情变；
+  【格式】给出完整的 [状态栏]...[/状态栏] 样板，字段用 <尖括号说明> 占位。
+· 字段别贪多。群聊里每个发言角色都要各出一份，字段多了输出 token 会翻好几倍。
+
+===== 渲染怎么写 =====
+· 一段完整 HTML，可含 <style> 与 <script>，在沙盒 iframe 里跑（allow-scripts，无 same-origin，
+  访问不到宿主也发不了网络请求，一切自包含）。
+· 取数据两个口子：window.STATUS_RAW（原文字符串，JS 里 split 解析）；{{RAW}}（模板直插，
+  已 HTML 转义，只能当纯文本用）。想按行解析就用前者。
+· **不要用 100vh / 100dvh**：高度由外部自动测量，用视口单位会触发反馈环保护、把高度锁死。
+· 深浅色都要能看：用 prefers-color-scheme 或半透明叠色，别写死一种背景。
+· 解析要容错：字段缺失、顺序变化、数量不定都要不崩（AI 的输出不会每轮都完美）。
+
+===== 示例数据 =====
+· 必填。按自己写的契约格式编一份真实感的样例，字段要和契约完全对得上。
+· 不给的话，用户打开编辑弹窗看到的是内置的默认样例（微博字段），和新契约对不上，
+  预览会一片空白或错乱，用户会以为坏了。
+
+===== 写完要告诉用户的 =====
+· 已写入哪个会话，可在 聊天信息 → 自定义状态栏 里看到并继续手改。
+· **启用后原生的好感度/占有欲/焦虑值会停止更新**（状态区整块被契约取代了）。
+· 如果该会话之前用正则渲染过状态栏，两套会互相竞争，让用户二选一。`;
+
+
+// ── 独家特调工具 ──
+const MIX_KIND_ENUM = ["character", "persona", "base", "flavor", "glass", "strength", "ticket", "garnish", "encore", "filter", "mechanism"];
+
+const MIX_LIST_CABINET_SCHEMA = {
+    type: "object",
+    properties: {
+        kind: { type: "string", enum: MIX_KIND_ENUM, description: "可选：只列这一类材料。不传列全部（含配方清单）。" },
+    },
+};
+
+const MIX_READ_MATERIAL_SCHEMA = {
+    type: "object",
+    properties: {
+        id: { type: "string", description: "材料 id（优先用，列出酒柜可查）" },
+        name: { type: "string", description: "材料名（无 id 时用；重名会返回候选列表）" },
+    },
+};
+
+const MIX_READ_CRAFT_SPEC_SCHEMA = {
+    type: "object",
+    properties: {
+        kind: { type: "string", enum: MIX_KIND_ENUM, description: "要读哪一类材料的制作规格" },
+    },
+    required: ["kind"],
+};
+
+/** 创建/更新共用的字段说明（按 kind 取用，执行器会校验字段归属） */
+const MIX_MATERIAL_FIELDS = {
+    hook: { type: "string", description: "一句话介绍（列表卡片上的钩子文案）" },
+    cover: { type: "string", description: "封面图地址，仅角色卡接受：http(s) URL（用户发图时可经图像处理套件「导入用户图片为素材→上传图床」取得）或 data:image/ dataURL；其余种类的列表封面由渲染效果自动生成，传了会被拒" },
+    tags: { type: "array", items: { type: "string" }, description: "标签数组，最多 8 个短词" },
+    charName: { type: "string", description: "character：角色名，不传默认与 name 相同" },
+    content: { type: "string", description: "persona/base/flavor/glass/strength：正文" },
+    userName: { type: "string", description: "persona：你的名字" },
+    baseInfo: { type: "string", description: "character：基础信息" },
+    personality: { type: "string", description: "character：性格" },
+    appearance: { type: "string", description: "character：外貌" },
+    background: { type: "string", description: "character：背景" },
+    worldview: { type: "string", description: "character：世界观" },
+    cognition: { type: "string", description: "character：对{{user}}的初始认知" },
+    relations: { type: "string", description: "character：关系与身份" },
+    plot: { type: "string", description: "character：当前剧情" },
+    extra: { type: "string", description: "character：附加设定" },
+    openings: { type: "array", items: { type: "string" }, description: "character：开场白数组，每个元素一条完整开场白，至少一条" },
+    examples: {
+        type: "array",
+        items: { type: "object", properties: { role: { type: "string", enum: ["user", "char"] }, text: { type: "string" } }, required: ["role", "text"] },
+        description: "character：示例对话",
+    },
+    canvas: { type: "string", description: "character：开场画布完整 HTML（规格见 读取制作说明）" },
+    contract: { type: "string", description: "ticket/encore：输出契约" },
+    renderHtml: { type: "string", description: "ticket/encore：渲染代码完整 HTML" },
+    previewRaw: { type: "string", description: "ticket/encore：预览示例数据（壳内原文，不带 [状态栏]/[小剧场] 标记）" },
+    historyFeed: { type: "string", enum: ["latest", "all", "none"], description: "ticket/encore 选填：往期轮次的壳内原文要不要回传给模型。latest（默认）只回传最近一轮，token 不随轮数涨；all 全部回传，契约需要引用往期内容时才用；none 完全不回传，纯展示、最省 token" },
+    vars: {
+        type: "array",
+        items: { type: "object", properties: { name: { type: "string" }, initial: { type: "string" } }, required: ["name"] },
+        description: "ticket：要跨轮记住的变量",
+    },
+    css: { type: "string", description: "garnish：完整 CSS" },
+    rules: {
+        type: "array",
+        items: { type: "object", properties: { find: { type: "string" }, replace: { type: "string" }, mode: { type: "string", enum: ["display", "context"] } }, required: ["find", "mode"] },
+        description: "filter：清洗规则数组",
+    },
+    script: { type: "string", description: "mechanism：钩子逻辑纯 JS" },
+    layout: {
+        type: "object",
+        description: "mechanism 选填：摆放对象。slot 挂点：float（默认自由悬浮）/header/inputbar-left/inputbar-right（宿主画图标按钮点击开合面板，配 icon 一两个 emoji）/flow-top/flow-bottom（作为内嵌卡进滚动流）；x/y/w/h 为占画面的百分比，autoHeight 高度随内容",
+    },
+    panelHtml: { type: "string", description: "mechanism：常驻界面完整 HTML" },
+};
+
+const MIX_CREATE_MATERIAL_SCHEMA = {
+    type: "object",
+    properties: {
+        kind: { type: "string", enum: MIX_KIND_ENUM, description: "材料种类" },
+        name: { type: "string", description: "材料名（character 时同时作为角色名）" },
+        ...MIX_MATERIAL_FIELDS,
+    },
+    required: ["kind", "name"],
+};
+
+const MIX_UPDATE_MATERIAL_SCHEMA = {
+    type: "object",
+    properties: {
+        id: { type: "string", description: "要更新的材料 id（读取材料/列出酒柜可查）" },
+        name: { type: "string", description: "可选：新材料名" },
+        ...MIX_MATERIAL_FIELDS,
+    },
+    required: ["id"],
+};
+
+const MIX_SAVE_RECIPE_SCHEMA = {
+    type: "object",
+    properties: {
+        name: { type: "string", description: "这杯特调的名字；与已有自建配方同名则覆盖更新" },
+        slots: {
+            type: "array",
+            description: "槽位清单。角色卡必有；character/persona 每类 1 件，其余每类最多 3 件。",
+            items: {
+                type: "object",
+                properties: {
+                    kind: { type: "string", enum: MIX_KIND_ENUM },
+                    material: { type: "string", description: "材料名或 id" },
+                    when: {
+                        type: "object",
+                        description: "可选生效条件（character/persona 不可设）：{type:'turn',after:N} / {type:'var',name,op,value} / {type:'keyword',words:[…],within?} / {type:'chance',percent:N}",
+                        properties: {
+                            type: { type: "string", enum: ["turn", "var", "keyword", "chance"] },
+                            after: { type: "number" }, name: { type: "string" }, op: { type: "string" },
+                            value: { type: "string" }, words: { type: "array", items: { type: "string" } },
+                            within: { type: "number" }, percent: { type: "number" },
+                        },
+                        required: ["type"],
+                    },
+                },
+                required: ["kind", "material"],
+            },
+        },
+    },
+    required: ["name", "slots"],
+};
+
 export const MASCOT_TOOL_PACKAGES: MascotToolPackage[] = [
     {
         id: "css_pack",
@@ -778,6 +988,17 @@ export const MASCOT_TOOL_PACKAGES: MascotToolPackage[] = [
         usageGuide: REGEX_PROMPT,
     },
     {
+        id: "status_bar_pack",
+        label: "线上聊天状态栏套件",
+        description: "为**线上聊天**（单聊 + 群聊）配置自定义状态栏：写一份输出契约（AI 每轮吐什么数据）+ 一段输出渲染（怎么把数据画成卡片），直接写入指定会话并启用，用户可在聊天信息页继续手改。不适用于线下模式、剧情、通话、朋友圈——那些场景只能用 [状态栏] + 正则的老办法。",
+        subTools: [
+            { name: "读取线上状态栏", description: "读取某会话当前的状态栏模式、契约、渲染与示例数据。改之前必读。不传会话名时用当前打开的会话。", parameterSchema: READ_STATUS_BAR_SCHEMA },
+            { name: "写线上状态栏", description: "把契约 + 渲染 + 示例数据写入指定会话并启用（自动置为自定义模式）。契约必须含成对的 [状态栏]/[/状态栏] 且不能用 {{char}}，否则工具会拒绝。", parameterSchema: WRITE_STATUS_BAR_SCHEMA },
+            { name: "预览线上状态栏", description: "在对话里弹窗预览该会话已写入的状态栏效果（用示例数据渲染），不离开聊天。", parameterSchema: PREVIEW_STATUS_BAR_SCHEMA },
+        ],
+        usageGuide: STATUS_BAR_PROMPT,
+    },
+    {
         id: "widget_pack",
         label: "桌面组件套件",
         description: "创建 / 更新 / 预览 / 摆放 DIY 桌面组件（自包含 HTML，沙箱渲染）。更新后桌面实时热更新，适合小步迭代。",
@@ -791,6 +1012,20 @@ export const MASCOT_TOOL_PACKAGES: MascotToolPackage[] = [
             { name: "移除DIY组件", description: "把 DIY 实例移下桌面，或删除 DIY 模板（连同其所有桌面实例）。", parameterSchema: REMOVE_DIY_WIDGET_SCHEMA },
         ],
         usageGuide: WIDGET_PROMPT,
+    },
+    {
+        id: "mixology_pack",
+        label: "独家特调套件",
+        description: "管理「独家特调」App（调酒式角色扮演）的酒柜材料与配方：11 类材料（角色卡/面具/基底/风味/杯型/苦精/小票/外观/尾调/滤网/机括）的创建修改、配方调制。与聊天系统的角色卡完全无关。写代码类材料前必须先 读取制作说明。",
+        subTools: [
+            { name: "列出酒柜", description: "列出酒柜材料与官方出厂件（含 id/种类/来源），不传 kind 时附配方清单。", parameterSchema: MIX_LIST_CABINET_SCHEMA },
+            { name: "读取材料", description: "按 id 或名字读取一件材料的完整字段。导入的他人角色卡正文封存，只回元信息。", parameterSchema: MIX_READ_MATERIAL_SCHEMA },
+            { name: "读取制作说明", description: "获取某类材料的完整制作规格（机制约束 + 质量要求 + 字段对照）。新建小票/尾调/机括/带画布的角色卡之前必读。", parameterSchema: MIX_READ_CRAFT_SPEC_SCHEMA },
+            { name: "创建材料", description: "新建一件材料入柜。字段按 kind 取用（见各字段说明），执行器会按类校验并给出精确报错。", parameterSchema: MIX_CREATE_MATERIAL_SCHEMA },
+            { name: "更新材料", description: "增量修改一件自建材料（只传要改的字段）。官方件与导入件不可改。", parameterSchema: MIX_UPDATE_MATERIAL_SCHEMA },
+            { name: "保存配方", description: "把酒柜/官方材料按槽位配成一杯特调（可设生效条件），用户在吧台即可选它开局。", parameterSchema: MIX_SAVE_RECIPE_SCHEMA },
+        ],
+        usageGuide: MIXOLOGY_PROMPT,
     },
 ];
 
@@ -889,6 +1124,7 @@ function numberOption(value: unknown, fallback: number): number {
     return fallback;
 }
 
+
 // ── 原生协议下的工具定义 ─────────────────────────────────
 
 const MASCOT_NATIVE_TOOL_NAMES: Record<string, string> = {
@@ -896,6 +1132,9 @@ const MASCOT_NATIVE_TOOL_NAMES: Record<string, string> = {
     "读取CSS": "mascot_read_css",
     "覆写CSS": "mascot_write_css",
     "清除CSS": "mascot_clear_css",
+    "读取线上状态栏": "mascot_read_status_bar",
+    "写线上状态栏": "mascot_write_status_bar",
+    "预览线上状态栏": "mascot_preview_status_bar",
     "生成图像素材": "mascot_generate_css_asset",
     "列出用户图片": "mascot_list_user_images",
     "导入用户图片为素材": "mascot_import_user_image_asset",
@@ -905,6 +1144,12 @@ const MASCOT_NATIVE_TOOL_NAMES: Record<string, string> = {
     "列出读取素材": "mascot_read_css_asset",
     "上传图床": "mascot_upload_css_asset",
     "校准九宫格": "mascot_calibrate_nine_slice",
+    "列出酒柜": "mascot_mix_list_cabinet",
+    "读取材料": "mascot_mix_read_material",
+    "读取制作说明": "mascot_mix_read_craft_spec",
+    "创建材料": "mascot_mix_create_material",
+    "更新材料": "mascot_mix_update_material",
+    "保存配方": "mascot_mix_save_recipe",
     "生成九宫格CSS": "mascot_build_nine_slice_css",
     "读取角色": "mascot_read_character",
     "创建角色": "mascot_create_character",
@@ -953,7 +1198,9 @@ const MASCOT_NATIVE_LOADER_NAMES: Record<string, string> = {
     worldbook_pack: "mascot_load_worldbook_pack",
     preset_pack: "mascot_load_preset_pack",
     regex_pack: "mascot_load_regex_pack",
+    status_bar_pack: "mascot_load_status_bar_pack",
     widget_pack: "mascot_load_widget_pack",
+    mixology_pack: "mascot_load_mixology_pack",
 };
 
 export function getMascotNativeToolName(displayName: string): string {
@@ -1040,6 +1287,10 @@ export async function executeMascotToolCall(call: ToolCall, ctx: MascotToolConte
             case "读取CSS": return await handleReadCss(call.args, ctx);
             case "覆写CSS": return await handleOverwriteCss(call.args, ctx);
             case "清除CSS": return await handleClearCss(call.args, ctx);
+            // ─── 线上聊天状态栏 ───
+            case "读取线上状态栏": return await handleReadStatusBar(call.args, ctx);
+            case "写线上状态栏": return await handleWriteStatusBar(call.args, ctx);
+            case "预览线上状态栏": return await handlePreviewStatusBar(call.args, ctx);
 
             // ─── 图像处理 ───
             case "生成图像素材": return await handleGenerateCssAsset(call.args);
@@ -1101,6 +1352,19 @@ export async function executeMascotToolCall(call: ToolCall, ctx: MascotToolConte
             case "预览DIY组件": return await handlePreviewDiyWidget(call.args);
             case "摆放组件": return await handlePlaceWidget(call.args);
             case "移除DIY组件": return await handleRemoveDiyWidget(call.args);
+
+            // ─── 独家特调 ───
+            case "列出酒柜": case "读取材料": case "读取制作说明": case "创建材料": case "更新材料": case "保存配方": {
+                const mix = await import("./mixology/mascot-tools");
+                switch (call.name) {
+                    case "列出酒柜": return mix.mixToolListCabinet(call.args);
+                    case "读取材料": return mix.mixToolReadMaterial(call.args);
+                    case "读取制作说明": return mix.mixToolReadCraftSpec(call.args);
+                    case "创建材料": return mix.mixToolCreateMaterial(call.args);
+                    case "更新材料": return mix.mixToolUpdateMaterial(call.args);
+                    default: return mix.mixToolSaveRecipe(call.args);
+                }
+            }
 
             // ─── 导航 ───
             case "导航": return await handleNavigate(call.args);
@@ -1468,6 +1732,96 @@ async function writeCssAt(location: string, css: string, ctx: MascotToolContext,
         return { displayName: resolved.displayName };
     }
     throw new Error(`未知 CSS 位置：${location}`);
+}
+
+
+// ── 线上聊天状态栏 handlers ───────────────────────────
+// 只覆盖「线上聊天」（单聊 + 群聊）。线下模式、剧情、通话、朋友圈都不走这套机制，
+// 那些场景仍然只能用 [状态栏] + 正则的老办法。
+
+async function statusBarSession(
+    sessionName: string | undefined,
+    ctx: MascotToolContext,
+    toolName: string,
+): Promise<{ err: ToolResult; ok?: undefined } | { ok: { sessionId: string; displayName: string }; err?: undefined }> {
+    const resolved = await resolveChatSession(sessionName, ctx);
+    if ("error" in resolved) {
+        const hint = resolved.choices?.length ? `。可选：${resolved.choices.join("、")}` : "";
+        return { err: { name: toolName, success: false, error: resolved.error + hint } as ToolResult };
+    }
+    return { ok: resolved };
+}
+
+async function handleReadStatusBar(args: Record<string, unknown>, ctx: MascotToolContext): Promise<ToolResult> {
+    const NAME = "读取线上状态栏";
+    const r = await statusBarSession(args.sessionName as string | undefined, ctx, NAME);
+    if (r.err) return r.err;
+    const { sessionId, displayName } = r.ok;
+    const { getStatusRegionConfig, isCustomStatusRegionActive } = await import("./chat-status-region");
+    const cfg = getStatusRegionConfig(sessionId);
+    const active = isCustomStatusRegionActive(cfg);
+    const lines = [
+        `会话：${displayName}`,
+        `当前模式：${cfg.mode === "custom" ? (active ? "自定义（已生效）" : "自定义（未生效：契约或渲染为空）") : cfg.mode === "off" ? "已关闭状态区" : "原生状态栏"}`,
+        "",
+        "【当前契约】",
+        cfg.contract.trim() || "（空）",
+        "",
+        "【当前渲染】",
+        cfg.renderHtml.trim() || "（空）",
+        "",
+        "【当前示例数据】",
+        cfg.previewRaw?.trim() || "（空，编辑弹窗会用内置样例）",
+    ];
+    return { name: NAME, success: true, data: lines.join("\n") };
+}
+
+async function handleWriteStatusBar(args: Record<string, unknown>, ctx: MascotToolContext): Promise<ToolResult> {
+    const NAME = "写线上状态栏";
+    const contract = typeof args.contract === "string" ? args.contract.trim() : "";
+    const renderHtml = typeof args.renderHtml === "string" ? args.renderHtml.trim() : "";
+    const previewRaw = typeof args.previewRaw === "string" ? args.previewRaw.trim() : "";
+    if (!contract) return { name: NAME, success: false, error: "contract 不能为空" };
+    if (!renderHtml) return { name: NAME, success: false, error: "renderHtml 不能为空——契约与渲染缺一，自定义状态栏不会生效" };
+    // 最常见也最致命的写法错误：契约没写包裹要求，AI 会把字段当普通消息发出来
+    if (!contract.includes("[状态栏]") || !contract.includes("[/状态栏]")) {
+        return { name: NAME, success: false, error: "契约里必须出现 [状态栏] 与 [/状态栏]：既要在【格式】里给出成对标签，也要用一句话要求 AI 把内容整块包裹输出。缺了这条，AI 会把状态栏字段当成普通聊天消息发出来。" };
+    }
+    if (contract.includes("{{char}}")) {
+        return { name: NAME, success: false, error: "契约里不能用 {{char}}：群聊的共享条目里它会展开成全体成员名字的拼接（如「甲、乙、丙」）。改用第二人称「你」。" };
+    }
+    const r = await statusBarSession(args.sessionName as string | undefined, ctx, NAME);
+    if (r.err) return r.err;
+    const { sessionId, displayName } = r.ok;
+    const { saveStatusRegionConfig, STATUS_REGION_UPDATED_EVENT } = await import("./chat-status-region");
+    saveStatusRegionConfig(sessionId, { mode: "custom", contract, renderHtml, previewRaw });
+    // 广播：聊天信息页开着时同步刷新，用户立刻能在输入框里看到并继续手改
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent(STATUS_REGION_UPDATED_EVENT, { detail: { sessionId } }));
+    }
+    return {
+        name: NAME,
+        success: true,
+        data: `已写入「${displayName}」的线上状态栏并启用（契约 ${contract.length} 字符、渲染 ${renderHtml.length} 字符）。用户可在 聊天信息 → 自定义状态栏 里看到并修改。注意：启用后原生的好感度等状态值会停止更新。`,
+    };
+}
+
+async function handlePreviewStatusBar(args: Record<string, unknown>, ctx: MascotToolContext): Promise<ToolResult> {
+    const NAME = "预览线上状态栏";
+    const r = await statusBarSession(args.sessionName as string | undefined, ctx, NAME);
+    if (r.err) return r.err;
+    const { sessionId, displayName } = r.ok;
+    const { getStatusRegionConfig } = await import("./chat-status-region");
+    const cfg = getStatusRegionConfig(sessionId);
+    if (!cfg.renderHtml.trim()) return { name: NAME, success: false, error: `「${displayName}」还没有渲染代码，先用 写线上状态栏 写入` };
+    const { requestStatusBarPreview } = await import("./mascot-events");
+    const handled = requestStatusBarPreview({
+        displayName,
+        renderHtml: cfg.renderHtml,
+        previewRaw: cfg.previewRaw || "",
+    });
+    if (!handled) return { name: NAME, success: false, error: "预览弹窗当前不可用（桌宠界面未挂载）" };
+    return { name: NAME, success: true, data: `已弹出「${displayName}」的状态栏预览，用户可直接查看效果。` };
 }
 
 async function handleOverwriteCss(args: Record<string, unknown>, ctx: MascotToolContext): Promise<ToolResult> {
@@ -2109,6 +2463,8 @@ async function handleReadRegexGroup(args: Record<string, unknown>): Promise<Tool
         lines.push(`    replace: ${r.replaceString}`);
         lines.push(`    tags: ${JSON.stringify(r.tags || ["chat", "text"])}`);
         lines.push(`    placement: ${JSON.stringify(r.placement)}`);
+        lines.push(`    markdownOnly: ${r.markdownOnly ? "true" : "false"} / promptOnly: ${r.promptOnly ? "true" : "false"} / historyOnly: ${r.historyOnly ? "true" : "false"} / substituteRegex: ${r.substituteRegex ?? 0}`);
+        lines.push(`    minDepth: ${r.minDepth != null ? r.minDepth : "不限"} / maxDepth: ${r.maxDepth != null ? r.maxDepth : "不限"}`);
     });
     return { name: "读取正则组", success: true, data: lines.join("\n") };
 }
@@ -2138,12 +2494,23 @@ function normalizeRule(r: Record<string, unknown>): Record<string, unknown> {
         placement: r.placement || [2],
         markdownOnly: r.markdownOnly ?? false,
         promptOnly: r.promptOnly ?? false,
+        historyOnly: r.historyOnly ?? false,
         substituteRegex: numberOption(r.substituteRegex, 0),
         runOnEdit: r.runOnEdit ?? false,
         trimStrings: r.trimStrings || [],
-        minDepth: r.minDepth,
-        maxDepth: r.maxDepth,
+        minDepth: normalizeRegexDepth(r.minDepth),
+        maxDepth: normalizeRegexDepth(r.maxDepth),
     };
+}
+
+/** 把深度字段规范化为合法值：合法数字保留，否则视为不限（undefined）。 */
+function normalizeRegexDepth(value: unknown): number | undefined {
+    if (typeof value === "number" && Number.isFinite(value)) return value;
+    if (typeof value === "string" && value.trim() !== "") {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) return parsed;
+    }
+    return undefined;
 }
 
 async function handleCreateRegexGroup(args: Record<string, unknown>): Promise<ToolResult> {
@@ -2183,6 +2550,8 @@ async function handleUpdateRegexRule(args: Record<string, unknown>): Promise<Too
     const updates = { ...(args.updates as Record<string, unknown>) };
     if ("substituteRegex" in updates) updates.substituteRegex = numberOption(updates.substituteRegex, 0);
     if ("tags" in updates) updates.tags = normalizeMascotRegexRuleTags(updates.tags);
+    if ("minDepth" in updates) updates.minDepth = normalizeRegexDepth(updates.minDepth);
+    if ("maxDepth" in updates) updates.maxDepth = normalizeRegexDepth(updates.maxDepth);
     group.rules[ruleIdx] = { ...group.rules[ruleIdx], ...updates } as typeof group.rules[number];
     group.updatedAt = Date.now();
     groups[idx] = group;

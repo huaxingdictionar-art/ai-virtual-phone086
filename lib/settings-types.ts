@@ -101,6 +101,7 @@ export type RegexRule = {
     markdownOnly?: boolean;       // true → only apply during display rendering (non-destructive)
     promptOnly?: boolean;         // true → only apply during prompt assembly (non-destructive)
     runOnEdit?: boolean;          // true → also apply when user edits an existing message
+    historyOnly?: boolean;        // true → only apply to chat history message blocks, never to system prompts/preset/world book
     substituteRegex?: number;     // 0=NONE, 1=RAW macro substitution in findRegex, 2=ESCAPED
     minDepth?: number;            // Minimum message depth (-1 = unlimited)
     maxDepth?: number;            // Maximum message depth
@@ -139,6 +140,8 @@ export type VoiceApiConfig = {
     languageBoost?: string;
     /** Minimax voice_setting.speed. Missing values keep the legacy 1.0x behavior. */
     speechSpeed?: number;
+    /** Minimax voice_setting.pitch（半音，±12）。缺省保持旧行为（0，原声）。 */
+    speechPitch?: number;
     customVoices?: { id: string; name: string; createdAt?: number }[];
     enableSTT: boolean;
     enableTTS: boolean;

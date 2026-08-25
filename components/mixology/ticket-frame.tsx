@@ -5,52 +5,70 @@
 // 高度自适应桥与自定义状态栏同款；allow-scripts 无 same-origin，碰不到宿主页面与数据。
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import type { MixState } from "@/lib/mixology/types";
+import { createMixFrameHeightTracker, nextMixFrameHeight } from "@/lib/mixology/frame-height";
 
 const FRAME_MIN_HEIGHT = 36;
+/**
+ * 小票与尾调也是 scrolling="no"，超出即截断。它们每轮插在对话流里，
+ * 不该像开场画布那样动辄十几屏，所以余量给得小一档：原来 2000（约两屏），
+ * 一个稍微复杂的小剧场就顶到头，放宽到 5000（约五屏半）。
+ */
+const FRAME_MAX_HEIGHT = 5000;
 
 function escapeHtmlText(value: string): string {
     return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function buildSrcDoc(html: string, raw: string): string {
+function buildSrcDoc(html: string, raw: string, state?: MixState): string {
     const withRaw = html.split("{{RAW}}").join(escapeHtmlText(raw));
     const base = /<html[\s>]/i.test(withRaw)
         ? withRaw
         : `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head><body>${withRaw}</body></html>`;
-    const inject = `<script>window.TICKET_RAW=${JSON.stringify(raw)};</` + `script>`;
+    // MIX_STATE：这一局记住的值。渲染代码可以据此画血条、换配色，不必等 AI 每轮重报
+    const inject = `<script>window.TICKET_RAW=${JSON.stringify(raw)};window.ENCORE_RAW=window.TICKET_RAW;window.MIX_STATE=${JSON.stringify(state ?? {})};</` + `script>`;
     return /<head[\s>]/i.test(base)
         ? base.replace(/<head([^>]*)>/i, `<head$1>${inject}`)
         : inject + base;
 }
 
-export function MixTicketFrame({ html, raw }: { html: string; raw: string }) {
+export function MixTicketFrame({ html, raw, state }: { html: string; raw: string; state?: MixState }) {
     const iframeRef = useRef<HTMLIFrameElement | null>(null);
     const [frameId] = useState(() => `mtf_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`);
     const [height, setHeight] = useState(FRAME_MIN_HEIGHT);
+    const trackerRef = useRef(createMixFrameHeightTracker(FRAME_MIN_HEIGHT));
 
     const srcDoc = useMemo(() => {
-        const doc = buildSrcDoc(html, raw);
+        const doc = buildSrcDoc(html, raw, state);
         const bridge = `<script>(function(){
   var frameId=${JSON.stringify(frameId)};
-  function measure(){var b=document.body;if(!b)return ${FRAME_MIN_HEIGHT};var r=b.getBoundingClientRect();var h=r.height;
-    for(var i=0;i<b.children.length;i++){var c=b.children[i].getBoundingClientRect();if(c.width||c.height)h=Math.max(h,c.bottom-r.top);}
-    return Math.max(Math.ceil(h),${FRAME_MIN_HEIGHT});}
+  /* 只用内容包围盒测高（scrollHeight 会跟着 iframe 视口涨，会形成"越量越高"的回路） */
+  function measure(){var b=document.body;if(!b)return ${FRAME_MIN_HEIGHT};
+    var cs=window.getComputedStyle(b);var mt=parseFloat(cs.marginTop)||0;var mb=parseFloat(cs.marginBottom)||0;
+    var h=b.getBoundingClientRect().height+mt+mb;
+    for(var i=0;i<b.children.length;i++){var c=b.children[i].getBoundingClientRect();if(c.width||c.height)h=Math.max(h,c.bottom+mb);}
+    return Math.max(Math.ceil(h)+2,${FRAME_MIN_HEIGHT});}
   function send(){parent.postMessage({source:'mix-ticket-frame',type:'resize',id:frameId,height:measure()},'*');}
   function sched(){requestAnimationFrame(function(){send();requestAnimationFrame(send);});}
   window.addEventListener('load',sched);window.addEventListener('resize',sched);
   if(window.MutationObserver)new MutationObserver(sched).observe(document.documentElement,{attributes:true,childList:true,subtree:true,characterData:true});
-  setTimeout(send,60);setTimeout(send,400);
+  if(window.ResizeObserver&&document.body)new ResizeObserver(sched).observe(document.body);
+  if(document.fonts&&document.fonts.ready)document.fonts.ready.then(sched);
+  setTimeout(send,60);setTimeout(send,400);setTimeout(send,1200);
 })();</` + `script>`;
         return /<\/body>/i.test(doc) ? doc.replace(/<\/body>/i, `${bridge}</body>`) : doc + bridge;
-    }, [html, raw, frameId]);
+    }, [html, raw, state, frameId]);
 
     useEffect(() => {
         const handleMessage = (event: MessageEvent) => {
             if (iframeRef.current && event.source !== iframeRef.current.contentWindow) return;
             const data = event.data as Record<string, unknown> | null;
             if (!data || data.source !== "mix-ticket-frame" || data.type !== "resize" || data.id !== frameId) return;
-            const next = Number(data.height);
-            if (Number.isFinite(next)) setHeight(Math.min(Math.max(next, FRAME_MIN_HEIGHT), 1200));
+            const applied = nextMixFrameHeight(trackerRef.current, Number(data.height), {
+                min: FRAME_MIN_HEIGHT,
+                max: FRAME_MAX_HEIGHT,
+            });
+            if (applied !== null) setHeight(applied);
         };
         window.addEventListener("message", handleMessage);
         return () => window.removeEventListener("message", handleMessage);

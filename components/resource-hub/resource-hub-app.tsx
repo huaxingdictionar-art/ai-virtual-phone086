@@ -402,7 +402,8 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
         setBusyFile(path);
         setImportingTo(contactId ?? destination);
         try {
-            const message = await importResourceHubFile(source, path, destination, { contactId });
+            // authorName：条目投稿人署名，特调入柜时随材料带入（别的目的地忽略）
+            const message = await importResourceHubFile(source, path, destination, { contactId, authorName: activeEntry?.author?.trim() || undefined });
             onNotice?.(message);
         } catch (err) {
             onNotice?.(`导入失败：${err instanceof Error ? err.message : String(err)}`);
@@ -412,7 +413,7 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
             setImportFile(null);
             setPickCharacterFor(null);
         }
-    }, [onNotice, source]);
+    }, [activeEntry, onNotice, source]);
 
     /** 第三步点下去：落盘并收尾。 */
     const runEntryImport = useCallback(async (anchorIdentifier: string | null) => {
@@ -1980,6 +1981,11 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                 .rh-body-detail { overflow: hidden; display: flex; }
                 .rh-detail2 {
                     flex: 1;
+                    /* min-width 不能省：外层 .rh-body-detail 是横向 flex，本项默认 min-width:auto
+                       不许缩到内容最小宽以下，而文件条的格子全部 flex-shrink:0，文件一多（4 个起）
+                       最小内容宽就超过容器，把整列撑爆——正文按撑爆后的宽度换行、右侧被裁，
+                       文件条 clientWidth==scrollWidth 变得根本没有可滚区间。 */
+                    min-width: 0;
                     min-height: 0;
                     display: flex;
                     flex-direction: column;

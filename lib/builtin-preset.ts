@@ -6,7 +6,7 @@ import type { PresetConfig } from "./settings-types";
 import { getCheckPhonePromptTags } from "./checkphone-config";
 
 export const BUILTIN_PRESET_ID = "builtin_default_v1";
-export const BUILTIN_PRESET_VERSION = 260; // 升版本会用出厂内容重写用户的内置预设副本（自定义会丢），非必要不升
+export const BUILTIN_PRESET_VERSION = 262; // 升版本会用出厂内容重写用户的内置预设副本（自定义会丢），非必要不升
 
 export function createBuiltinPreset(): PresetConfig {
     const now = Date.now();
@@ -56,6 +56,8 @@ export function createBuiltinPreset(): PresetConfig {
             { identifier: "chat_optional_actions", enabled: true },
             { identifier: "chat_followup", enabled: true },
             { identifier: "chat_timed_wake", enabled: true },
+            { identifier: "chat_user_timed_wake", enabled: true },
+            { identifier: "chat_idle_reconnect", enabled: true },
             { identifier: "chat_period_care", enabled: true },
             { identifier: "chat_voice_format", enabled: true },
             { identifier: "chat_video_format", enabled: true },
@@ -498,6 +500,42 @@ export function createBuiltinPreset(): PresetConfig {
                 injection_depth: 0,
                 enabled: true,
                 tags: ["chat", "timed_wake"],
+            },
+            {
+                identifier: "chat_user_timed_wake",
+                name: "▸ 固定时间主动消息",
+                role: "user",
+                content: [
+                    "<proactive_wake_instruction>",
+                    "{{timeContext}}",
+                    "{{user}} 上一条消息已经是约 {{timedWakeElapsedMinutes}} 分钟前。现在请根据你的性格、你们的关系、最近聊天上下文和当前时间，决定要不要主动发消息。",
+                    "如果主动发消息，内容要像你自然想起TA后主动开口。可以关心、撒娇、分享近况、轻轻试探、邀请继续聊天，或任何符合你性格的主动开场。",
+                    "内容必须自然，符合你的角色状态和你们当前关系，并遵循chat_output_format的格式。",
+                    "{{statusRegionExampleLine}}",
+                    "</proactive_wake_instruction>",
+                ].join("\n"),
+                injection_position: 0,
+                injection_depth: 0,
+                enabled: true,
+                tags: ["chat", "user_timed_wake"],
+            },
+            {
+                identifier: "chat_idle_reconnect",
+                name: "▸ 冷场重连",
+                role: "user",
+                content: [
+                    "<idle_reconnect_instruction>",
+                    "{{timeContext}}",
+                    "{{user}} 上一条消息已经是约 {{timedWakeElapsedMinutes}} 分钟前。现在请根据你的性格、你们的关系、最近聊天上下文和当前时间，决定要不要主动发消息。",
+                    "如果主动发消息，内容要像你自然想起TA后主动开口。可以关心、撒娇、分享近况、轻轻试探、邀请继续聊天，或任何符合你性格的主动开场。",
+                    "内容必须自然，符合你的角色状态和你们当前关系，并遵循chat_output_format的格式。",
+                    "{{statusRegionExampleLine}}",
+                    "</idle_reconnect_instruction>",
+                ].join("\n"),
+                injection_position: 0,
+                injection_depth: 0,
+                enabled: true,
+                tags: ["chat", "idle_wake"],
             },
             {
                 identifier: "chat_period_care",
@@ -962,18 +1000,7 @@ export function createBuiltinPreset(): PresetConfig {
                     "- 当{{user}}抛出问题的时候，不要所有人都回应，有人回应，有人接话/讽刺/调侃/捧场。",
                     "",
                     "## 输出格式",
-                    "### 状态值与内心",
-                    "【格式】",
-                    "每个本轮发言角色都必须先输出自己的状态值和内心想法，且必须放在该角色的同一个 [角色名]: 块内。",
-                    "同一个角色块只写一次 [角色名]: 前缀；不要把状态值/内心单独拆成一个角色块，也不要在正文前重复 [角色名]:。",
-                    "[角色名]: [好感度:X][占有欲:X][焦虑值:X]",
-                    "[内心]该角色此刻没有说出口的真实想法[/内心]",
-                    "消息正文",
-                    "【规则】",
-                    "- 状态值继承该角色 <member> 内的 current_state，并根据本轮群聊互动更新。",
-                    "- 不同角色的状态值互不混用；谁发言，就只输出谁自己的状态值和内心。",
-                    "- 不发言的角色不要输出状态值或内心。",
-                    "- 同一个角色在同一轮里只需要输出一次状态值和一次内心，后续多条消息用空行拆分即可。",
+                    "{{statusRegionSection}}",
                     "",
                     "### 消息",
                     "【格式】",
