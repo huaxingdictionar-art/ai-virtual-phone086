@@ -559,7 +559,7 @@ export function MixologyHall({
                 name={m.name}
                 hook={m.hook}
                 tags={m.tags}
-                cover={m.kind === "character" ? m.cover : undefined}
+                cover={mixKindHasCover(m.kind) ? m.cover : undefined}
                 badge="官方"
                 onClick={() => setOfficialDetail(m)}
                 key={m.id}
@@ -601,7 +601,7 @@ export function MixologyHall({
                             hook={entry.hook}
                             tags={entry.tags}
                             // 云端老条目可能还存着换制前上传的封面，非角色卡一律不认
-                            cover={entry.kind === "character" ? entry.cover : undefined}
+                            cover={mixKindHasCover(entry.kind) ? entry.cover : undefined}
                             author={entry.authorName}
                             stats={statsLine(entry)}
                             onClick={() => void openMaterial(entry)}
