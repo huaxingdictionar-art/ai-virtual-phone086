@@ -1115,8 +1115,8 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                 </div>
               ))}
               {pendingFiles.map((file, i) => (
-                <div key={`file-${i}`} className="qa-attach-thumb" style={{ background: "rgba(128,128,128,0.2)", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", minWidth: "60px", maxWidth: "120px" }}>
-                  <FileText size={16} style={{ minWidth: "16px", marginRight: "4px" }}/>
+                <div key={`file-${i}`} className="qa-attach-thumb" style={{ background: "var(--qa-bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", minWidth: "60px", maxWidth: "120px", border: "1px solid var(--qa-border)" }}>
+                  <FileText size={16} style={{ minWidth: "16px", marginRight: "4px", opacity: 0.7 }}/>
                   <span style={{ fontSize: "11px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
                   <button
                     type="button"
@@ -1180,13 +1180,13 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                 {attachMenuOpen && (
                     <>
                         <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }} onClick={() => setAttachMenuOpen(false)} />
-                        <div style={{ position: "absolute", bottom: "100%", left: 0, marginBottom: "8px", background: "var(--qa-bg-elevated)", border: "1px solid var(--qa-border)", borderRadius: "12px", padding: "6px", display: "flex", flexDirection: "column", gap: "2px", zIndex: 100, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", minWidth: "110px" }}>
-                            <button type="button" className="qa-drawer-menu-btn" style={{ justifyContent: "flex-start", padding: "8px 12px" }} onClick={() => fileInputRef.current?.click()}>
-                                <FileText size={15} style={{ marginRight: "8px", opacity: 0.7 }} /> 上传附件
+                        <div className="qa-dropdown-menu">
+                            <button type="button" className="qa-drawer-menu-btn" onClick={() => fileInputRef.current?.click()}>
+                                <FileText size={15} className="qa-drawer-menu-icon" /> 📄 上传附件
                             </button>
                             {visionEnabled && (
-                                <button type="button" className="qa-drawer-menu-btn" style={{ justifyContent: "flex-start", padding: "8px 12px" }} onClick={() => imageInputRef.current?.click()}>
-                                    <ImageIcon size={15} style={{ marginRight: "8px", opacity: 0.7 }} /> 上传图片
+                                <button type="button" className="qa-drawer-menu-btn" onClick={() => imageInputRef.current?.click()}>
+                                    <ImageIcon size={15} className="qa-drawer-menu-icon" /> 🖼️ 上传图片
                                 </button>
                             )}
                         </div>
@@ -1336,32 +1336,31 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
               </button>
             </div>
             
-            <div style={{ padding: "0 16px 4px 16px" }}>
+            <div className="qa-edit-body">
                 <textarea
                   className="qa-edit-textarea"
                   value={editText}
                   onChange={(e) => setEditText(e.target.value)}
                   spellCheck={false}
                   autoFocus
-                  style={{ minHeight: "100px", marginBottom: "12px", border: "1px solid var(--qa-border)", borderRadius: "8px", padding: "10px", background: "transparent", color: "inherit", width: "100%", boxSizing: "border-box" }}
                 />
                 
                 {(editImages.length > 0 || editFiles.length > 0) && (
-                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap", marginBottom: "12px" }}>
+                    <div className="qa-attach-strip" style={{ marginTop: "12px", padding: 0, background: "transparent", border: "none" }}>
                         {editImages.map((url, i) => (
-                            <div key={`edit-img-${i}`} style={{ position: "relative", width: "40px", height: "40px", borderRadius: "6px", overflow: "hidden", border: "1px solid rgba(128,128,128,0.2)" }}>
-                                <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-                                <button type="button" style={{ position: "absolute", top: 2, right: 2, background: "rgba(0,0,0,0.6)", color: "white", border: "none", borderRadius: "50%", cursor: "pointer", width: "14px", height: "14px", display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => handleRemoveEditImage(i)}>
-                                    <X size={9} strokeWidth={3} />
+                            <div key={`edit-img-${i}`} className="qa-attach-thumb">
+                                <img src={url} alt="" />
+                                <button type="button" className="qa-attach-remove" onClick={() => handleRemoveEditImage(i)}>
+                                    <X size={11} strokeWidth={2.4} />
                                 </button>
                             </div>
                         ))}
                         {editFiles.map((f, i) => (
-                             <div key={`edit-file-${i}`} style={{ position: "relative", display: "flex", alignItems: "center", background: "var(--qa-bg-secondary)", padding: "4px 22px 4px 8px", borderRadius: "6px", fontSize: "11px", border: "1px solid var(--qa-border)", maxWidth: "120px" }}>
-                                <FileText size={13} style={{ marginRight: "4px", minWidth: "13px", opacity: 0.7 }} />
-                                <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
-                                <button type="button" style={{ position: "absolute", right: "4px", background: "transparent", color: "inherit", border: "none", cursor: "pointer", display: "flex", alignItems: "center", opacity: 0.6 }} onClick={() => setEditFiles(current => current.filter((_, idx) => idx !== i))}>
-                                    <X size={12} strokeWidth={2.5}/>
+                             <div key={`edit-file-${i}`} className="qa-attach-thumb" style={{ background: "var(--qa-bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", minWidth: "60px", maxWidth: "120px", border: "1px solid var(--qa-border)" }}>
+                                <FileText size={16} style={{ minWidth: "16px", marginRight: "4px", opacity: 0.7 }} />
+                                <span style={{ fontSize: "11px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
+                                <button type="button" className="qa-attach-remove" onClick={() => setEditFiles(current => current.filter((_, idx) => idx !== i))}>
+                                    <X size={11} strokeWidth={2.4} />
                                 </button>
                             </div>
                         ))}
@@ -1369,25 +1368,25 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                 )}
             </div>
             
-            <div className="qa-edit-actions" style={{ justifyContent: "space-between", paddingTop: "8px", borderTop: "1px solid var(--qa-border)", margin: "0 16px 16px 16px", paddingBottom: 0, paddingLeft: 0, paddingRight: 0 }}>
+            <div className="qa-edit-actions is-row">
                 <div style={{ position: "relative" }}>
-                    <button type="button" className="qa-circle-btn qa-attach-btn" onClick={() => setEditAttachMenuOpen(!editAttachMenuOpen)} style={{ background: "transparent", border: "1px solid var(--qa-border)", color: "inherit" }}>
-                         <Plus size={16} style={{ transform: editAttachMenuOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s', opacity: 0.7 }} />
+                    <button type="button" className={`qa-circle-btn qa-attach-btn ${editAttachMenuOpen ? "is-active" : ""}`} onClick={() => setEditAttachMenuOpen(!editAttachMenuOpen)}>
+                         <Plus size={17} strokeWidth={2.2} style={{ transform: editAttachMenuOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s' }} />
                     </button>
                     {editAttachMenuOpen && (
                         <>
                             <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }} onClick={() => setEditAttachMenuOpen(false)} />
-                            <div style={{ position: "absolute", bottom: "100%", left: 0, marginBottom: "8px", background: "var(--qa-bg-elevated)", border: "1px solid var(--qa-border)", borderRadius: "12px", padding: "6px", display: "flex", flexDirection: "column", gap: "2px", zIndex: 100, boxShadow: "0 4px 12px rgba(0,0,0,0.1)", minWidth: "110px" }}>
-                                <button type="button" className="qa-drawer-menu-btn" style={{ justifyContent: "flex-start", padding: "8px 12px" }} onClick={() => { setEditAttachMenuOpen(false); fileInputRef.current?.click(); }}>
-                                    <FileText size={15} style={{ marginRight: "8px", opacity: 0.7 }} /> 上传附件
+                            <div className="qa-dropdown-menu">
+                                <button type="button" className="qa-drawer-menu-btn" onClick={() => { setEditAttachMenuOpen(false); fileInputRef.current?.click(); }}>
+                                    <FileText size={15} className="qa-drawer-menu-icon" /> 📄 上传附件
                                 </button>
                                 {visionEnabled && (
-                                    <button type="button" className="qa-drawer-menu-btn" style={{ justifyContent: "flex-start", padding: "8px 12px" }} onClick={() => {
+                                    <button type="button" className="qa-drawer-menu-btn" onClick={() => {
                                         setEditAttachMenuOpen(false);
                                         imageInputRef.current?.setAttribute('data-edit-mode', 'true');
                                         imageInputRef.current?.click();
                                     }}>
-                                        <ImageIcon size={15} style={{ marginRight: "8px", opacity: 0.7 }} /> 上传图片
+                                        <ImageIcon size={15} className="qa-drawer-menu-icon" /> 🖼️ 上传图片
                                     </button>
                                 )}
                             </div>
@@ -1395,7 +1394,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                     )}
                 </div>
 
-                <div style={{ display: "flex", gap: "8px" }}>
+                <div className="qa-edit-buttons">
                     <button type="button" className="qa-devnotice-btn" onClick={() => handleSaveEdit(false)}>
                         保存
                     </button>
