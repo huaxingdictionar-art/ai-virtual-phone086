@@ -1,9 +1,10 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
-import { AppWindow, ArrowUp, BrushCleaning, Check, ChevronLeft, ChevronRight, Copy, Drama, FileText, Gamepad2, Github, Loader2, Menu, MoreVertical, Pencil, Pin, PinOff, Play, Plus, Square, Trash2, Wrench, X } from "lucide-react";
-
+import remarkGfm from "remark-gfm";
+import remarkBreaks from "remark-breaks";
+import { AppWindow, ArrowUp, BrushCleaning, Check, ChevronLeft, ChevronRight, Copy, Drama, Gamepad2, Github, Loader2, Menu, MoreVertical, Pencil, Pin, PinOff, Play, Plus, Square, Trash2, Wrench, X, Paperclip, FileText, Image as ImageIcon } from "lucide-react";
 import { QaFileCard } from "@/components/qa-file-card";
 import { parseQaFileMarker } from "@/lib/qa-computer-tools";
 import { mdiHammerWrench } from "@mdi/js";
@@ -13,7 +14,6 @@ import { GameHubApp } from "@/components/game/game-hub-app";
 import { BlackMarketApp } from "@/components/shopping/black-market-app";
 import { getInstalledCustomApp } from "@/lib/custom-app-storage";
 import type { QaCreatedContent } from "@/lib/qa-agent-tools";
-
 import {
 applyQaCommit,
 cancelQaCommit,
@@ -92,6 +92,7 @@ if (diff < 86_400_000) return ${Math.floor(diff / 3_600_000)} 小时前;
 return ${Math.floor(diff / 86_400_000)} 天前;
 }
 
+/* STREAMING_CHUNK:Defining UI Helper Components... */
 // ── 代码块（语言标签 + 一键复制）─────────────────────
 
 function QaCodeBlock({ className, children }: { className?: string; children?: React.ReactNode }) {
@@ -213,12 +214,12 @@ return (
 );
 }
 
+/* STREAMING_CHUNK:Rendering Chat Messages... */
 // ── 消息渲染 ─────────────────────────────────────────
 
-// 工具调用行：折叠的单行摘要，点开展开参数与结果（Claude Code 风格）
+// 工具调用行：折叠的单行摘要，点开展开参数与结果
 function QaToolRow({ tool }: { tool: QaToolStatus }) {
 const [open, setOpen] = useState(false);
-// 「电脑文件 op=send」的结果里带文件卡标记：卡片常显，标记从结果文本中剥离
 const { text: resultText, file } = parseQaFileMarker(tool.result || "");
 const hasDetail = Boolean(tool.detail || resultText);
 const summary = tool.running ? 正在${tool.name}… : tool.success === false ? ${tool.name}失败 : tool.name;
@@ -258,16 +259,14 @@ disabled={!hasDetail}
 );
 }
 
-// 已完成文本的 Markdown 渲染：memo 缓存
 const QaMarkdownBlock = memo(function QaMarkdownBlock({ text }: { text: string }) {
 return (
-
+<ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={QA_MARKDOWN_COMPONENTS}>
 {text}
 
 );
 });
 
-// 正在生长的活跃段：纯文本渲染（零解析成本），生成结束后换回完整 Markdown
 function QaStreamingText({ text }: { text: string }) {
 return (
 <>
@@ -302,7 +301,7 @@ const msgWrap = (node: ReactNode) => (
 <button type="button" className="qa-msg-action" aria-label="复制原始内容" title="复制" onClick={() => onCopy(msg.content)}>
 
 
-<button type="button" className="qa-msg-action" aria-label="编辑原始内容" title="编辑" onClick={() => onEdit(msg)}>
+<button type="button" className="qa-msg-action" aria-label="修改消息" title="修改" onClick={() => onEdit(msg)}>
 
 
 
@@ -340,11 +339,11 @@ return msgWrap(
 
 )}
 {msg.files && msg.files.length > 0 && (
-<div className="qa-msg-files" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
-{msg.files.map((file, i) => (
-<div key={i} className="qa-msg-file" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.15)', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', border: '1px solid rgba(255,255,255,0.1)' }}>
-<FileText size={15} style={{ opacity: 0.8 }} />
-<span style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}
+<div className="qa-msg-files" style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "8px" }}>
+{msg.files.map((f, i) => (
+<div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(255,255,255,0.1)", padding: "4px 8px", borderRadius: "6px", fontSize: "12px", border: "1px solid rgba(255,255,255,0.2)" }}>
+
+<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "150px" }}>{f.name}
 
 ))}
 
@@ -415,6 +414,7 @@ block.kind === "tools" ? (
 );
 });
 
+/* STREAMING_CHUNK:Session Drawers and Settings Panels... */
 // ── 会话抽屉 ─────────────────────────────────────────
 
 function QaSessionDrawer({
@@ -767,7 +767,7 @@ GitHub → Settings → Menu 按钮 → Developer settings → Personal access t
 {result && (
 <div className={qa-verify ${result.ok ? "is-ok" : "is-fail"}}>
 {result.ok
-? ✓ 已连接 ${result.fullName}（${result.private ? "私有" : "公开"}，默认分支 ${result.defaultBranch}）
+? ✓ 已连接 ${result.fullName}（${result.private ? "私有" : "默认分支 ${result.defaultBranch}"}）
 : ✗ ${result.error}}
 
 )}
@@ -790,35 +790,39 @@ GitHub → Settings → Menu 按钮 → Developer settings → Personal access t
 );
 }
 
+/* STREAMING_CHUNK:Main App Component Initialization... */
 // ── App 本体 ─────────────────────────────────────────
 
 export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
-// 使用 useState + useEffect 替换 useSyncExternalStore，完美解决 tearing 引起的无线重渲问题
-const [snapshot, setSnapshot] = useState(getQaChatSnapshot);
-useEffect(() => {
-return subscribeQaChat(() => {
-setSnapshot(getQaChatSnapshot());
-});
-}, []);
-
+const snapshot = useSyncExternalStore(subscribeQaChat, getQaChatSnapshot, getQaChatSnapshot);
 const [input, setInput] = useState("");
 const [drawerOpen, setDrawerOpen] = useState(false);
 const [repoSheetOpen, setRepoSheetOpen] = useState(false);
 const [repoConnected, setRepoConnected] = useState(false);
 const [clearToolsOpen, setClearToolsOpen] = useState(false);
 const [settingsOpen, setSettingsOpen] = useState(false);
+/ 会话重命名弹窗：抽屉菜单里点「重命名」打开 */
 const [renameTarget, setRenameTarget] = useState<{ id: string; title: string } | null>(null);
 const [renameTitle, setRenameTitle] = useState("");
 
+// 主输入区附件
 const [pendingImages, setPendingImages] = useState<string[]>([]);
 const [pendingFiles, setPendingFiles] = useState<{name: string, content: string}[]>([]);
+const [composerMenuOpen, setComposerMenuOpen] = useState(false);
+
 const [viewerImage, setViewerImage] = useState<string | null>(null);
+
+// 修改消息区附件
 const [editingMsg, setEditingMsg] = useState<QaMsg | null>(null);
 const [editText, setEditText] = useState("");
-const [visionEnabled, setVisionEnabled] = useState(false);
+const [editImages, setEditImages] = useState<string[]>([]);
+const [editFiles, setEditFiles] = useState<{name: string, content: string}[]>([]);
+const [editAttachMenuOpen, setEditAttachMenuOpen] = useState(false);
 
+const [visionEnabled, setVisionEnabled] = useState(false);
 const imageInputRef = useRef<HTMLInputElement | null>(null);
 const fileInputRef = useRef<HTMLInputElement | null>(null);
+
 const [apiReady, setApiReady] = useState(true);
 const [modelName, setModelName] = useState("");
 const [repoWritable, setRepoWritable] = useState(false);
@@ -842,6 +846,7 @@ void hydrateQaChat();
 refreshComposerMeta();
 }, [refreshComposerMeta]);
 
+// 清理原生 tool 调用历史（防报错）：与小卷同款——移除上下文里的工具记录与原生元数据
 const handleClearToolHistory = useCallback(() => {
 if (snapshot.isGenerating) {
 onNotice?.("小坊正在执行，完成后再清理。");
@@ -883,6 +888,8 @@ const previewApp = useMemo(
 [previewItem],
 );
 
+/* STREAMING_CHUNK:Event Handlers and Media Processing... */
+// 自动滚动：用户上滚阅读时不拉回底部
 const handleScroll = useCallback(() => {
 const el = bodyRef.current;
 if (!el) return;
@@ -916,8 +923,10 @@ requestAnimationFrame(autoGrow);
 void sendQaMessage(text, images.length ? images : undefined, files.length ? files : undefined);
 }, [input, pendingImages, pendingFiles, snapshot.isGenerating, autoGrow]);
 
-const handlePickImages = useCallback((files: FileList | null) => {
+// 附加图片：仅识图已开启的 API 显示入口；读为 dataURL，单张限 4MB
+const handlePickImages = useCallback((files: FileList | null, isEditMode = false) => {
 if (!files?.length) return;
+const setter = isEditMode ? setEditImages : setPendingImages;
 for (const file of Array.from(files).slice(0, 6)) {
 if (file.size > 4 * 1024 * 1024) {
 onNotice?.(「${file.name}」超过 4MB，已跳过。);
@@ -926,29 +935,33 @@ continue;
 const reader = new FileReader();
 reader.onload = () => {
 const url = typeof reader.result === "string" ? reader.result : "";
-if (url) setPendingImages((current) => (current.length >= 6 ? current : [...current, url]));
+if (url) setter((current) => (current.length >= 6 ? current : [...current, url]));
 };
 reader.readAsDataURL(file);
 }
 if (imageInputRef.current) imageInputRef.current.value = "";
 }, [onNotice]);
 
-const handlePickFiles = useCallback((files: FileList | null) => {
+// 附加文本文件，拦截不可读取的 docx 和 pdf 格式
+const handlePickFiles = useCallback((files: FileList | null, isEditMode = false) => {
 if (!files?.length) return;
-for (const file of Array.from(files).slice(0, 5)) {
-if (file.size > 1024 * 1024) {
-onNotice?.(「${file.name}」超过 1MB，为避免超量占用，已跳过。);
+const setter = isEditMode ? setEditFiles : setPendingFiles;
+for (const file of Array.from(files).slice(0, 6)) {
+if (/.(docx|pdf)$/i.test(file.name)) {
+onNotice?.(工坊暂不支持读取「${file.name}」格式，请上传 txt、md 等纯文本文件。);
+continue;
+}
+if (file.size > 1024 * 1024) { // 纯文本文件限 1MB
+onNotice?.(「${file.name}」太大（超过 1MB），请直接粘贴内容。);
 continue;
 }
 const reader = new FileReader();
 reader.onload = () => {
-const content = reader.result;
-if (typeof content === "string") {
-setPendingFiles((current) => {
-if (current.length >= 5) return current;
+const content = typeof reader.result === "string" ? reader.result : "";
+if (content) setter((current) => {
+if (current.length >= 6 || current.some(f => f.name === file.name)) return current;
 return [...current, { name: file.name, content }];
 });
-}
 };
 reader.readAsText(file);
 }
@@ -970,33 +983,27 @@ void navigator.clipboard?.writeText(content).then(
 const handleEditMessage = useCallback((msg: QaMsg) => {
 setEditingMsg(msg);
 setEditText(msg.content);
+setEditImages(msg.images || []);
+setEditFiles(msg.files || []);
 }, []);
 
-const handleSaveEdit = useCallback(() => {
+const handleSaveEdit = useCallback((andResend: boolean) => {
 if (!editingMsg || !snapshot.activeSessionId) return;
-updateQaMessageContent(snapshot.activeSessionId, editingMsg.id, editText, editingMsg.images, editingMsg.files);
+if (andResend) {
+editAndResendQaMessage(snapshot.activeSessionId, editingMsg.id, editText, editImages.length ? editImages : undefined, editFiles.length ? editFiles : undefined);
+} else {
+updateQaMessageContent(snapshot.activeSessionId, editingMsg.id, editText, editImages.length ? editImages : undefined, editFiles.length ? editFiles : undefined);
+}
 setEditingMsg(null);
-onNotice?.("已保存消息内容");
-}, [editingMsg, editText, snapshot.activeSessionId, onNotice]);
-
-const handleEditAndResend = useCallback(() => {
-if (!editingMsg || !snapshot.activeSessionId) return;
-void editAndResendQaMessage(
-snapshot.activeSessionId,
-editingMsg.id,
-editText,
-editingMsg.images,
-editingMsg.files
-);
-setEditingMsg(null);
-onNotice?.("已保存并重新发送，中断后续对话");
-}, [editingMsg, editText, snapshot.activeSessionId, onNotice]);
+onNotice?.(andResend ? "已提交修改" : "已保存消息内容");
+}, [editingMsg, editText, editImages, editFiles, snapshot.activeSessionId, onNotice]);
 
 const streamingMsgId =
 snapshot.isGenerating && messages.length > 0 && messages[messages.length - 1].role === "assistant"
 ? messages[messages.length - 1].id
 : null;
 
+/* STREAMING_CHUNK:Rendering Main Layout... */
 return (
 
 <QaSessionDrawer
@@ -1106,15 +1113,14 @@ setRenameTitle(title);
             </div>
           ))}
           {pendingFiles.map((file, i) => (
-            <div key={`file-${i}`} className="qa-attach-thumb is-file" style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '0 8px', background: 'var(--surface-3)', borderRadius: '6px', minWidth: 0, height: '48px', flexShrink: 0 }}>
-              <FileText size={15} style={{ flexShrink: 0, opacity: 0.8 }} />
-              <span style={{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80px' }}>{file.name}</span>
+            <div key={`file-${i}`} className="qa-attach-thumb" style={{ background: "rgba(128,128,128,0.2)", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", minWidth: "60px", maxWidth: "120px" }}>
+              <FileText size={16} style={{ minWidth: "16px", marginRight: "4px" }}/>
+              <span style={{ fontSize: "11px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
               <button
                 type="button"
                 className="qa-attach-remove"
-                style={{ position: 'static', transform: 'none', marginLeft: '2px', background: 'rgba(0,0,0,0.1)' }}
                 onClick={() => setPendingFiles((current) => current.filter((_, idx) => idx !== i))}
-                aria-label="移除文件"
+                aria-label="移除附件"
               >
                 <X size={11} strokeWidth={2.4} />
               </button>
@@ -1122,7 +1128,6 @@ setRenameTitle(title);
           ))}
         </div>
       )}
-      
       <textarea
         ref={textareaRef}
         className="qa-composer-input hide-scrollbar"
@@ -1134,49 +1139,63 @@ setRenameTitle(title);
           autoGrow();
         }}
       />
+      
       <div className="qa-composer-toolbar">
-        {visionEnabled && (
-          <>
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/*"
-              multiple
-              style={{ display: "none" }}
-              onChange={(e) => handlePickImages(e.target.files)}
-            />
-            <button
-              type="button"
-              className="qa-circle-btn qa-attach-btn"
-              onClick={() => imageInputRef.current?.click()}
-              aria-label="发送图片"
-              title="添加图片"
-            >
-              <Plus size={17} strokeWidth={2.2} />
-            </button>
-          </>
-        )}
-        
-        <>
-          <input
+        {/* 隐藏的文件输入组件全局共用 */}
+        <input
             ref={fileInputRef}
             type="file"
-            accept=".txt,.md,.json,.js,.ts,.jsx,.tsx,.csv,.py,.html,.css"
             multiple
+            accept=".txt,.md,.json,.js,.ts,.tsx,.jsx,.html,.css,.csv"
             style={{ display: "none" }}
-            onChange={(e) => handlePickFiles(e.target.files)}
-          />
-          <button
-            type="button"
-            className="qa-circle-btn qa-attach-btn"
-            onClick={() => fileInputRef.current?.click()}
-            aria-label="发送文本文件"
-            title="添加文本文件"
-          >
-            <FileText size={16} strokeWidth={2} />
-          </button>
-        </>
-        
+            onChange={(e) => {
+                const isEditMode = e.target.getAttribute('data-edit-mode') === 'true';
+                handlePickFiles(e.target.files, isEditMode);
+                e.target.removeAttribute('data-edit-mode');
+            }}
+        />
+        {visionEnabled && (
+            <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                style={{ display: "none" }}
+                onChange={(e) => {
+                    const isEditMode = e.target.getAttribute('data-edit-mode') === 'true';
+                    handlePickImages(e.target.files, isEditMode);
+                    e.target.removeAttribute('data-edit-mode');
+                }}
+            />
+        )}
+
+        {/* 合并后的添加附件/图片菜单 */}
+        <div style={{ position: 'relative' }}>
+            <button
+                type="button"
+                className={`qa-circle-btn qa-attach-btn ${composerMenuOpen ? 'is-active' : ''}`}
+                onClick={() => setComposerMenuOpen(!composerMenuOpen)}
+                aria-label="添加附件/图片"
+            >
+                <Plus size={17} strokeWidth={2.2} />
+            </button>
+            {composerMenuOpen && (
+                <>
+                    <div style={{position: 'fixed', inset: 0, zIndex: 9}} onClick={() => setComposerMenuOpen(false)} />
+                    <div className="qa-drawer-item-menu" style={{ position: 'absolute', bottom: 'calc(100% + 8px)', left: 0, zIndex: 10, right: 'auto', top: 'auto', display: 'flex', flexDirection: 'column', minWidth: '100px' }}>
+                        <button type="button" className="qa-drawer-menu-btn" onClick={() => { fileInputRef.current?.click(); setComposerMenuOpen(false); }}>
+                            <Paperclip size={14} /> 添加附件
+                        </button>
+                        {visionEnabled && (
+                            <button type="button" className="qa-drawer-menu-btn" onClick={() => { imageInputRef.current?.click(); setComposerMenuOpen(false); }}>
+                                <ImageIcon size={14} /> 添加图片
+                            </button>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+
         {modelName && <span className="qa-model-pill">{modelName}</span>}
 
         {repoWritable && (
@@ -1247,6 +1266,7 @@ setRenameTitle(title);
   )}
   </div>
 
+  {/* 弹窗与悬浮层组件 */}
   {renameTarget && (
     <div className="qa-rename-backdrop" role="presentation" onClick={() => setRenameTarget(null)}>
       <form
@@ -1309,41 +1329,88 @@ setRenameTitle(title);
     </div>
   )}
 
+  {/* STREAMING_CHUNK:Editing Message Dialog Rendering... */}
   {editingMsg && (
     <div className="qa-edit-backdrop" onClick={() => setEditingMsg(null)}>
-      <div className="qa-edit-dialog" role="dialog" aria-label="编辑消息" onClick={(e) => e.stopPropagation()}>
+      <div className="qa-edit-dialog" role="dialog" aria-label="修改消息" onClick={(e) => e.stopPropagation()}>
         <div className="qa-edit-head">
-          <span className="qa-edit-title">编辑消息（未渲染原始内容）</span>
+          <span className="qa-edit-title">修改消息</span>
           <button type="button" className="qa-icon-btn" onClick={() => setEditingMsg(null)} aria-label="关闭">
             <X size={16} />
           </button>
         </div>
-        <textarea
-          className="qa-edit-textarea"
-          value={editText}
-          onChange={(e) => setEditText(e.target.value)}
-          spellCheck={false}
-          autoFocus
-          placeholder="这里显示的是消息的原始内容，不会被前端渲染，可放心查看特殊标签。"
-        />
-        <div className="qa-edit-actions">
-          <button type="button" className="qa-devnotice-btn" onClick={() => setEditingMsg(null)}>
-            取消
-          </button>
-          <button type="button" className="qa-devnotice-btn is-primary" onClick={handleSaveEdit}>
-            仅保存
-          </button>
-          {editingMsg.role === "user" && (
-            <button type="button" className="qa-devnotice-btn is-danger" onClick={handleEditAndResend}>
-              保存并重发
-            </button>
-          )}
+        
+        <div style={{ padding: "0 16px 8px 16px" }}>
+            <textarea
+              className="qa-edit-textarea"
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              spellCheck={false}
+              autoFocus
+              style={{ minHeight: "120px", marginBottom: "8px" }}
+            />
+            
+            <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
+                {editImages.map((url, i) => (
+                    <div key={`edit-img-${i}`} style={{ position: "relative", width: "40px", height: "40px", borderRadius: "4px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>
+                        <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                        <button
+                            type="button"
+                            style={{ position: "absolute", top: 0, right: 0, background: "rgba(0,0,0,0.5)", color: "white", border: "none", borderRadius: "0 0 0 4px", cursor: "pointer", padding: "2px" }}
+                            onClick={() => setEditImages(current => current.filter((_, idx) => idx !== i))}
+                        >
+                            <X size={10} />
+                        </button>
+                    </div>
+                ))}
+                {editFiles.map((f, i) => (
+                     <div key={`edit-file-${i}`} style={{ position: "relative", display: "flex", alignItems: "center", background: "rgba(255,255,255,0.1)", padding: "4px 20px 4px 8px", borderRadius: "4px", fontSize: "11px", border: "1px solid rgba(255,255,255,0.2)" }}>
+                        <FileText size={12} style={{ marginRight: "4px" }} />
+                        <span style={{ maxWidth: "80px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
+                        <button
+                            type="button"
+                            style={{ position: "absolute", right: "2px", background: "transparent", color: "inherit", border: "none", cursor: "pointer", display: "flex", alignItems: "center" }}
+                            onClick={() => setEditFiles(current => current.filter((_, idx) => idx !== i))}
+                        >
+                            <X size={12} />
+                        </button>
+                    </div>
+                ))}
+            </div>
         </div>
-        {editingMsg.role === "user" && (
-          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textAlign: 'right', marginTop: '6px' }}>
-            * 重发会截断此消息之后的所有回复并重新触发 AI
-          </div>
-        )}
+        
+        <div className="qa-edit-actions" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 16px" }}>
+            {/* 左侧的附件添加菜单（精简排版，向上展开防误触） */}
+            <div style={{ position: "relative" }}>
+                <button type="button" className="qa-icon-btn" style={{ padding: "6px" }} onClick={() => setEditAttachMenuOpen(!editAttachMenuOpen)} aria-label="展开添加菜单">
+                    <Plus size={20} />
+                </button>
+                {editAttachMenuOpen && (
+                    <>
+                        <div style={{position: 'fixed', inset: 0, zIndex: 9}} onClick={() => setEditAttachMenuOpen(false)} />
+                        <div className="qa-drawer-item-menu" style={{ position: 'absolute', bottom: 'calc(100% + 4px)', left: 0, zIndex: 10, right: 'auto', top: 'auto', display: 'flex', flexDirection: 'column', minWidth: '100px' }}>
+                            <button type="button" className="qa-drawer-menu-btn" onClick={() => { fileInputRef.current?.setAttribute('data-edit-mode', 'true'); fileInputRef.current?.click(); setEditAttachMenuOpen(false); }}>
+                                <Paperclip size={14} /> 添加附件
+                            </button>
+                            {visionEnabled && (
+                                <button type="button" className="qa-drawer-menu-btn" onClick={() => { imageInputRef.current?.setAttribute('data-edit-mode', 'true'); imageInputRef.current?.click(); setEditAttachMenuOpen(false); }}>
+                                    <ImageIcon size={14} /> 添加图片
+                                </button>
+                            )}
+                        </div>
+                    </>
+                )}
+            </div>
+            {/* 右侧直接就是精简的保存和发送 */}
+            <div style={{ display: "flex", gap: "8px" }}>
+                <button type="button" className="qa-devnotice-btn" onClick={() => handleSaveEdit(false)}>
+                    保存
+                </button>
+                <button type="button" className="qa-devnotice-btn is-primary" onClick={() => handleSaveEdit(true)}>
+                    保存并发送
+                </button>
+            </div>
+        </div>
       </div>
     </div>
   )}
