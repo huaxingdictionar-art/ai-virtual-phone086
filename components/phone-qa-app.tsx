@@ -3,6 +3,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import { AppWindow, ArrowUp, BrushCleaning, Check, ChevronLeft, ChevronRight, Copy, Drama, FileText, Gamepad2, Github, Loader2, Menu, MoreVertical, Pencil, Pin, PinOff, Play, Plus, Square, Trash2, Wrench, X } from "lucide-react";
+
 import { QaFileCard } from "@/components/qa-file-card";
 import { parseQaFileMarker } from "@/lib/qa-computer-tools";
 import { mdiHammerWrench } from "@mdi/js";
@@ -12,6 +13,7 @@ import { GameHubApp } from "@/components/game/game-hub-app";
 import { BlackMarketApp } from "@/components/shopping/black-market-app";
 import { getInstalledCustomApp } from "@/lib/custom-app-storage";
 import type { QaCreatedContent } from "@/lib/qa-agent-tools";
+
 import {
 applyQaCommit,
 cancelQaCommit,
@@ -213,9 +215,10 @@ return (
 
 // ── 消息渲染 ─────────────────────────────────────────
 
-// 工具调用行：折叠的单行摘要，点开展开参数与结果
+// 工具调用行：折叠的单行摘要，点开展开参数与结果（Claude Code 风格）
 function QaToolRow({ tool }: { tool: QaToolStatus }) {
 const [open, setOpen] = useState(false);
+// 「电脑文件 op=send」的结果里带文件卡标记：卡片常显，标记从结果文本中剥离
 const { text: resultText, file } = parseQaFileMarker(tool.result || "");
 const hasDetail = Boolean(tool.detail || resultText);
 const summary = tool.running ? 正在${tool.name}… : tool.success === false ? ${tool.name}失败 : tool.name;
@@ -255,7 +258,7 @@ disabled={!hasDetail}
 );
 }
 
-// 已完成文本的 Markdown 渲染：memo 缓存，流式期间不再重复渲染全文以避免 OOM
+// 已完成文本的 Markdown 渲染：memo 缓存
 const QaMarkdownBlock = memo(function QaMarkdownBlock({ text }: { text: string }) {
 return (
 
@@ -790,11 +793,7 @@ GitHub → Settings → Menu 按钮 → Developer settings → Personal access t
 // ── App 本体 ─────────────────────────────────────────
 
 export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
-// 弃用 useSyncExternalStore，改回经典的 useEffect + useState 模式。
-// LLM 流式输出的频率极高（可能几毫秒就 emit 一次），会导致 useSyncExternalStore
-// 触发 React 18 的 Concurrent Mode 防撕裂（Tearing）保护机制，抛出
-// "The result of getSnapshot should be cached to avoid an infinite loop" 的崩溃。
-// 改回传统的订阅方式能优雅地解决这个问题。
+// 使用 useState + useEffect 替换 useSyncExternalStore，完美解决 tearing 引起的无线重渲问题
 const [snapshot, setSnapshot] = useState(getQaChatSnapshot);
 useEffect(() => {
 return subscribeQaChat(() => {
@@ -812,7 +811,6 @@ const [renameTarget, setRenameTarget] = useState<{ id: string; title: string } |
 const [renameTitle, setRenameTitle] = useState("");
 
 const [pendingImages, setPendingImages] = useState<string[]>([]);
-// 新增：文本附件的状态记录
 const [pendingFiles, setPendingFiles] = useState<{name: string, content: string}[]>([]);
 const [viewerImage, setViewerImage] = useState<string | null>(null);
 const [editingMsg, setEditingMsg] = useState<QaMsg | null>(null);
