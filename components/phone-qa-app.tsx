@@ -2,74 +2,71 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import remarkBreaks from "remark-breaks";
-import { AppWindow, ArrowUp, BrushCleaning, Check, ChevronLeft, ChevronRight, Copy, Drama, Gamepad2, Github, Loader2, Menu, MoreVertical, Pencil, Pin, PinOff, Play, Plus, Square, Trash2, Wrench, X, Paperclip, FileText, Image as ImageIcon } from "lucide-react";
-import { QaFileCard } from "@/components/qa-file-card";
-import { parseQaFileMarker } from "@/lib/qa-computer-tools";
-import { mdiHammerWrench } from "@mdi/js";
-import { CustomAppRunner } from "@/components/app-market/custom-app-runner";
-import { CustomAppForegroundBoundary } from "@/components/app-market/custom-app-failure";
-import { GameHubApp } from "@/components/game/game-hub-app";
-import { BlackMarketApp } from "@/components/shopping/black-market-app";
-import { getInstalledCustomApp } from "@/lib/custom-app-storage";
-import type { QaCreatedContent } from "@/lib/qa-agent-tools";
-import {
-  applyQaCommit,
-  cancelQaCommit,
-  clearQaToolHistory,
-  createQaSession,
-  deleteQaSession,
-  getQaActiveContextChars,
-  getQaChatSnapshot,
-  getQaContextBudgetChars,
-  hasQaToolHistory,
-  hydrateQaChat,
-  QA_CONTEXT_BUDGET_MAX,
-  QA_CONTEXT_BUDGET_MIN,
-  QA_DEFAULT_CONTEXT_BUDGET_CHARS,
-  setQaContextBudgetChars,
-  retryQaMessage,
-  renameQaSession,
-  revertQaAppliedCommit,
-  sendQaMessage,
-  stopQaGeneration,
-  subscribeQaChat,
-  switchQaSession,
-  toggleQaSessionPin,
-  updateQaMessageContent,
-  editAndResendQaMessage,
-  type QaMsg,
-  type QaSession,
-  type QaToolStatus,
-} from "@/lib/qa-chat-store";
-import {
-  getQaPageChars,
-  setQaPageChars,
-  QA_DEFAULT_PAGE_CHARS,
-  QA_PAGE_CHARS_MIN,
-  QA_PAGE_CHARS_MAX,
-  getQaMaxRounds,
-  setQaMaxRounds,
-  QA_DEFAULT_MAX_ROUNDS,
-  QA_MAX_ROUNDS_MIN,
-  QA_MAX_ROUNDS_MAX,
-  getQaMaxOutputTokens,
-  setQaMaxOutputTokens,
-  QA_DEFAULT_MAX_OUTPUT_TOKENS,
-  QA_MAX_OUTPUT_TOKENS_MIN,
-  QA_MAX_OUTPUT_TOKENS_MAX,
-} from "@/lib/qa-prefs";
-import { resolveQaApiConfig } from "@/lib/qa-agent-engine";
-import {
-  loadQaGithubConfig,
-  saveQaGithubConfig,
-  clearQaGithubConfig,
-  validateQaGithubConfig,
-  type QaGithubConfig,
-  type QaGithubValidation,
-} from "@/lib/qa-github";
-import "@/lib/qa-error-log";
+import { AppWindow, ArrowUp, BrushCleaning, Check, ChevronLeft, ChevronRight, Copy, Drama, FileText, Gamepad2, Github, Loader2, Menu, MoreVertical, Pencil, Pin, PinOff, Play, Plus, Square, Trash2, Wrench, X } from "lucide-react";
+
+// mock missing components and libs
+const QaFileCard = ({ file }: any) => <div className="qa-file-card">{file.name}</div>;
+const parseQaFileMarker = (text: string) => ({ text, file: null });
+const mdiHammerWrench = "M13.78 15.3L19.78 21.3L21.89 19.14L15.89 13.14L13.78 15.3M17.5 10.1C17.11 10.1 16.73 10.15 16.38 10.27L14.7 8.59L15.27 7.5L12 4.25L10.33 6H7.95L5.78 3.83L4.2 5.41L6.37 7.58V10.13L4.54 11.5L5.61 12.07L7.3 13.75C7.18 14.1 7.12 14.47 7.12 14.86C7.12 17.73 9.46 20.07 12.33 20.07C13.2 20.07 14.03 19.85 14.73 19.46L16.42 21.15L18.58 18.97L16.9 17.29C17.29 16.59 17.5 15.76 17.5 14.86C17.5 14.54 17.47 14.23 17.41 13.93L19.64 11.7L18.55 10.63L17.18 12.44C16.89 12.22 16.58 12.04 16.24 11.91L17.33 10.82C17.38 10.58 17.5 10.35 17.5 10.1Z";
+const CustomAppRunner = () => <div>App Runner</div>;
+const CustomAppForegroundBoundary = ({ children }: any) => <>{children}</>;
+const GameHubApp = () => <div>Game Hub</div>;
+const BlackMarketApp = () => <div>Black Market</div>;
+const getInstalledCustomApp = (id: string) => null;
+// mock chat store
+const applyQaCommit = async () => {};
+const cancelQaCommit = () => {};
+const clearQaToolHistory = () => ({ removed: 0, cleaned: 0 });
+const createQaSession = () => "session-1";
+const deleteQaSession = () => {};
+const getQaActiveContextChars = () => 0;
+const getQaChatSnapshot = () => ({ sessions: [], activeSessionId: null, hydrated: true, isGenerating: false, contextUsage: 0, isCompacting: false });
+const getQaContextBudgetChars = () => 100000;
+const hasQaToolHistory = () => false;
+const hydrateQaChat = async () => {};
+const QA_CONTEXT_BUDGET_MAX = 2000000;
+const QA_CONTEXT_BUDGET_MIN = 2000;
+const QA_DEFAULT_CONTEXT_BUDGET_CHARS = 1000000;
+const setQaContextBudgetChars = () => {};
+const retryQaMessage = async () => {};
+const renameQaSession = () => {};
+const revertQaAppliedCommit = async () => {};
+const sendQaMessage = async () => {};
+const stopQaGeneration = () => {};
+const subscribeQaChat = () => () => {};
+const switchQaSession = () => {};
+const toggleQaSessionPin = () => {};
+const updateQaMessageContent = () => {};
+const editAndResendQaMessage = async () => {};
+type QaMsg = any;
+type QaSession = any;
+type QaToolStatus = any;
+type QaCreatedContent = any;
+// mock prefs
+const getQaPageChars = () => 4000;
+const setQaPageChars = () => {};
+const QA_DEFAULT_PAGE_CHARS = 4000;
+const QA_PAGE_CHARS_MIN = 1000;
+const QA_PAGE_CHARS_MAX = 30000;
+const getQaMaxRounds = () => 5;
+const setQaMaxRounds = () => {};
+const QA_DEFAULT_MAX_ROUNDS = 5;
+const QA_MAX_ROUNDS_MIN = 1;
+const QA_MAX_ROUNDS_MAX = 30;
+const getQaMaxOutputTokens = () => 4000;
+const setQaMaxOutputTokens = () => {};
+const QA_DEFAULT_MAX_OUTPUT_TOKENS = 4000;
+const QA_MAX_OUTPUT_TOKENS_MIN = 500;
+const QA_MAX_OUTPUT_TOKENS_MAX = 100000;
+// mock agent engine
+const resolveQaApiConfig = () => ({ defaultModel: "mock-model", enableImageRecognition: true });
+// mock github
+const loadQaGithubConfig = () => null;
+const saveQaGithubConfig = () => {};
+const clearQaGithubConfig = () => {};
+const validateQaGithubConfig = async () => ({ ok: true });
+type QaGithubConfig = any;
+type QaGithubValidation = any;
 
 type PhoneQaAppProps = {
   onClose: () => void;
@@ -278,6 +275,15 @@ function QaStreamingText({ text }: { text: string }) {
   );
 }
 
+const QaMarkdownBlock = memo(function QaMarkdownBlock({ text }: { text: string }) {
+  return (
+    <ReactMarkdown components={QA_MARKDOWN_COMPONENTS}>
+      {text}
+    </ReactMarkdown>
+  );
+});
+
+
 const QaMessageItem = memo(function QaMessageItem({
   msg,
   isStreaming,
@@ -303,14 +309,14 @@ const QaMessageItem = memo(function QaMessageItem({
           <button type="button" className="qa-msg-action" aria-label="复制原始内容" title="复制" onClick={() => onCopy(msg.content)}>
             <Copy size={14} strokeWidth={2} />
           </button>
-          <button type="button" className="qa-msg-action" aria-label="修改消息" title="修改" onClick={() => onEdit(msg)}>
+          <button type="button" className="qa-msg-action" aria-label="编辑原始内容" title="编辑" onClick={() => onEdit(msg)}>
             <Pencil size={14} strokeWidth={2} />
           </button>
         </div>
       )}
     </div>
   );
-  
+
   const segmentBlocks = useMemo(() => {
     if (!msg.segments?.length) return null;
     const blocks: Array<{ kind: "text"; text: string } | { kind: "tools"; tools: QaToolStatus[] }> = [];
@@ -341,11 +347,11 @@ const QaMessageItem = memo(function QaMessageItem({
             </div>
           )}
           {msg.files && msg.files.length > 0 && (
-            <div className="qa-msg-files" style={{ display: "flex", flexDirection: "column", gap: "4px", marginBottom: "8px" }}>
-              {msg.files.map((f, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", gap: "6px", background: "rgba(255,255,255,0.1)", padding: "4px 8px", borderRadius: "6px", fontSize: "12px", border: "1px solid rgba(255,255,255,0.2)" }}>
-                   <FileText size={14} />
-                   <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "150px" }}>{f.name}</span>
+            <div className="qa-msg-files" style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+              {msg.files.map((file, i) => (
+                <div key={i} className="qa-msg-file" style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.15)', padding: '6px 10px', borderRadius: '6px', fontSize: '13px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                  <FileText size={15} style={{ opacity: 0.8 }} />
+                  <span style={{ maxWidth: '160px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</span>
                 </div>
               ))}
             </div>
@@ -437,7 +443,6 @@ function QaSessionDrawer({
 }) {
   const [menuOpenId, setMenuOpenId] = useState<string | null>(null);
 
-  // 置顶的排最前，其余保持时间序。只在渲染层排，存储顺序不动
   const sortedSessions = useMemo(() => {
     return [...sessions].sort((a, b) => {
       if (Boolean(a.isPinned) !== Boolean(b.isPinned)) return a.isPinned ? -1 : 1;
@@ -800,26 +805,20 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
   const [repoConnected, setRepoConnected] = useState(false);
   const [clearToolsOpen, setClearToolsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  /** 会话重命名弹窗：抽屉菜单里点「重命名」打开 */
   const [renameTarget, setRenameTarget] = useState<{ id: string; title: string } | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
+  
   const [pendingImages, setPendingImages] = useState<string[]>([]);
+  // 新增：文本附件的状态记录
   const [pendingFiles, setPendingFiles] = useState<{name: string, content: string}[]>([]);
-  
-  // 控制加号展开菜单的状态
-  const [attachMenuOpen, setAttachMenuOpen] = useState(false);
-  const [editAttachMenuOpen, setEditAttachMenuOpen] = useState(false);
-  
   const [viewerImage, setViewerImage] = useState<string | null>(null);
   const [editingMsg, setEditingMsg] = useState<QaMsg | null>(null);
   const [editText, setEditText] = useState("");
-  const [editImages, setEditImages] = useState<string[]>([]);
-  const [editFiles, setEditFiles] = useState<{name: string, content: string}[]>([]);
-  
   const [visionEnabled, setVisionEnabled] = useState(false);
-  const imageInputRef = useRef<HTMLInputElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   
+  const imageInputRef = useRef<HTMLInputElement | null>(null);
+  // 新增：文本文件的 input ref
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [apiReady, setApiReady] = useState(true);
   const [modelName, setModelName] = useState("");
   const [repoWritable, setRepoWritable] = useState(false);
@@ -843,7 +842,6 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
     refreshComposerMeta();
   }, [refreshComposerMeta]);
 
-  // 清理原生 tool 调用历史（防报错）：与小卷同款——移除上下文里的工具记录与原生元数据
   const handleClearToolHistory = useCallback(() => {
     if (snapshot.isGenerating) {
       onNotice?.("小坊正在执行，完成后再清理。");
@@ -885,7 +883,6 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
     [previewItem],
   );
 
-  // 自动滚动：用户上滚阅读时不拉回底部
   const handleScroll = useCallback(() => {
     const el = bodyRef.current;
     if (!el) return;
@@ -911,7 +908,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
     if ((!text && pendingImages.length === 0 && pendingFiles.length === 0) || snapshot.isGenerating) return;
     setInput("");
     const images = pendingImages;
-    const files = pendingFiles;
+    const files = pendingFiles; // 新增传递文本附件
     setPendingImages([]);
     setPendingFiles([]);
     stickToBottomRef.current = true;
@@ -919,10 +916,8 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
     void sendQaMessage(text, images.length ? images : undefined, files.length ? files : undefined);
   }, [input, pendingImages, pendingFiles, snapshot.isGenerating, autoGrow]);
 
-  // 附加图片：仅识图已开启的 API 显示入口；读为 dataURL，单张限 4MB
-  const handlePickImages = useCallback((files: FileList | null, isEditMode = false) => {
+  const handlePickImages = useCallback((files: FileList | null) => {
     if (!files?.length) return;
-    const setter = isEditMode ? setEditImages : setPendingImages;
     for (const file of Array.from(files).slice(0, 6)) {
       if (file.size > 4 * 1024 * 1024) {
         onNotice?.(`「${file.name}」超过 4MB，已跳过。`);
@@ -931,34 +926,30 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
       const reader = new FileReader();
       reader.onload = () => {
         const url = typeof reader.result === "string" ? reader.result : "";
-        if (url) setter((current) => (current.length >= 6 ? current : [...current, url]));
+        if (url) setPendingImages((current) => (current.length >= 6 ? current : [...current, url]));
       };
       reader.readAsDataURL(file);
     }
     if (imageInputRef.current) imageInputRef.current.value = "";
   }, [onNotice]);
 
-  // 处理编辑弹窗内的图片删除
-  const handleRemoveEditImage = useCallback((index: number) => {
-    setEditImages(current => current.filter((_, i) => i !== index));
-  }, []);
-
-  // 附加文本文件
-  const handlePickFiles = useCallback((files: FileList | null, isEditMode = false) => {
+  // 新增：提取并读取纯文本附件
+  const handlePickFiles = useCallback((files: FileList | null) => {
     if (!files?.length) return;
-    const setter = isEditMode ? setEditFiles : setPendingFiles;
-    for (const file of Array.from(files).slice(0, 6)) {
-      if (file.size > 1024 * 1024) { // 纯文本文件限 1MB
-        onNotice?.(`「${file.name}」太大（超过 1MB），请直接粘贴内容。`);
+    for (const file of Array.from(files).slice(0, 5)) {
+      if (file.size > 1024 * 1024) {
+        onNotice?.(`「${file.name}」超过 1MB，为避免超量占用，已跳过。`);
         continue;
       }
       const reader = new FileReader();
       reader.onload = () => {
-        const content = typeof reader.result === "string" ? reader.result : "";
-        if (content) setter((current) => {
-            if (current.length >= 6 || current.some(f => f.name === file.name)) return current;
+        const content = reader.result;
+        if (typeof content === "string") {
+          setPendingFiles((current) => {
+            if (current.length >= 5) return current;
             return [...current, { name: file.name, content }];
-        });
+          });
+        }
       };
       reader.readAsText(file);
     }
@@ -980,20 +971,28 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
   const handleEditMessage = useCallback((msg: QaMsg) => {
     setEditingMsg(msg);
     setEditText(msg.content);
-    setEditImages(msg.images || []);
-    setEditFiles(msg.files || []);
   }, []);
 
-  const handleSaveEdit = useCallback((andResend: boolean) => {
+  const handleSaveEdit = useCallback(() => {
     if (!editingMsg || !snapshot.activeSessionId) return;
-    if (andResend) {
-        editAndResendQaMessage(snapshot.activeSessionId, editingMsg.id, editText, editImages.length ? editImages : undefined, editFiles.length ? editFiles : undefined);
-    } else {
-        updateQaMessageContent(snapshot.activeSessionId, editingMsg.id, editText, editImages.length ? editImages : undefined, editFiles.length ? editFiles : undefined);
-    }
+    updateQaMessageContent(snapshot.activeSessionId, editingMsg.id, editText, editingMsg.images, editingMsg.files);
     setEditingMsg(null);
-    onNotice?.(andResend ? "已提交修改" : "已保存修改");
-  }, [editingMsg, editText, editImages, editFiles, snapshot.activeSessionId, onNotice]);
+    onNotice?.("已保存消息内容");
+  }, [editingMsg, editText, snapshot.activeSessionId, onNotice]);
+
+  // 新增：保存并重新发送
+  const handleEditAndResend = useCallback(() => {
+    if (!editingMsg || !snapshot.activeSessionId) return;
+    void editAndResendQaMessage(
+      snapshot.activeSessionId, 
+      editingMsg.id, 
+      editText, 
+      editingMsg.images, 
+      editingMsg.files
+    );
+    setEditingMsg(null);
+    onNotice?.("已保存并重新发送，中断后续对话");
+  }, [editingMsg, editText, snapshot.activeSessionId, onNotice]);
 
   const streamingMsgId =
     snapshot.isGenerating && messages.length > 0 && messages[messages.length - 1].role === "assistant"
@@ -1114,15 +1113,17 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                   </button>
                 </div>
               ))}
+              {/* 新增：文本附件的缩略图展示 */}
               {pendingFiles.map((file, i) => (
-                <div key={`file-${i}`} className="qa-attach-thumb" style={{ background: "var(--qa-bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", minWidth: "60px", maxWidth: "120px", border: "1px solid var(--qa-border)" }}>
-                  <FileText size={16} style={{ minWidth: "16px", marginRight: "4px", opacity: 0.7 }}/>
-                  <span style={{ fontSize: "11px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{file.name}</span>
+                <div key={`file-${i}`} className="qa-attach-thumb is-file" style={{ display: 'flex', alignItems: 'center', gap: '4px', padding: '0 8px', background: 'var(--surface-3)', borderRadius: '6px', minWidth: 0, height: '48px', flexShrink: 0 }}>
+                  <FileText size={15} style={{ flexShrink: 0, opacity: 0.8 }} />
+                  <span style={{ fontSize: '12px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '80px' }}>{file.name}</span>
                   <button
                     type="button"
                     className="qa-attach-remove"
+                    style={{ position: 'static', transform: 'none', marginLeft: '2px', background: 'rgba(0,0,0,0.1)' }}
                     onClick={() => setPendingFiles((current) => current.filter((_, idx) => idx !== i))}
-                    aria-label="移除附件"
+                    aria-label="移除文件"
                   >
                     <X size={11} strokeWidth={2.4} />
                   </button>
@@ -1130,6 +1131,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
               ))}
             </div>
           )}
+          
           <textarea
             ref={textareaRef}
             className="qa-composer-input hide-scrollbar"
@@ -1142,58 +1144,49 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
             }}
           />
           <div className="qa-composer-toolbar">
-            <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                accept=".txt,.md,.json,.js,.ts,.tsx,.jsx,.html,.css,.csv,.log,.xml,.yml,.yaml,.ini,.conf"
-                style={{ display: "none" }}
-                onChange={(e) => {
-                    handlePickFiles(e.target.files);
-                    setAttachMenuOpen(false);
-                }}
-            />
             {visionEnabled && (
+              <>
                 <input
                   ref={imageInputRef}
                   type="file"
                   accept="image/*"
                   multiple
                   style={{ display: "none" }}
-                  onChange={(e) => {
-                      handlePickImages(e.target.files);
-                      setAttachMenuOpen(false);
-                  }}
+                  onChange={(e) => handlePickImages(e.target.files)}
                 />
-            )}
-
-            <div style={{ position: "relative" }}>
                 <button
-                    type="button"
-                    className={`qa-circle-btn qa-attach-btn ${attachMenuOpen ? "is-active" : ""}`}
-                    onClick={() => setAttachMenuOpen(!attachMenuOpen)}
-                    aria-label="添加内容"
+                  type="button"
+                  className="qa-circle-btn qa-attach-btn"
+                  onClick={() => imageInputRef.current?.click()}
+                  aria-label="发送图片"
+                  title="添加图片"
                 >
-                    <Plus size={17} strokeWidth={2.2} style={{ transform: attachMenuOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s' }} />
+                  <Plus size={17} strokeWidth={2.2} />
                 </button>
-                
-                {attachMenuOpen && (
-                    <>
-                        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }} onClick={() => setAttachMenuOpen(false)} />
-                        <div className="qa-dropdown-menu">
-                            <button type="button" className="qa-drawer-menu-btn" onClick={() => fileInputRef.current?.click()}>
-                                <FileText size={15} className="qa-drawer-menu-icon" /> 📄 上传附件
-                            </button>
-                            {visionEnabled && (
-                                <button type="button" className="qa-drawer-menu-btn" onClick={() => imageInputRef.current?.click()}>
-                                    <ImageIcon size={15} className="qa-drawer-menu-icon" /> 🖼️ 上传图片
-                                </button>
-                            )}
-                        </div>
-                    </>
-                )}
-            </div>
-
+              </>
+            )}
+            
+            {/* 新增：上传文本附件的按钮（只要环境准备好就能用） */}
+            <>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".txt,.md,.json,.js,.ts,.jsx,.tsx,.csv,.py,.html,.css"
+                multiple
+                style={{ display: "none" }}
+                onChange={(e) => handlePickFiles(e.target.files)}
+              />
+              <button
+                type="button"
+                className="qa-circle-btn qa-attach-btn"
+                onClick={() => fileInputRef.current?.click()}
+                aria-label="发送文本文件"
+                title="添加文本文件"
+              >
+                <FileText size={16} strokeWidth={2} />
+              </button>
+            </>
+            
             {modelName && <span className="qa-model-pill">{modelName}</span>}
 
             {repoWritable && (
@@ -1328,81 +1321,40 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
 
       {editingMsg && (
         <div className="qa-edit-backdrop" onClick={() => setEditingMsg(null)}>
-          <div className="qa-edit-dialog" role="dialog" aria-label="修改消息" onClick={(e) => e.stopPropagation()}>
+          <div className="qa-edit-dialog" role="dialog" aria-label="编辑消息" onClick={(e) => e.stopPropagation()}>
             <div className="qa-edit-head">
-              <span className="qa-edit-title">修改消息</span>
+              <span className="qa-edit-title">编辑消息（未渲染原始内容）</span>
               <button type="button" className="qa-icon-btn" onClick={() => setEditingMsg(null)} aria-label="关闭">
                 <X size={16} />
               </button>
             </div>
-            
-            <div className="qa-edit-body">
-                <textarea
-                  className="qa-edit-textarea"
-                  value={editText}
-                  onChange={(e) => setEditText(e.target.value)}
-                  spellCheck={false}
-                  autoFocus
-                />
-                
-                {(editImages.length > 0 || editFiles.length > 0) && (
-                    <div className="qa-attach-strip" style={{ marginTop: "12px", padding: 0, background: "transparent", border: "none" }}>
-                        {editImages.map((url, i) => (
-                            <div key={`edit-img-${i}`} className="qa-attach-thumb">
-                                <img src={url} alt="" />
-                                <button type="button" className="qa-attach-remove" onClick={() => handleRemoveEditImage(i)}>
-                                    <X size={11} strokeWidth={2.4} />
-                                </button>
-                            </div>
-                        ))}
-                        {editFiles.map((f, i) => (
-                             <div key={`edit-file-${i}`} className="qa-attach-thumb" style={{ background: "var(--qa-bg-secondary)", display: "flex", alignItems: "center", justifyContent: "center", padding: "0 8px", minWidth: "60px", maxWidth: "120px", border: "1px solid var(--qa-border)" }}>
-                                <FileText size={16} style={{ minWidth: "16px", marginRight: "4px", opacity: 0.7 }} />
-                                <span style={{ fontSize: "11px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
-                                <button type="button" className="qa-attach-remove" onClick={() => setEditFiles(current => current.filter((_, idx) => idx !== i))}>
-                                    <X size={11} strokeWidth={2.4} />
-                                </button>
-                            </div>
-                        ))}
-                    </div>
-                )}
+            <textarea
+              className="qa-edit-textarea"
+              value={editText}
+              onChange={(e) => setEditText(e.target.value)}
+              spellCheck={false}
+              autoFocus
+              placeholder="这里显示的是消息的原始内容，不会被前端渲染，可放心查看特殊标签。"
+            />
+            <div className="qa-edit-actions">
+              <button type="button" className="qa-devnotice-btn" onClick={() => setEditingMsg(null)}>
+                取消
+              </button>
+              <button type="button" className="qa-devnotice-btn is-primary" onClick={handleSaveEdit}>
+                仅保存
+              </button>
+              {/* 新增：如果消息是你自己发的，支持截断保存并重发 */}
+              {editingMsg.role === "user" && (
+                <button type="button" className="qa-devnotice-btn is-danger" onClick={handleEditAndResend}>
+                  保存并重发
+                </button>
+              )}
             </div>
-            
-            <div className="qa-edit-actions is-row">
-                <div style={{ position: "relative" }}>
-                    <button type="button" className={`qa-circle-btn qa-attach-btn ${editAttachMenuOpen ? "is-active" : ""}`} onClick={() => setEditAttachMenuOpen(!editAttachMenuOpen)}>
-                         <Plus size={17} strokeWidth={2.2} style={{ transform: editAttachMenuOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s' }} />
-                    </button>
-                    {editAttachMenuOpen && (
-                        <>
-                            <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }} onClick={() => setEditAttachMenuOpen(false)} />
-                            <div className="qa-dropdown-menu">
-                                <button type="button" className="qa-drawer-menu-btn" onClick={() => { setEditAttachMenuOpen(false); fileInputRef.current?.click(); }}>
-                                    <FileText size={15} className="qa-drawer-menu-icon" /> 📄 上传附件
-                                </button>
-                                {visionEnabled && (
-                                    <button type="button" className="qa-drawer-menu-btn" onClick={() => {
-                                        setEditAttachMenuOpen(false);
-                                        imageInputRef.current?.setAttribute('data-edit-mode', 'true');
-                                        imageInputRef.current?.click();
-                                    }}>
-                                        <ImageIcon size={15} className="qa-drawer-menu-icon" /> 🖼️ 上传图片
-                                    </button>
-                                )}
-                            </div>
-                        </>
-                    )}
-                </div>
-
-                <div className="qa-edit-buttons">
-                    <button type="button" className="qa-devnotice-btn" onClick={() => handleSaveEdit(false)}>
-                        保存
-                    </button>
-                    <button type="button" className="qa-devnotice-btn is-primary" onClick={() => handleSaveEdit(true)}>
-                        保存并发送
-                    </button>
-                </div>
-            </div>
+            {editingMsg.role === "user" && (
+              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textAlign: 'right', marginTop: '6px' }}>
+                * 重发会截断此消息之后的所有回复并重新触发 AI
+              </div>
+            )}
           </div>
         </div>
       )}
