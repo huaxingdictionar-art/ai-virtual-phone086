@@ -84,6 +84,7 @@ const SUGGESTIONS = [
 "帮我写个小游戏装到本机",
 ];
 
+// 注意这里的反引号修复
 function formatRelativeTime(ts: number): string {
 const diff = Date.now() - ts;
 if (diff < 60_000) return "刚刚";
@@ -92,7 +93,6 @@ if (diff < 86_400_000) return ${Math.floor(diff / 3_600_000)} 小时前;
 return ${Math.floor(diff / 86_400_000)} 天前;
 }
 
-/* STREAMING_CHUNK:Defining UI Helper Components... */
 // ── 代码块（语言标签 + 一键复制）─────────────────────
 
 function QaCodeBlock({ className, children }: { className?: string; children?: React.ReactNode }) {
@@ -214,10 +214,8 @@ return (
 );
 }
 
-/* STREAMING_CHUNK:Rendering Chat Messages... */
 // ── 消息渲染 ─────────────────────────────────────────
 
-// 工具调用行：折叠的单行摘要，点开展开参数与结果
 function QaToolRow({ tool }: { tool: QaToolStatus }) {
 const [open, setOpen] = useState(false);
 const { text: resultText, file } = parseQaFileMarker(tool.result || "");
@@ -414,7 +412,6 @@ block.kind === "tools" ? (
 );
 });
 
-/* STREAMING_CHUNK:Session Drawers and Settings Panels... */
 // ── 会话抽屉 ─────────────────────────────────────────
 
 function QaSessionDrawer({
@@ -767,7 +764,7 @@ GitHub → Settings → Menu 按钮 → Developer settings → Personal access t
 {result && (
 <div className={qa-verify ${result.ok ? "is-ok" : "is-fail"}}>
 {result.ok
-? ✓ 已连接 ${result.fullName}（${result.private ? "私有" : "默认分支 ${result.defaultBranch}"}）
+? ✓ 已连接 ${result.fullName}（${result.private ? "私有" : "公开"}，默认分支 ${result.defaultBranch}）
 : ✗ ${result.error}}
 
 )}
@@ -790,7 +787,6 @@ GitHub → Settings → Menu 按钮 → Developer settings → Personal access t
 );
 }
 
-/* STREAMING_CHUNK:Main App Component Initialization... */
 // ── App 本体 ─────────────────────────────────────────
 
 export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
@@ -888,7 +884,6 @@ const previewApp = useMemo(
 [previewItem],
 );
 
-/* STREAMING_CHUNK:Event Handlers and Media Processing... */
 // 自动滚动：用户上滚阅读时不拉回底部
 const handleScroll = useCallback(() => {
 const el = bodyRef.current;
@@ -1003,7 +998,6 @@ snapshot.isGenerating && messages.length > 0 && messages[messages.length - 1].ro
 ? messages[messages.length - 1].id
 : null;
 
-/* STREAMING_CHUNK:Rendering Main Layout... */
 return (
 
 <QaSessionDrawer
@@ -1329,7 +1323,7 @@ setRenameTitle(title);
     </div>
   )}
 
-  {/* STREAMING_CHUNK:Editing Message Dialog Rendering... */}
+  {/* 修改消息弹窗 */}
   {editingMsg && (
     <div className="qa-edit-backdrop" onClick={() => setEditingMsg(null)}>
       <div className="qa-edit-dialog" role="dialog" aria-label="修改消息" onClick={(e) => e.stopPropagation()}>
