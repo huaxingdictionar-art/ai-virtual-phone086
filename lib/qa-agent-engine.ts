@@ -458,6 +458,8 @@ export type QaContextEntry = {
     content: string;
     /** user：随消息附带的图片（dataURL）；识图未开启时适配层会自动降级为占位文本 */
     images?: string[];
+    /** user：随消息发送的文本附件 */
+    files?: { name: string; content: string }[];
     /** assistant：原生协议的工具调用（文本协议轮次不填，指令已在 content 里） */
     toolCalls?: LlmToolCall[];
     /** tool：来源调用 id（原生轮次才有）与工具名 */
@@ -467,11 +469,19 @@ export type QaContextEntry = {
     turn?: string;
 };
 
-/** user 条目内容：带图片时转多模态 parts（识图未开启由适配层降级为占位） */
+/** user 条目内容：带附件时拼接文本，带图片时转多模态 parts */
 function userEntryContent(entry: QaContextEntry): string | LLMContentPart[] {
-    if (!entry.images?.length) return entry.content;
+    let textContent = entry.content;
+    // 如果存在附件，就把附件名称和内容拼接到文字的末尾发给 AI
+    if (entry.files && entry.files.length > 0) {
+        const filesText = entry.files.map(f => `\n\n[附件：${f.name}]\n${f.content}`).join("");
+        textContent += filesText;
+    }
+    
+    if (!entry.images?.length) return textContent;
+    
     return [
-        { type: "text", text: entry.content },
+        { type: "text", text: textContent },
         ...entry.images.map((url) => ({ type: "image_url" as const, image_url: { url } })),
     ];
 }
