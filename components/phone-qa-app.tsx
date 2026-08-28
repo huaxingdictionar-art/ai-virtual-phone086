@@ -259,7 +259,7 @@ function QaToolRow({ tool }: { tool: QaToolStatus }) {
 // 低端机 WebView OOM 崩溃的主因（几万字 × 每秒多次解析）。文本不变就不重渲。
 const QaMarkdownBlock = memo(function QaMarkdownBlock({ text }: { text: string }) {
   return (
-    <ReactMarkdown remarkPlugins={[remarkGfm, remarkBreaks]} components={QA_MARKDOWN_COMPONENTS}>
+    <ReactMarkdown components={QA_MARKDOWN_COMPONENTS}>
       {text}
     </ReactMarkdown>
   );
@@ -274,15 +274,6 @@ function QaStreamingText({ text }: { text: string }) {
     </>
   );
 }
-
-const QaMarkdownBlock = memo(function QaMarkdownBlock({ text }: { text: string }) {
-  return (
-    <ReactMarkdown components={QA_MARKDOWN_COMPONENTS}>
-      {text}
-    </ReactMarkdown>
-  );
-});
-
 
 const QaMessageItem = memo(function QaMessageItem({
   msg,
