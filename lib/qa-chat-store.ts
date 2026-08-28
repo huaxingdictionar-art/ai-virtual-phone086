@@ -35,8 +35,10 @@ export type QaMsg = {
     id: string;
     role: "user" | "assistant";
     content: string;
-    /** user：随消息发送的图片（dataURL），点击可查看 */
+   /** user：随消息发送的图片（dataURL），点击可查看 */
     images?: string[];
+    /** user：随消息发送的文本附件 */
+    files?: { name: string; content: string }[];
     reasoning?: string;
     error?: string;
     aborted?: boolean;
@@ -374,13 +376,36 @@ export function deleteQaSession(sessionId: string) {
 
 /** 编辑一条已发送消息的内容（小坊助手界面"编辑"）。
  *  只覆盖 content 并清掉时序分段缓存（保证渲染用新内容），工具行/提交卡等历史保留。 */
-export function updateQaMessageContent(sessionId: string, msgId: string, content: string): void {
+export function updateQaMessageContent(sessionId: string, msgId: string, content: string, images?: string[], files?: { name: string; content: string }[]): void {
     sessions = sessions.map((s) =>
         s.id !== sessionId
             ? s
-            : { ...s, messages: s.messages.map((m) => (m.id === msgId ? { ...m, content, segments: undefined } : m)) }
+            : { ...s, messages: s.messages.map((m) => (m.id === msgId ? { ...m, content, images, files, segments: undefined } : m)) }
     );
     publish();
+}
+
+/** 保存并重新发送：截断此消息之后的所有回复，并以新内容重新触发 AI */
+export async function editAndResendQaMessage(
+    sessionId: string,
+    msgId: string,
+    newContent: string,
+    newImages?: string[],
+    newFiles?: { name: string; content: string }[]
+): Promise<void> {
+    if (isGenerating) return;
+    const session = sessions.find((s) => s.id === sessionId);
+    if (!session) return;
+    const msgIndex = session.messages.findIndex((m) => m.id === msgId);
+    if (msgIndex === -1) return;
+
+    updateSession(sessionId, (s) => ({
+        ...s,
+        messages: s.messages.slice(0, msgIndex),
+        context: undefined,
+    }));
+
+    await sendQaMessage(newContent, newImages, newFiles);
 }
 
 function updateSession(sessionId: string, updater: (session: QaSession) => QaSession, options?: { persist?: boolean }) {
@@ -402,10 +427,11 @@ function autoTitle(text: string): string {
 export async function sendQaMessage(
     text: string,
     images?: string[],
+    files?: { name: string; content: string }[],
     options?: { /** true=不显示用户气泡，只把指令写入上下文（重试续接等内部续发用） */ silentUser?: boolean },
 ): Promise<void> {
     const trimmed = text.trim();
-    if ((!trimmed && !images?.length) || isGenerating) return;
+    if ((!trimmed && !images?.length && !files?.length) || isGenerating) return;
 
     let session = getActiveSession();
     if (!session) {
@@ -415,20 +441,19 @@ export async function sendQaMessage(
     }
     const sessionId = session.id;
 
-    // 触顶先压缩再开新轮（Claude Code 同款时机）
     if (contextUsageOf(session) >= 1) {
         await compactSessionContext(sessionId);
     }
 
-    const userMsg: QaMsg = { id: makeId(), role: "user", content: trimmed, images: images?.length ? images : undefined, ts: Date.now() };
+    const userMsg: QaMsg = { id: makeId(), role: "user", content: trimmed, images: images?.length ? images : undefined, files: files?.length ? files : undefined, ts: Date.now() };
     const assistantMsg: QaMsg = { id: makeId(), role: "assistant", content: "", ts: Date.now() };
 
     updateSession(sessionId, (s) => ({
         ...s,
-        title: s.messages.length === 0 ? autoTitle(trimmed || "（图片）") : s.title,
+        title: s.messages.length === 0 ? autoTitle(trimmed || "（图片/附件）") : s.title,
         updatedAt: Date.now(),
         messages: [...s.messages, ...(options?.silentUser ? [] : [userMsg]), assistantMsg].slice(-MAX_MESSAGES_PER_SESSION),
-        context: [...sessionContext(s), { role: "user", content: trimmed || "（用户发来图片）", images: images?.length ? images : undefined, turn: assistantMsg.id }],
+        context: [...sessionContext(s), { role: "user", content: trimmed || "（用户发来内容）", images: images?.length ? images : undefined, files: files?.length ? files : undefined, turn: assistantMsg.id }],
     }));
 
     isGenerating = true;
@@ -697,6 +722,7 @@ export async function retryQaMessage(assistantMsgId: string): Promise<void> {
     }));
     await sendQaMessage(
         "上一轮执行中途失败。请从中断的地方继续完成剩余部分，已经完成的操作和说过的内容不要重复。",
+        undefined,
         undefined,
         { silentUser: true },
     );
