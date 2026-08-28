@@ -84,7 +84,7 @@ const SUGGESTIONS = [
 "帮我写个小游戏装到本机",
 ];
 
-// 注意这里的反引号修复
+// 注意这里已经修复了反引号丢失的问题
 function formatRelativeTime(ts: number): string {
 const diff = Date.now() - ts;
 if (diff < 60_000) return "刚刚";
