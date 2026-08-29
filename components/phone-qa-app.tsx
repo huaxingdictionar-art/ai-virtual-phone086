@@ -1348,7 +1348,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                 
                 <div style={{ display: "flex", gap: "8px", flexWrap: "wrap", marginBottom: "8px" }}>
                     {editImages.map((url, i) => (
-                        <div key={`edit-img-${i}`} style={{ position: "relative", width: "40px", height: "40px", borderRadius: "4px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>
+                        <div key={`edit-img-${i}`} style={{ position: "relative", width: "40px", height: "40px", borderRadius: "12px", overflow: "hidden", border: "1px solid rgba(255,255,255,0.1)" }}>
                             <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
                             <button
                                 type="button"
@@ -1401,7 +1401,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
             <div className="qa-edit-actions" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: '8px' }}>
                 <div style={{ position: 'relative' }}>
                     {editAttachMenuOpen && (
-                        <div style={{ position: "absolute", bottom: "100%", left: "-8px", marginBottom: "4px", display: "flex", gap: "8px", padding: "8px", animation: "fadeIn 0.2s", whiteSpace: "nowrap" }}>
+                        <div style={{ position: "absolute", bottom: "100%", left: "0", marginBottom: "4px", display: "flex", gap: "8px", padding: "8px", animation: "fadeIn 0.2s", whiteSpace: "nowrap" }}>
                             <button
                                 type="button"
                                 onClick={() => { fileInputRef.current?.click(); setEditAttachMenuOpen(false); }}
@@ -1423,18 +1423,40 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                     <button
                         type="button"
                         onClick={() => setEditAttachMenuOpen(prev => !prev)}
-                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit' }}
+                        style={{ 
+                            display: 'flex', 
+                            alignItems: 'center', 
+                            justifyContent: 'center', 
+                            width: '32px', 
+                            height: '32px', 
+                            borderRadius: '50%', 
+                            background: 'rgba(255, 255, 255, 0.9)', 
+                            border: '1px solid rgba(0, 0, 0, 0.05)', 
+                            boxShadow: '0 2px 5px rgba(0,0,0,0.08)',
+                            cursor: 'pointer', 
+                            color: '#333'
+                        }}
                         aria-label="添加附件或图片"
                     >
-                        <Plus size={22} strokeWidth={2.2} style={{ transform: editAttachMenuOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s ease-in-out' }} />
+                        <Plus size={18} strokeWidth={2.2} style={{ transform: editAttachMenuOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s ease-in-out' }} />
                     </button>
                 </div>
                 
-                <div style={{ display: 'flex', gap: '8px' }}>
-                    <button type="button" className="qa-devnotice-btn" onClick={() => handleSaveEdit(false)}>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+                    <button 
+                        type="button" 
+                        className="qa-devnotice-btn" 
+                        onClick={() => handleSaveEdit(false)}
+                        style={{ whiteSpace: 'nowrap', padding: '0 16px' }}
+                    >
                         保存
                     </button>
-                    <button type="button" className="qa-devnotice-btn is-primary" onClick={() => handleSaveEdit(true)}>
+                    <button 
+                        type="button" 
+                        className="qa-devnotice-btn is-primary" 
+                        onClick={() => handleSaveEdit(true)}
+                        style={{ whiteSpace: 'nowrap', padding: '0 16px' }}
+                    >
                         保存并发送
                     </button>
                 </div>
