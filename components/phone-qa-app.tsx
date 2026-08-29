@@ -943,7 +943,20 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
   const handlePickFiles = useCallback((files: FileList | null, isEditMode = false) => {
     if (!files?.length) return;
     const setter = isEditMode ? setEditFiles : setPendingFiles;
+    
+    // 定义允许的纯文本后缀（你可以根据需要在这里增删）
+    const allowedExts = [".txt", ".md", ".json", ".js", ".ts", ".tsx", ".jsx", ".html", ".css", ".csv"];
+    
     for (const file of Array.from(files).slice(0, 6)) {
+      const fileName = file.name.toLowerCase();
+      
+      // 新增：拦截非文本文件并动态提取后缀名提示
+      if (!allowedExts.some(ext => fileName.endsWith(ext))) {
+        const ext = fileName.includes('.') ? `.${fileName.split('.').pop()}` : '无后缀';
+        onNotice?.(`不支持阅读 ${ext} 文件，小坊目前只能读取纯文本或代码文件哦。`);
+        continue;
+      }
+
       if (file.size > 1024 * 1024) { // 纯文本文件限 1MB
         onNotice?.(`「${file.name}」太大（超过 1MB），请直接粘贴内容。`);
         continue;
@@ -1444,12 +1457,12 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                     </button>
                 </div>
                 
-                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                     <button 
                         type="button" 
                         className="qa-devnotice-btn" 
                         onClick={() => handleSaveEdit(false)}
-                        style={{ whiteSpace: 'nowrap', padding: '0 32px', height: '36px', borderRadius: '12px' }}
+                        style={{ whiteSpace: 'nowrap', padding: '0 24px', height: '44px', borderRadius: '14px', fontSize: '14px' }}
                     >
                         保存
                     </button>
@@ -1457,7 +1470,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                         type="button" 
                         className="qa-devnotice-btn is-primary" 
                         onClick={() => handleSaveEdit(true)}
-                        style={{ whiteSpace: 'nowrap', padding: '0 32px', height: '36px', borderRadius: '12px' }}
+                        style={{ whiteSpace: 'nowrap', padding: '0 24px', height: '44px', borderRadius: '14px', fontSize: '14px' }}
                     >
                         保存并发送
                     </button>
