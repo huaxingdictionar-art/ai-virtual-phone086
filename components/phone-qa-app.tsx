@@ -953,7 +953,8 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
       // 新增：拦截非文本文件并动态提取后缀名提示
       if (!allowedExts.some(ext => fileName.endsWith(ext))) {
         const ext = fileName.includes('.') ? `.${fileName.split('.').pop()}` : '无后缀';
-        onNotice?.(`不支持阅读 ${ext} 文件，小坊目前只能读取纯文本或代码文件哦。`);
+        // 使用 \n 进行换行
+        onNotice?.(`不支持阅读 ${ext} 文件\n小坊目前只能读取纯文本或代码文件哦。`);
         continue;
       }
 
