@@ -1396,30 +1396,32 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                         onChange={(e) => handlePickFiles(e.target.files, true)}
                     />
                 </div>
+                
+                {/* 菜单移到这里，取消绝对定位，融入正常排版，自动撑开高度并完美左对齐 */}
+                {editAttachMenuOpen && (
+                    <div style={{ display: "flex", gap: "8px", marginBottom: "8px", animation: "fadeIn 0.2s", whiteSpace: "nowrap" }}>
+                        <button
+                            type="button"
+                            onClick={() => { fileInputRef.current?.click(); setEditAttachMenuOpen(false); }}
+                            style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", borderRadius: "14px", fontSize: "13px", cursor: "pointer", background: "rgba(128, 128, 128, 0.15)", border: "none", color: "inherit", fontWeight: 500 }}
+                        >
+                            <Paperclip size={15} strokeWidth={2} /> 上传附件
+                        </button>
+                        {visionEnabled && (
+                            <button
+                                type="button"
+                                onClick={() => { imageInputRef.current?.setAttribute('data-edit-mode', 'true'); imageInputRef.current?.click(); setEditAttachMenuOpen(false); }}
+                                style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", borderRadius: "14px", fontSize: "13px", cursor: "pointer", background: "rgba(128, 128, 128, 0.15)", border: "none", color: "inherit", fontWeight: 500 }}
+                            >
+                                <Image size={15} strokeWidth={2} /> 添加图片
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
             
             <div className="qa-edit-actions" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: '8px' }}>
                 <div style={{ position: 'relative' }}>
-                    {editAttachMenuOpen && (
-                        <div style={{ position: "absolute", bottom: "100%", left: "0", marginBottom: "4px", display: "flex", gap: "8px", padding: "8px", animation: "fadeIn 0.2s", whiteSpace: "nowrap" }}>
-                            <button
-                                type="button"
-                                onClick={() => { fileInputRef.current?.click(); setEditAttachMenuOpen(false); }}
-                                style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", borderRadius: "14px", fontSize: "13px", cursor: "pointer", background: "rgba(128, 128, 128, 0.15)", border: "none", color: "inherit", fontWeight: 500 }}
-                            >
-                                <Paperclip size={15} strokeWidth={2} /> 上传附件
-                            </button>
-                            {visionEnabled && (
-                                <button
-                                    type="button"
-                                    onClick={() => { imageInputRef.current?.setAttribute('data-edit-mode', 'true'); imageInputRef.current?.click(); setEditAttachMenuOpen(false); }}
-                                    style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", borderRadius: "14px", fontSize: "13px", cursor: "pointer", background: "rgba(128, 128, 128, 0.15)", border: "none", color: "inherit", fontWeight: 500 }}
-                                >
-                                    <Image size={15} strokeWidth={2} /> 添加图片
-                                </button>
-                            )}
-                        </div>
-                    )}
                     <button
                         type="button"
                         onClick={() => setEditAttachMenuOpen(prev => !prev)}
@@ -1447,7 +1449,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                         type="button" 
                         className="qa-devnotice-btn" 
                         onClick={() => handleSaveEdit(false)}
-                        style={{ whiteSpace: 'nowrap', padding: '0 16px' }}
+                        style={{ whiteSpace: 'nowrap', padding: '0 24px', borderRadius: '8px' }}
                     >
                         保存
                     </button>
@@ -1455,7 +1457,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                         type="button" 
                         className="qa-devnotice-btn is-primary" 
                         onClick={() => handleSaveEdit(true)}
-                        style={{ whiteSpace: 'nowrap', padding: '0 16px' }}
+                        style={{ whiteSpace: 'nowrap', padding: '0 24px', borderRadius: '8px' }}
                     >
                         保存并发送
                     </button>
