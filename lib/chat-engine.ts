@@ -85,7 +85,7 @@ import {
 } from "./bilingual-prompt-defaults";
 import { parseOfflineResponse, type ParsedOfflineResponse } from "./chat-offline-storage";
 import { throwIfAborted } from "./abort-utils";
-import { armShortcutContinuation, type ShortcutContinuationHandle, type ShortcutContinuationStyle } from "./shortcut-continuation-client";
+import { armShortcutContinuation, SHORTCUT_VISION_OFF_NOTE, type ShortcutContinuationHandle, type ShortcutContinuationStyle } from "./shortcut-continuation-client";
 
 
 
@@ -2160,7 +2160,8 @@ async function generateNativeChatCompletion(
                     signal: options?.signal,
                     onShortcutCommandCreated: onlyNativeCall ? async command => {
                         const resultMarker = `__FLOAT_SHORTCUT_RESULT_${command.id}__`;
-                        const imageMarker = command.resultMode === "image" && config.enableImageRecognition
+                        const wantsImage = command.resultMode === "image";
+                        const imageMarker = wantsImage && config.enableImageRecognition
                             ? `__FLOAT_SHORTCUT_IMAGE_${command.id}__`
                             : undefined;
                         const snapshotMessages: LlmRequestMessage[] = [
@@ -2178,7 +2179,9 @@ async function generateNativeChatCompletion(
                                 toolCallId: onlyNativeCall.id,
                                 content: resultMarker,
                             },
-                            ...(imageMarker ? [{ role: "user" as const, content: imageMarker }] : []),
+                            ...(imageMarker
+                                ? [{ role: "user" as const, content: imageMarker }]
+                                : wantsImage ? [{ role: "user" as const, content: SHORTCUT_VISION_OFF_NOTE }] : []),
                         ];
                         return registerShortcutContinuation(bailoutRef, {
                             command,
@@ -2599,14 +2602,17 @@ async function generateChatCompletionCore(
                     signal: options?.signal,
                     onShortcutCommandCreated: onlyToolCall ? async command => {
                         const resultMarker = `__FLOAT_SHORTCUT_RESULT_${command.id}__`;
-                        const imageMarker = command.resultMode === "image" && config.enableImageRecognition
+                        const wantsImage = command.resultMode === "image";
+                        const imageMarker = wantsImage && config.enableImageRecognition
                             ? `__FLOAT_SHORTCUT_IMAGE_${command.id}__`
                             : undefined;
                         const snapshotMessages = [...llmMessages];
                         const insertions: LLMMessage[] = [
                             { role: "assistant", content: assistantForToolContext, _debugMeta: { _fromHistory: true } },
                             { role: "user", content: resultMarker, _debugMeta: { _fromHistory: true } },
-                            ...(imageMarker ? [{ role: "user" as const, content: imageMarker, _debugMeta: { _fromHistory: true } }] : []),
+                            ...(imageMarker
+                                ? [{ role: "user" as const, content: imageMarker, _debugMeta: { _fromHistory: true } }]
+                                : wantsImage ? [{ role: "user" as const, content: SHORTCUT_VISION_OFF_NOTE, _debugMeta: { _fromHistory: true } }] : []),
                         ];
                         snapshotMessages.splice(findInsertIdx(), 0, ...insertions);
                         return registerShortcutContinuation(bailoutRef, {
