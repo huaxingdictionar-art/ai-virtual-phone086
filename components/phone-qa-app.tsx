@@ -4,7 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState, useSyncExterna
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import remarkBreaks from "remark-breaks";
-import { AppWindow, ArrowUp, BrushCleaning, Check, ChevronLeft, ChevronRight, Copy, Drama, Gamepad2, Github, Loader2, Menu, MoreVertical, Pencil, Pin, PinOff, Play, Plus, Square, Trash2, Wrench, X, Paperclip, FileText } from "lucide-react";
+import { AppWindow, ArrowUp, BrushCleaning, Check, ChevronLeft, ChevronRight, Copy, Drama, Gamepad2, Github, Loader2, Menu, MoreVertical, Pencil, Pin, PinOff, Play, Plus, Square, Trash2, Wrench, X, Paperclip, FileText, Image } from "lucide-react";
 import { QaFileCard } from "@/components/qa-file-card";
 import { parseQaFileMarker } from "@/lib/qa-computer-tools";
 import { mdiHammerWrench } from "@mdi/js";
@@ -800,6 +800,8 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
   const [repoConnected, setRepoConnected] = useState(false);
   const [clearToolsOpen, setClearToolsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [attachMenuOpen, setAttachMenuOpen] = useState(false); // 控制上方悬浮菜单状态
+  
   /** 会话重命名弹窗：抽屉菜单里点「重命名」打开 */
   const [renameTarget, setRenameTarget] = useState<{ id: string; title: string } | null>(null);
   const [renameTitle, setRenameTitle] = useState("");
@@ -906,6 +908,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
     const text = input.trim();
     if ((!text && pendingImages.length === 0 && pendingFiles.length === 0) || snapshot.isGenerating) return;
     setInput("");
+    setAttachMenuOpen(false); // 发送时关闭菜单
     const images = pendingImages;
     const files = pendingFiles;
     setPendingImages([]);
@@ -1042,7 +1045,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
         </div>
       </header>
 
-      <div className="qa-body hide-scrollbar" ref={bodyRef} onScroll={handleScroll}>
+      <div className="qa-body hide-scrollbar" ref={bodyRef} onScroll={handleScroll} onClick={() => { if (attachMenuOpen) setAttachMenuOpen(false); }}>
         {messages.length === 0 ? (
           <div className="qa-welcome">
             <div className="qa-welcome-badge" aria-hidden>
@@ -1121,6 +1124,29 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
               ))}
             </div>
           )}
+          
+          {/* 在输入框上方的悬浮选择菜单 */}
+          {attachMenuOpen && (
+            <div className="qa-attach-menu" style={{ display: "flex", gap: "8px", padding: "8px 12px 4px 12px", animation: "fadeIn 0.2s" }}>
+              <button
+                type="button"
+                onClick={() => { fileInputRef.current?.click(); setAttachMenuOpen(false); }}
+                style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", borderRadius: "14px", fontSize: "13px", cursor: "pointer", background: "rgba(128, 128, 128, 0.15)", border: "none", color: "inherit", fontWeight: 500 }}
+              >
+                <Paperclip size={15} strokeWidth={2} /> 上传附件
+              </button>
+              {visionEnabled && (
+                <button
+                  type="button"
+                  onClick={() => { imageInputRef.current?.click(); setAttachMenuOpen(false); }}
+                  style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", borderRadius: "14px", fontSize: "13px", cursor: "pointer", background: "rgba(128, 128, 128, 0.15)", border: "none", color: "inherit", fontWeight: 500 }}
+                >
+                  <Image size={15} strokeWidth={2} /> 添加图片
+                </button>
+              )}
+            </div>
+          )}
+
           <textarea
             ref={textareaRef}
             className="qa-composer-input hide-scrollbar"
@@ -1129,7 +1155,11 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
             value={input}
             onChange={(e) => {
               setInput(e.target.value);
+              if (attachMenuOpen) setAttachMenuOpen(false);
               autoGrow();
+            }}
+            onClick={() => {
+              if (attachMenuOpen) setAttachMenuOpen(false);
             }}
           />
           <div className="qa-composer-toolbar">
@@ -1141,17 +1171,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                 style={{ display: "none" }}
                 onChange={(e) => handlePickFiles(e.target.files)}
             />
-            <button
-                type="button"
-                className="qa-circle-btn qa-attach-btn"
-                onClick={() => fileInputRef.current?.click()}
-                aria-label="添加附件"
-            >
-                <Paperclip size={17} strokeWidth={2.2} />
-            </button>
-
             {visionEnabled && (
-              <>
                 <input
                   ref={imageInputRef}
                   type="file"
@@ -1160,16 +1180,18 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                   style={{ display: "none" }}
                   onChange={(e) => handlePickImages(e.target.files)}
                 />
-                <button
-                  type="button"
-                  className="qa-circle-btn qa-attach-btn"
-                  onClick={() => imageInputRef.current?.click()}
-                  aria-label="发送图片"
-                >
-                  <Plus size={17} strokeWidth={2.2} />
-                </button>
-              </>
             )}
+            
+            {/* 统一的附件加号菜单按钮 */}
+            <button
+                type="button"
+                className={`qa-circle-btn qa-attach-btn ${attachMenuOpen ? 'is-active' : ''}`}
+                onClick={() => setAttachMenuOpen((prev) => !prev)}
+                aria-label="添加附件或图片"
+            >
+                <Plus size={17} strokeWidth={2.2} style={{ transform: attachMenuOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s ease-in-out' }} />
+            </button>
+
             {modelName && <span className="qa-model-pill">{modelName}</span>}
 
             {repoWritable && (
