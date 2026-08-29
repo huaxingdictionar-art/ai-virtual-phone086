@@ -1444,12 +1444,12 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                     </button>
                 </div>
                 
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch' }}>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                     <button 
                         type="button" 
                         className="qa-devnotice-btn" 
                         onClick={() => handleSaveEdit(false)}
-                        style={{ whiteSpace: 'nowrap', padding: '0 24px', borderRadius: '8px' }}
+                        style={{ whiteSpace: 'nowrap', padding: '0 32px', height: '36px', borderRadius: '12px' }}
                     >
                         保存
                     </button>
@@ -1457,7 +1457,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                         type="button" 
                         className="qa-devnotice-btn is-primary" 
                         onClick={() => handleSaveEdit(true)}
-                        style={{ whiteSpace: 'nowrap', padding: '0 24px', borderRadius: '8px' }}
+                        style={{ whiteSpace: 'nowrap', padding: '0 32px', height: '36px', borderRadius: '12px' }}
                     >
                         保存并发送
                     </button>
