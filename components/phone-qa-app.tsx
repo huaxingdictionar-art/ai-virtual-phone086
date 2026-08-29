@@ -1184,7 +1184,11 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                 multiple
                 accept=".txt,.md,.json,.js,.ts,.tsx,.jsx,.html,.css,.csv"
                 style={{ display: "none" }}
-                onChange={(e) => handlePickFiles(e.target.files)}
+                onChange={(e) => {
+                    const isEditMode = e.target.getAttribute('data-edit-mode') === 'true';
+                    handlePickFiles(e.target.files, isEditMode);
+                    e.target.removeAttribute('data-edit-mode'); // 读完清理标记
+                }}
             />
             {visionEnabled && (
                 <input
@@ -1193,7 +1197,11 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                   accept="image/*"
                   multiple
                   style={{ display: "none" }}
-                  onChange={(e) => handlePickImages(e.target.files)}
+                  onChange={(e) => {
+                      const isEditMode = e.target.getAttribute('data-edit-mode') === 'true';
+                      handlePickImages(e.target.files, isEditMode);
+                      e.target.removeAttribute('data-edit-mode'); // 读完清理标记
+                  }}
                 />
             )}
             
@@ -1387,28 +1395,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                     ))}
                 </div>
 
-                <div style={{ display: "none" }}>
-                     <input
-                        ref={imageInputRef}
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        style={{ display: "none" }}
-                        onChange={(e) => {
-                            const isEditMode = e.target.getAttribute('data-edit-mode') === 'true';
-                            handlePickImages(e.target.files, isEditMode);
-                            e.target.removeAttribute('data-edit-mode');
-                        }}
-                    />
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple
-                        accept=".txt,.md,.json,.js,.ts,.tsx,.jsx,.html,.css,.csv"
-                        style={{ display: "none" }}
-                        onChange={(e) => handlePickFiles(e.target.files, true)}
-                    />
-                </div>
+                {/* 修改面板内部的隐藏 input 替身已被删除，统一调用主界面的 input，防止 ref 丢失导致按钮失效 */}
                 
                 {/* 菜单移到这里，取消绝对定位，融入正常排版，自动撑开高度并完美左对齐 */}
                 {editAttachMenuOpen && (
