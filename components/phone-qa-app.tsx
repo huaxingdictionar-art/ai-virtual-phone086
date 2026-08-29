@@ -802,6 +802,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
   const [clearToolsOpen, setClearToolsOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [attachMenuOpen, setAttachMenuOpen] = useState(false); // 控制上方悬浮菜单状态
+  const [editAttachMenuOpen, setEditAttachMenuOpen] = useState(false); // 控制编辑消息内的悬浮菜单状态
   
   /** 会话重命名弹窗：抽屉菜单里点「重命名」打开 */
   const [renameTarget, setRenameTarget] = useState<{ id: string; title: string } | null>(null);
@@ -1359,7 +1360,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                         </div>
                     ))}
                     {editFiles.map((f, i) => (
-                         <div key={`edit-file-${i}`} style={{ position: "relative", display: "flex", alignItems: "center", background: "rgba(255,255,255,0.1)", padding: "4px 20px 4px 8px", borderRadius: "12px", fontSize: "11px", border: "1px solid rgba(255,255,255,0.2)" }}>
+                         <div key={`edit-file-${i}`} style={{ position: "relative", display: "flex", alignItems: "center", background: "rgba(128,128,128,0.15)", padding: "4px 24px 4px 10px", borderRadius: "12px", fontSize: "11px", border: "1px solid rgba(128,128,128,0.2)", color: "inherit" }}>
                             <FileText size={12} style={{ marginRight: "4px" }} />
                             <span style={{ maxWidth: "80px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{f.name}</span>
                             <button
@@ -1373,13 +1374,7 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                     ))}
                 </div>
 
-                <div style={{ display: "flex", gap: "8px" }}>
-                    <button type="button" className="qa-devnotice-btn" onClick={() => fileInputRef.current?.click()} style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", padding: "4px 8px" }}>
-                        <Paperclip size={12} /> 添加附件
-                    </button>
-                    <button type="button" className="qa-devnotice-btn" onClick={() => { imageInputRef.current?.setAttribute('data-edit-mode', 'true'); imageInputRef.current?.click(); }} style={{ display: "flex", alignItems: "center", gap: "4px", fontSize: "12px", padding: "4px 8px" }}>
-                        <Plus size={12} /> 添加图片
-                    </button>
+                <div style={{ display: "none" }}>
                      <input
                         ref={imageInputRef}
                         type="file"
@@ -1403,16 +1398,46 @@ export function PhoneQaApp({ onClose, onNotice }: PhoneQaAppProps) {
                 </div>
             </div>
             
-            <div className="qa-edit-actions">
-              <button type="button" className="qa-devnotice-btn" onClick={() => setEditingMsg(null)}>
-                取消
-              </button>
-              <button type="button" className="qa-devnotice-btn" onClick={() => handleSaveEdit(false)}>
-                仅保存
-              </button>
-              <button type="button" className="qa-devnotice-btn is-primary" onClick={() => handleSaveEdit(true)}>
-                保存并发送
-              </button>
+            <div className="qa-edit-actions" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginTop: '8px' }}>
+                <div style={{ position: 'relative' }}>
+                    {editAttachMenuOpen && (
+                        <div style={{ position: "absolute", bottom: "100%", left: "-8px", marginBottom: "4px", display: "flex", gap: "8px", padding: "8px", animation: "fadeIn 0.2s", whiteSpace: "nowrap" }}>
+                            <button
+                                type="button"
+                                onClick={() => { fileInputRef.current?.click(); setEditAttachMenuOpen(false); }}
+                                style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", borderRadius: "14px", fontSize: "13px", cursor: "pointer", background: "rgba(128, 128, 128, 0.15)", border: "none", color: "inherit", fontWeight: 500 }}
+                            >
+                                <Paperclip size={15} strokeWidth={2} /> 上传附件
+                            </button>
+                            {visionEnabled && (
+                                <button
+                                    type="button"
+                                    onClick={() => { imageInputRef.current?.setAttribute('data-edit-mode', 'true'); imageInputRef.current?.click(); setEditAttachMenuOpen(false); }}
+                                    style={{ display: "flex", alignItems: "center", gap: "4px", padding: "6px 12px", borderRadius: "14px", fontSize: "13px", cursor: "pointer", background: "rgba(128, 128, 128, 0.15)", border: "none", color: "inherit", fontWeight: 500 }}
+                                >
+                                    <Image size={15} strokeWidth={2} /> 添加图片
+                                </button>
+                            )}
+                        </div>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => setEditAttachMenuOpen(prev => !prev)}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: '50%', background: 'transparent', border: 'none', cursor: 'pointer', color: 'inherit' }}
+                        aria-label="添加附件或图片"
+                    >
+                        <Plus size={22} strokeWidth={2.2} style={{ transform: editAttachMenuOpen ? 'rotate(45deg)' : 'none', transition: 'transform 0.2s ease-in-out' }} />
+                    </button>
+                </div>
+                
+                <div style={{ display: 'flex', gap: '8px' }}>
+                    <button type="button" className="qa-devnotice-btn" onClick={() => handleSaveEdit(false)}>
+                        保存
+                    </button>
+                    <button type="button" className="qa-devnotice-btn is-primary" onClick={() => handleSaveEdit(true)}>
+                        保存并发送
+                    </button>
+                </div>
             </div>
           </div>
         </div>
