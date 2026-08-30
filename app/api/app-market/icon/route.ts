@@ -58,7 +58,7 @@ export async function GET(request: Request) {
     }
     const decoded = decodeDataUrl(stored);
     if (!decoded) return new Response(null, { status: 404 });
-    return new Response(decoded.bytes, {
+    return new Response(new Uint8Array(decoded.bytes), {
       status: 200,
       headers: { ...cacheHeaders, "Content-Type": decoded.mime, "Content-Length": String(decoded.bytes.length), "X-Content-Type-Options": "nosniff" },
     });

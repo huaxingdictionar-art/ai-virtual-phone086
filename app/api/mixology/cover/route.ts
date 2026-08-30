@@ -82,7 +82,7 @@ export async function GET(request: Request) {
 
     const decoded = decodeDataUrl(cover);
     if (!decoded) return new Response(null, { status: 404 });
-    return new Response(decoded.bytes, {
+    return new Response(new Uint8Array(decoded.bytes), {
       status: 200,
       headers: {
         ...IMMUTABLE_HEADERS,
