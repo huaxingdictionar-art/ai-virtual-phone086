@@ -191,7 +191,7 @@ export function ChatMessageList({ onCloseApp, activeSession, onSelectSession, on
                                 {identity?.avatarUrl ? (
                                     <img src={identity.avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
                                 ) : (
-                                    <ChatFallbackAvatar />
+                                    <span className="text-[var(--c-icon)] text-sm font-semibold">{identity?.name?.slice(0, 1) || "我"}</span>
                                 )}
                             </div>
                             <div className="flex flex-col whitespace-nowrap">
