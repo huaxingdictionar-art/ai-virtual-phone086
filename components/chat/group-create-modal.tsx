@@ -6,7 +6,7 @@ import { loadCharacters } from "@/lib/character-storage";
 import { resolveUserIdentity } from "@/lib/settings-storage";
 import { Character } from "@/lib/character-types";
 import { Input } from "@/components/ui/form";
-import { ChatFallbackAvatar } from "./chat-fallback-avatar";
+import { CharacterAvatar } from "./character-avatar";
 
 type GroupCreateModalProps = {
     onClose: () => void;
@@ -62,11 +62,13 @@ export function GroupCreateModal({ onClose, onCreate }: GroupCreateModalProps) {
                                             onClick={() => toggle(c.characterId)}
                                         >
                                             <div className="chat-contact-avatar" style={isSelected ? { outline: "3px solid var(--c-success)", outlineOffset: "2px" } : undefined}>
-                                                {c.char.avatar ? (
-                                                    <img src={c.char.avatar} alt="" />
-                                                ) : (
-                                                    <ChatFallbackAvatar />
-                                                )}
+                                                <CharacterAvatar
+                                                    avatar={c.char.avatar}
+                                                    avatarCrop={c.char.avatarCrop}
+                                                    alt={c.char.name}
+                                                    className="w-full h-full"
+                                                    imageClassName="w-full h-full"
+                                                />
                                             </div>
                                             <span className="chat-contact-name">{c.char.name}</span>
                                         </div>
@@ -102,11 +104,13 @@ export function GroupCreateModal({ onClose, onCreate }: GroupCreateModalProps) {
                             {selectedChars.map(c => (
                                 <div key={c.id} className="chat-contact-item">
                                     <div className="chat-contact-avatar">
-                                        {c.avatar ? (
-                                            <img src={c.avatar} alt="" />
-                                        ) : (
-                                            <ChatFallbackAvatar />
-                                        )}
+                                        <CharacterAvatar
+                                            avatar={c.avatar}
+                                            avatarCrop={c.avatarCrop}
+                                            alt={c.name}
+                                            className="w-full h-full"
+                                            imageClassName="w-full h-full"
+                                        />
                                     </div>
                                     <span className="chat-contact-name">{c.name}</span>
                                 </div>

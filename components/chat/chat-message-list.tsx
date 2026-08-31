@@ -22,7 +22,7 @@ import {
     type DuplicateSessionGroup,
 } from "@/lib/chat-session-merge";
 import { kvSet } from "@/lib/kv-db";
-import { ChatFallbackAvatar } from "./chat-fallback-avatar";
+import { CharacterAvatar } from "./character-avatar";
 import {
     getMascotLastPreview,
     getMascotChatSnapshot,
@@ -421,7 +421,7 @@ export function ChatMessageList({ onCloseApp, activeSession, onSelectSession, on
                                             >
                                                 <div className="add-friend-avatar" style={{ width: 36, height: 36, borderRadius: 8, overflow: "hidden", flexShrink: 0 }}>
                                                     {c.avatar ? (
-                                                        <img src={c.avatar} className="w-full h-full object-cover" alt="" />
+                                                        <CharacterAvatar avatar={c.avatar} avatarCrop={c.avatarCrop} className="w-full h-full" alt="" />
                                                     ) : (
                                                         <div className="w-full h-full flex items-center justify-center bg-[var(--c-page-body-bg)] text-[var(--c-icon)]" style={{ fontSize: 14 }}>
                                                             {c.name.slice(0, 1)}
@@ -451,11 +451,12 @@ export function ChatMessageList({ onCloseApp, activeSession, onSelectSession, on
                             <div className="menu-group">
                                 <div className="menu-item !items-start">
                                     <div className="add-friend-avatar">
-                                        {searchResult.avatar ? (
-                                            <img src={searchResult.avatar} className="w-full h-full object-cover" alt="" />
-                                        ) : (
-                                            <ChatFallbackAvatar />
-                                        )}
+                                        <CharacterAvatar
+                                            avatar={searchResult.avatar}
+                                            avatarCrop={searchResult.avatarCrop}
+                                            className="w-full h-full"
+                                            alt=""
+                                        />
                                     </div>
                                     <div className="menu-label-group">
                                         <div className="ts-18 font-bold text-[var(--c-text-title)] mb-1">{searchResult.name || "UNNAMED"}</div>
@@ -731,11 +732,7 @@ function ContactPicker({ onClose, onSelect }: { onClose: () => void; onSelect: (
                                 onClick={() => onSelect(c.characterId)}
                             >
                                 <div className="chat-contact-avatar">
-                                    {c.char.avatar ? (
-                                        <img src={c.char.avatar} alt="" />
-                                    ) : (
-                                        <ChatFallbackAvatar />
-                                    )}
+                                    <CharacterAvatar avatar={c.char.avatar} avatarCrop={c.char.avatarCrop} className="w-full h-full" alt="" />
                                 </div>
                                 <span className="chat-contact-name">{c.char.name}</span>
                             </div>
@@ -768,7 +765,7 @@ function SessionItem({ session, onSelect, isPinned }: { session: ChatSession, on
             ...((session.participantIds || [])
                 .map(id => chars.find(c => c.id === id))
                 .filter(Boolean) as Character[])
-                .map(c => ({ id: c.id, name: c.name, avatar: c.avatar || "" })),
+                .map(c => ({ id: c.id, name: c.name, avatar: c.avatar || "", avatarCrop: c.avatarCrop })), 
         ].slice(0, 4)
         : [];
 
@@ -781,11 +778,12 @@ function SessionItem({ session, onSelect, isPinned }: { session: ChatSession, on
                 <div className="minimal-avatar-wrapper grid grid-cols-2 grid-rows-2 gap-[1px] p-[2px] bg-[var(--c-card-border)] rounded-full overflow-hidden">
                     {groupAvatarItems.map((c) => (
                         <div key={c.id} className="overflow-hidden rounded-[3px] bg-[var(--c-page-body-bg)]">
-                            {c.avatar ? (
-                                <img src={c.avatar} className="w-full h-full object-cover pointer-events-none" alt="" />
-                            ) : (
-                                <ChatFallbackAvatar className="pointer-events-none" />
-                            )}
+                            <CharacterAvatar
+                                avatar={c.avatar}
+                                avatarCrop={c.avatarCrop}
+                                className="w-full h-full pointer-events-none"
+                                alt=""
+                            />
                         </div>
                     ))}
                     {Array.from({ length: Math.max(0, 4 - groupAvatarItems.length) }).map((_, i) => (
@@ -794,11 +792,12 @@ function SessionItem({ session, onSelect, isPinned }: { session: ChatSession, on
                 </div>
             ) : (
                 <div className="minimal-avatar-wrapper">
-                    {character?.avatar ? (
-                        <img src={character.avatar} className="w-full h-full object-cover pointer-events-none rounded-full" alt="" />
-                    ) : (
-                        <ChatFallbackAvatar className="pointer-events-none rounded-full" />
-                    )}
+                    <CharacterAvatar
+                        avatar={character?.avatar}
+                        avatarCrop={character?.avatarCrop}
+                        className="w-full h-full pointer-events-none rounded-full"
+                        alt=""
+                    />
                     <span className="minimal-online-dot" />
                 </div>
             )}

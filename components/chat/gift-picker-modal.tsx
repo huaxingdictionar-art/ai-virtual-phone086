@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Gift, PackageCheck, Search, UserRound, X } from "lucide-react";
+import { Gift, PackageCheck, Search, X } from "lucide-react";
+import { CharacterAvatar } from "./character-avatar";
 import type { Character } from "@/lib/character-types";
 import type { ShoppingGiftCandidate } from "@/lib/shopping-gift-utils";
 
@@ -90,7 +91,13 @@ export function GiftPickerModal({ gifts, isGroup, recipients = [], onSend, onClo
                                                 boxShadow: selected ? "0 8px 18px color-mix(in srgb, var(--c-success) 14%, transparent)" : "none",
                                             }}
                                         >
-                                            <UserRound size={14} />
+                                            <CharacterAvatar
+                                                avatar={recipient.avatar}
+                                                avatarCrop={recipient.avatarCrop}
+                                                alt={recipient.name}
+                                                className="w-5 h-5 rounded-full bg-[var(--c-input)] shrink-0"
+                                                imageClassName="w-full h-full"
+                                            />
                                             <span>{recipient.name}</span>
                                         </button>
                                     );

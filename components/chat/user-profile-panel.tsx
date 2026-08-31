@@ -35,6 +35,7 @@ import { addChatContact, createOrGetSession } from "@/lib/chat-storage";
 import { kvGet, kvSet, kvRemove } from "@/lib/kv-db";
 import { formatWalletAmount, getWalletBalance, loadWalletState, WALLET_UPDATED_EVENT } from "@/lib/wallet-storage";
 import { ChatFallbackAvatar } from "./chat-fallback-avatar";
+import { CharacterAvatar } from "./character-avatar";
 import {
     Loader2,
     Bell,
@@ -1054,9 +1055,13 @@ function InlineMomentsSettings({ onBack }: { onBack: () => void }) {
                     </div>
                     {showAutoPostList && enriched.map(c => (
                         <div key={c.characterId} className="menu-item" style={{ cursor: "default" }}>
-                            <div className="chat-contact-avatar" style={{ width: 32, height: 32 }}>
-                                {c.char.avatar ? <img src={c.char.avatar} alt="" /> : <ChatFallbackAvatar />}
-                            </div>
+                            <CharacterAvatar
+                                avatar={c.char.avatar}
+                                avatarCrop={c.char.avatarCrop}
+                                alt={c.char.name}
+                                className="chat-contact-avatar"
+                                imageClassName="w-full h-full"
+                            />
                             <div className="menu-label-group">
                                 <span className="menu-label">{c.char.name}</span>
                             </div>
@@ -1092,15 +1097,14 @@ function InlineMomentsSettings({ onBack }: { onBack: () => void }) {
                         <div className="chat-contact-list">
                             {enriched.map(c => (
                                 <div key={c.characterId} className="chat-contact-item" onClick={() => toggleSelect(c.characterId)}>
-                                    <div className="chat-contact-avatar"
-                                        style={selectedIds.has(c.characterId) ? { outline: "3px solid var(--c-success)", outlineOffset: "2px" } : undefined}
-                                    >
-                                        {c.char.avatar ? (
-                                            <img src={c.char.avatar} alt="" />
-                                        ) : (
-                                            <ChatFallbackAvatar />
-                                        )}
-                                    </div>
+                                    <CharacterAvatar
+                                        avatar={c.char.avatar}
+                                        avatarCrop={c.char.avatarCrop}
+                                        alt={c.char.name}
+                                        className="chat-contact-avatar"
+                                        imageClassName="w-full h-full"
+                                        containerStyle={selectedIds.has(c.characterId) ? { outline: "3px solid var(--c-success)", outlineOffset: "2px" } : undefined}
+                                    />
                                     <span className="chat-contact-name">{c.char.name}</span>
                                 </div>
                             ))}

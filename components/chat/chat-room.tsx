@@ -75,6 +75,7 @@ import {
 } from "@/lib/generated-image-retry";
 import { scrollElementWithinContainer } from "@/lib/dom-scroll";
 import { ChatFallbackAvatar } from "./chat-fallback-avatar";
+import { CharacterAvatar } from "./character-avatar";
 import { ChatScreenEffectOverlay, type ActiveScreenEffect } from "./chat-screen-effect";
 import {
     formatChatDiceResultMessage,
@@ -5542,9 +5543,14 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                 </div>
                                 <div className="chat-offline-entry" data-role="assistant">
                                     {/* 头像占位：默认 display:none（见 chat.css），供自定义 CSS 显示 */}
-                                    <div className="chat-offline-avatar" aria-hidden="true">
-                                        {character?.avatar ? <img src={character.avatar} alt="" /> : <ChatFallbackAvatar />}
-                                    </div>
+                                    <CharacterAvatar
+                                        avatar={character?.avatar}
+                                        avatarCrop={character?.avatarCrop}
+                                        alt={character?.name || "对方"}
+                                        className="chat-offline-avatar"
+                                        imageClassName="w-full h-full"
+                                        ariaHidden={true}
+                                    />
                                     <div className="chat-offline-label-row">
                                         <div className="chat-offline-label">{session.isGroup ? (session.groupName || "群聊") : (character?.name || "对方")}</div>
                                         {assistantHasHtmlPreview ? (
@@ -5990,11 +5996,12 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                                             : character;
                                                         if (targetChar) sendRichMessage("poke", { pokeTarget: targetChar.name });
                                                     }} className="w-[40px] h-[40px] rounded-[20px] bg-[var(--c-input)] overflow-hidden cursor-pointer">
-                                                        {senderChar?.avatar ? (
-                                                            <img src={senderChar.avatar} className="w-full h-full object-cover" alt="" />
-                                                        ) : (
-                                                            <ChatFallbackAvatar />
-                                                        )}
+                                                        <CharacterAvatar
+                                                            avatar={senderChar?.avatar}
+                                                            avatarCrop={senderChar?.avatarCrop}
+                                                            className="w-full h-full"
+                                                            alt=""
+                                                        />
                                                     </div>
                                                             </>
                                                         );
@@ -6154,7 +6161,13 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                         <div key={`stream-${part.characterId}-${i}-${j}`} className="chat-msg-wrapper" data-role="assistant">
                                             <div className="chat-msg-avatar flex flex-col items-center gap-1 shrink-0">
                                                 <div className="w-[40px] h-[40px] rounded-[20px] bg-[var(--c-input)] overflow-hidden">
-                                                    {senderChar?.avatar ? <img src={senderChar.avatar} className="w-full h-full object-cover" alt="" /> : <ChatFallbackAvatar />}
+                                                    <CharacterAvatar
+                                                        avatar={senderChar?.avatar}
+                                                        avatarCrop={senderChar?.avatarCrop}
+                                                        alt={senderChar?.name || part.characterName}
+                                                        className="w-full h-full"
+                                                        imageClassName="w-full h-full"
+                                                    />
                                                 </div>
                                             </div>
                                             <div className="chat-msg-content-wrap flex flex-col min-w-0 max-w-[70%]">
@@ -6176,7 +6189,13 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                     <div key={`stream-seg-${j}`} className="chat-msg-wrapper" data-role="assistant">
                                         <div className="chat-msg-avatar flex flex-col items-center gap-1 shrink-0">
                                             <div className="w-[40px] h-[40px] rounded-[20px] bg-[var(--c-input)] overflow-hidden">
-                                                {character?.avatar ? <img src={character.avatar} className="w-full h-full object-cover" alt="" /> : <ChatFallbackAvatar />}
+                                                <CharacterAvatar
+                                                    avatar={character?.avatar}
+                                                    avatarCrop={character?.avatarCrop}
+                                                    alt={character?.name || "对方"}
+                                                    className="w-full h-full"
+                                                    imageClassName="w-full h-full"
+                                                />
                                             </div>
                                         </div>
                                         <div className="chat-msg-content-wrap flex flex-col min-w-0 max-w-[70%]">

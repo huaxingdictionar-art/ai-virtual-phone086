@@ -21,6 +21,7 @@ import { CallSttWarningDialog, hideCallSttWarningPermanently, isCallSttWarningHi
 import { isAndroidBrowser, isIOSDevice } from "./voice-input-platform";
 import { CallVolumeControl } from "./call-volume-control";
 import { startIncomingCallVibration } from "@/lib/call-vibration";
+import { CharacterAvatar } from "./character-avatar";
 
 // ── Types ───────────────────────────────────────────
 
@@ -613,19 +614,15 @@ export function VideoCallScreen({ session, character, onEnd, onConnect, initiato
                             <span className="ts-60 text-[var(--c-icon)]">{userNameRef.current?.[0] || "?"}</span>
                         </div>
                     )
-                ) : character.avatar ? (
-                    <img
-                        src={character.avatar}
-                        alt={character.name}
-                        className="w-full h-full object-cover transition-opacity duration-500 ease-in-out"
-                        style={{
-                            opacity: callState === "CONNECTING" ? 0.5 : 0.85,
-                        }}
-                    />
                 ) : (
-                    <div className="w-[150px] h-[150px] rounded-full bg-[#333] flex items-center justify-center">
-                        <span className="ts-60 text-[var(--c-icon)]">{character.name?.[0] || "?"}</span>
-                    </div>
+                    <CharacterAvatar
+                        avatar={character.avatar}
+                        avatarCrop={character.avatarCrop}
+                        alt={character.name}
+                        className="w-full h-full"
+                        imageClassName="w-full h-full transition-opacity duration-500 ease-in-out"
+                        imageStyle={{ opacity: callState === "CONNECTING" ? 0.5 : 0.85 }}
+                    />
                 )}
             </div>
 
@@ -638,11 +635,13 @@ export function VideoCallScreen({ session, character, onEnd, onConnect, initiato
                 title="点击切换大小画面"
             >
                 {pipSwapped ? (
-                    character.avatar ? (
-                        <img src={character.avatar} alt={character.name} className="w-full h-full object-cover" />
-                    ) : (
-                        <span className="ts-18 text-[var(--c-icon)]">{character.name?.[0] || "?"}</span>
-                    )
+                    <CharacterAvatar
+                        avatar={character.avatar}
+                        avatarCrop={character.avatarCrop}
+                        alt={character.name}
+                        className="w-full h-full"
+                        imageClassName="w-full h-full"
+                    />
                 ) : cameraEnabled ? (
                     <video
                         autoPlay

@@ -22,6 +22,7 @@ import { retryMomentGeneratedPhoto } from "@/lib/generated-image-retry";
 import { GeneratedImageErrorDialog } from "./generated-image-error-dialog";
 import { Trash2, MoreHorizontal, MapPin, Heart, MessageCircle, Pencil } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui";
+import { CharacterAvatar } from "@/components/chat/character-avatar";
 
 type Props = {
     post: MomentPost;
@@ -84,12 +85,14 @@ export function MomentPostCard({ post, onUpdate, onRequestDelete, onOpenCommentC
     const contextCharId = post.authorType === "character" ? post.authorId : undefined;
     const userIdentity = resolveUserIdentity(contextCharId, "chat");
 
+    const getCharacter = (charId: string) => chars.find(c => c.id === charId);
+
     const getCharName = (charId: string): string => {
-        return chars.find(c => c.id === charId)?.name ?? "未知";
+        return getCharacter(charId)?.name ?? "未知";
     };
 
     const getCharAvatar = (charId: string): string | null => {
-        return chars.find(c => c.id === charId)?.avatar ?? null;
+        return getCharacter(charId)?.avatar ?? null;
     };
 
     const getAuthorName = (authorType: "user" | "character" | "npc", authorId: string, authorName?: string): string => {
@@ -104,6 +107,7 @@ export function MomentPostCard({ post, onUpdate, onRequestDelete, onOpenCommentC
 
     const authorName = getAuthorName(post.authorType, post.authorId);
     const authorAvatar = getAuthorAvatar(post.authorType, post.authorId);
+    const authorCharacter = post.authorType === "character" ? getCharacter(post.authorId) : undefined;
 
     // Time formatting
     const timeAgo = formatTimeAgo(post.createdAt);
@@ -276,7 +280,15 @@ export function MomentPostCard({ post, onUpdate, onRequestDelete, onOpenCommentC
                 <div
                     className="feed-post-author-avatar w-[40px] h-[40px] rounded-full shrink-0 bg-[var(--c-input)] overflow-hidden flex items-center justify-center"
                 >
-                    {authorAvatar ? (
+                    {post.authorType === "character" && authorCharacter?.avatar ? (
+                        <CharacterAvatar
+                            avatar={authorCharacter.avatar}
+                            avatarCrop={authorCharacter.avatarCrop}
+                            alt={authorName}
+                            className="w-full h-full"
+                            imageClassName="feed-post-author-avatar-image w-full h-full"
+                        />
+                    ) : authorAvatar ? (
                         <img src={authorAvatar} alt="" className="feed-post-author-avatar-image w-full h-full object-cover" />
                     ) : (
                         <MomentDefaultAvatar />
@@ -571,6 +583,7 @@ export function MomentPostCard({ post, onUpdate, onRequestDelete, onOpenCommentC
                             {commentThreads.map(({ root, replies }) => {
                                 const rootName = getAuthorName(root.authorType, root.authorId, root.authorName);
                                 const rootAvatar = getAuthorAvatar(root.authorType, root.authorId);
+                                const rootCharacter = root.authorType === "character" ? getCharacter(root.authorId) : undefined;
                                 const rootReplyName = root.replyToAuthorId
                                     ? getAuthorName(root.replyToAuthorType || "character", root.replyToAuthorId, root.replyToAuthorName)
                                     : null;
@@ -584,7 +597,15 @@ export function MomentPostCard({ post, onUpdate, onRequestDelete, onOpenCommentC
                                             <div
                                                 className="feed-comment-avatar feed-comment-avatar-root w-[32px] h-[32px] rounded-full shrink-0 bg-[var(--c-input)] overflow-hidden flex items-center justify-center"
                                             >
-                                                {rootAvatar ? (
+                                                {root.authorType === "character" && rootCharacter?.avatar ? (
+                                                    <CharacterAvatar
+                                                        avatar={rootCharacter.avatar}
+                                                        avatarCrop={rootCharacter.avatarCrop}
+                                                        alt={rootName}
+                                                        className="w-full h-full"
+                                                        imageClassName="feed-comment-avatar-image w-full h-full"
+                                                    />
+                                                ) : rootAvatar ? (
                                                     <img src={rootAvatar} alt="" className="feed-comment-avatar-image w-full h-full object-cover" />
                                                 ) : (
                                                     <MomentDefaultAvatar />
@@ -657,6 +678,7 @@ export function MomentPostCard({ post, onUpdate, onRequestDelete, onOpenCommentC
                                                 {replies.map((reply) => {
                                                     const replyName = getAuthorName(reply.authorType, reply.authorId, reply.authorName);
                                                     const replyAvatar = getAuthorAvatar(reply.authorType, reply.authorId);
+                                                    const replyCharacter = reply.authorType === "character" ? getCharacter(reply.authorId) : undefined;
                                                     const replyTargetName = reply.replyToAuthorId
                                                         ? getAuthorName(reply.replyToAuthorType || "character", reply.replyToAuthorId, reply.replyToAuthorName)
                                                         : null;
@@ -669,7 +691,15 @@ export function MomentPostCard({ post, onUpdate, onRequestDelete, onOpenCommentC
                                                             <div
                                                                 className="feed-comment-avatar feed-comment-avatar-child w-[22px] h-[22px] rounded-full shrink-0 bg-[var(--c-input)] overflow-hidden flex items-center justify-center mt-[2px]"
                                                             >
-                                                                {replyAvatar ? (
+                                                                {reply.authorType === "character" && replyCharacter?.avatar ? (
+                                                                    <CharacterAvatar
+                                                                        avatar={replyCharacter.avatar}
+                                                                        avatarCrop={replyCharacter.avatarCrop}
+                                                                        alt={replyName}
+                                                                        className="w-full h-full"
+                                                                        imageClassName="feed-comment-avatar-image w-full h-full"
+                                                                    />
+                                                                ) : replyAvatar ? (
                                                                     <img src={replyAvatar} alt="" className="feed-comment-avatar-image w-full h-full object-cover" />
                                                                 ) : (
                                                                     <MomentDefaultAvatar />

@@ -1,4 +1,4 @@
-import type { Character, CanvasBgItem } from "./character-types";
+import type { AvatarCrop, Character, CanvasBgItem } from "./character-types";
 import { normalizeTimeZone } from "./character-time";
 import { kvGet, kvSet, registerKvMigration } from "./kv-db";
 
@@ -7,6 +7,26 @@ export const CHAR_BLOCKED_FIELDS = "CHAR_BLOCKED_FIELDS";
 
 const STORAGE_KEY = "ai_phone_characters_v1";
 const BG_ITEMS_STORAGE_KEY = "ai_phone_bg_items_v1";
+
+export const DEFAULT_AVATAR_CROP: AvatarCrop = { x: 0.5, y: 0.5, scale: 1 };
+
+/** 规范化外部或旧角色卡中的头像取景参数。 */
+export function normalizeAvatarCrop(value: unknown): AvatarCrop | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Partial<AvatarCrop>;
+  if (
+    typeof raw.x !== "number" || !Number.isFinite(raw.x) ||
+    typeof raw.y !== "number" || !Number.isFinite(raw.y) ||
+    typeof raw.scale !== "number" || !Number.isFinite(raw.scale)
+  ) {
+    return undefined;
+  }
+  return {
+    x: Math.min(1, Math.max(0, raw.x)),
+    y: Math.min(1, Math.max(0, raw.y)),
+    scale: Math.min(3, Math.max(1, raw.scale)),
+  };
+}
 const UNSUPPORTED_CHARACTER_IMPORT_FIELDS = [
   "greeting",
   "first_mes",
@@ -63,6 +83,20 @@ export function loadCharacters(): Character[] {
       if (char.avatar && !char.avatar.startsWith("data:") && !char.avatar.startsWith("http://") && !char.avatar.startsWith("https://")) {
         char.avatar = null;
         needsSave = true;
+      }
+      if (char.avatarCrop !== undefined) {
+        const normalizedCrop = normalizeAvatarCrop(char.avatarCrop);
+        if (normalizedCrop) {
+          if (
+            normalizedCrop.x !== char.avatarCrop.x ||
+            normalizedCrop.y !== char.avatarCrop.y ||
+            normalizedCrop.scale !== char.avatarCrop.scale
+          ) needsSave = true;
+          char.avatarCrop = normalizedCrop;
+        } else {
+          delete char.avatarCrop;
+          needsSave = true;
+        }
       }
       return char as Character;
     });
@@ -148,6 +182,7 @@ export function exportCharacterAsJson(char: Character): void {
     tags: char.tags || [],
     wechatID: char.wechatID || "",
     timeZone: char.timeZone || "",
+    ...(char.avatarCrop ? { avatarCrop: normalizeAvatarCrop(char.avatarCrop) } : {}),
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], {
     type: "application/json",
@@ -183,10 +218,12 @@ export function parseCharacterFromJson(
       throw new Error(CHAR_BLOCKED_FIELDS);
     }
 
+    const avatarCrop = normalizeAvatarCrop(src.avatarCrop);
     return {
       name: String(src.name ?? ""),
       persona: String(src.description ?? src.persona ?? ""),
       avatar: validAvatar(src.avatar),
+      ...(avatarCrop ? { avatarCrop } : {}),
       personality: typeof src.personality === "string" && src.personality.trim() ? src.personality : undefined,
       tags: Array.isArray(src.tags) ? src.tags.map(String) : [],
       wechatID: typeof src.wechatID === "string" && src.wechatID.trim() ? src.wechatID : undefined,
@@ -408,6 +445,7 @@ export async function exportCharacterAsPng(char: Character): Promise<void> {
     tags: char.tags || [],
     wechatID: char.wechatID || "",
     timeZone: char.timeZone || "",
+    ...(char.avatarCrop ? { avatarCrop: normalizeAvatarCrop(char.avatarCrop) } : {}),
   };
   const jsonStr = JSON.stringify(payload);
   const base64 = btoa(unescape(encodeURIComponent(jsonStr)));

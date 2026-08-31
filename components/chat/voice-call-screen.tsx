@@ -21,6 +21,7 @@ import { CallSttWarningDialog, hideCallSttWarningPermanently, isCallSttWarningHi
 import { isAndroidBrowser, isIOSDevice } from "./voice-input-platform";
 import { CallVolumeControl } from "./call-volume-control";
 import { startIncomingCallVibration } from "@/lib/call-vibration";
+import { CharacterAvatar } from "./character-avatar";
 
 // ── Types ───────────────────────────────────────────
 
@@ -613,17 +614,13 @@ export function VoiceCallScreen({ session, character, onEnd, onConnect, initiato
                             className="voicecall-avatar"
                             {...(callState === "AI_SPEAKING" ? { "data-speaking": "" } : {})}
                         >
-                            {character.avatar ? (
-                                <img
-                                    src={character.avatar}
-                                    alt={character.name}
-                                    className="w-full h-full object-cover"
-                                />
-                            ) : (
-                                <span className="ts-48 text-[var(--c-icon)]">
-                                    {character.name?.[0] || "?"}
-                                </span>
-                            )}
+                            <CharacterAvatar
+                                avatar={character.avatar}
+                                avatarCrop={character.avatarCrop}
+                                alt={character.name}
+                                className="w-full h-full"
+                                imageClassName="w-full h-full"
+                            />
                         </div>
                         {callState === "CONNECTING" && (
                             <>

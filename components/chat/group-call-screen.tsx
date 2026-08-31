@@ -18,6 +18,7 @@ import { useCallKeyboardOffsetStyle } from "./use-call-keyboard-offset";
 import { isAndroidBrowser, isIOSDevice } from "./voice-input-platform";
 import { CallVolumeControl } from "./call-volume-control";
 import { startIncomingCallVibration } from "@/lib/call-vibration";
+import { CharacterAvatar } from "./character-avatar";
 
 // ── Types ───────────────────────────────────────────
 
@@ -664,17 +665,15 @@ export function GroupCallScreen({ type, session, characters, onEnd, initiator = 
                             <div key={char.id} className="gcall-video-tile"
                                 style={tileBg ? { backgroundImage: `url(${tileBg})`, backgroundSize: "cover", backgroundPosition: "center" } : undefined}
                             >
-                                {!tileBg && (char.avatar ? (
-                                    <img
-                                        src={char.avatar}
+                                {!tileBg && (
+                                    <CharacterAvatar
+                                        avatar={char.avatar}
+                                        avatarCrop={char.avatarCrop}
                                         alt={char.name}
-                                        className={`w-full h-full object-cover transition-opacity duration-300 ${callState === "CONNECTING" ? "gcall-video-avatar-dim" : "gcall-video-avatar-bright"}`}
+                                        className="w-full h-full"
+                                        imageClassName={`w-full h-full transition-opacity duration-300 ${callState === "CONNECTING" ? "gcall-video-avatar-dim" : "gcall-video-avatar-bright"}`}
                                     />
-                                ) : (
-                                    <div className="gcall-video-tile-fallback">
-                                        <span className="ts-40 opacity-60">{char.name?.[0] || "?"}</span>
-                                    </div>
-                                ))}
+                                )}
                                 <div className="gcall-video-tile-name videocall-name">{char.name}</div>
                                 {isSpeaking && <div className="gcall-video-speaking-ring" />}
                             </div>
@@ -771,13 +770,13 @@ export function GroupCallScreen({ type, session, characters, onEnd, initiator = 
                         const isSpeaking = speakingCharId === char.id;
                         return (
                             <div key={char.id} className="gcall-tile" {...(isSpeaking ? { "data-speaking": "" } : {})}>
-                                <div className="gcall-tile-avatar">
-                                    {char.avatar ? (
-                                        <img src={char.avatar} alt={char.name} />
-                                    ) : (
-                                        <span className="gcall-tile-initial">{char.name?.[0] || "?"}</span>
-                                    )}
-                                </div>
+                                <CharacterAvatar
+                                    avatar={char.avatar}
+                                    avatarCrop={char.avatarCrop}
+                                    alt={char.name}
+                                    className="gcall-tile-avatar"
+                                    imageClassName="w-full h-full"
+                                />
                                 <div className="gcall-tile-name">{char.name}</div>
                                 <div className="gcall-wave-bars">
                                     <div className="gcall-wave-bar" />

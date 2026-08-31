@@ -1,7 +1,17 @@
+export type AvatarCrop = {
+  /** 归一化取景中心，0..1 */
+  x: number;
+  /** 归一化取景中心，0..1 */
+  y: number;
+  /** 取景缩放，1 为默认中心裁剪 */
+  scale: number;
+};
+
 export type Character = {
   id: string;
   name: string;
   avatar: string | null; // data URL 或外部 URL
+  avatarCrop?: AvatarCrop;
   persona: string;       // 人设
   briefPersona?: string; // 简量版人设：注入到同世界有关系角色的「角色关系」marker，供对方了解 TA（防 OOC）
   briefPersonaUpdatedAt?: string; // 简介生成时间；早于 updatedAt 时编辑器提示「设定已更新，建议重新生成」

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { Character } from "@/lib/character-types";
+import type { AvatarCrop, Character } from "@/lib/character-types";
 import {
   createCharacter,
   exportCharacterAsJson,
@@ -37,6 +37,7 @@ import { RelationLinkDialog, RelationPairSheet } from "@/components/character/re
 import { loadMomentsConfig, saveMomentsConfig } from "@/lib/moments-storage";
 import type { CanvasBgItem } from "@/lib/character-types";
 import { PageShell } from "@/components/ui/page-shell";
+import { CharacterAvatar } from "@/components/chat/character-avatar";
 import { ConfirmDialog } from "@/components/ui/modal";
 import { AlertCircle, History } from "lucide-react";
 import {
@@ -899,7 +900,7 @@ function CharListView({
         const buffer = await file.arrayBuffer();
         const data = parseCharacterFromPng(buffer);
         if (!data) return onNotice("未在 PNG 中找到角色数据");
-        let avatar = "";
+        let avatar: string | null = null;
         try {
           avatar = await fileToDataUrl(file);
         } catch (e) {
@@ -1273,11 +1274,12 @@ function CharListView({
             {pendingPlacementChar ? (
               <div className="char-polaroid w-[100px]" style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.2)' }}>
                 <div className="char-polaroid-img-wrapper">
-                  {pendingPlacementChar.avatar ? (
-                    <img src={pendingPlacementChar.avatar} className="char-polaroid-img" alt="" draggable={false} />
-                  ) : (
-                    <CharAvatarFallback name={pendingPlacementChar.name} size="100%" />
-                  )}
+                  <CharacterAvatar
+                    avatar={pendingPlacementChar.avatar}
+                    avatarCrop={pendingPlacementChar.avatarCrop}
+                    className="char-polaroid-img"
+                    alt=""
+                  />
                 </div>
                 <div className="char-polaroid-text ts-10">{pendingPlacementChar.name || "UNNAMED"}</div>
               </div>
@@ -1820,6 +1822,15 @@ function CharArchiveView({
   const [showTimeZonePicker, setShowTimeZonePicker] = useState(false);
   const [timeZoneSearch, setTimeZoneSearch] = useState(char.timeZone || "");
   const [avatar, setAvatar] = useState<string | null>(char.avatar || null);
+  const [avatarCrop, setAvatarCrop] = useState<AvatarCrop>(char.avatarCrop || { x: 0.5, y: 0.5, scale: 1 });
+  const [showAvatarCropEditor, setShowAvatarCropEditor] = useState(false);
+  const avatarCropPointersRef = useRef(new Map<number, { x: number; y: number }>());
+  const avatarCropGestureRef = useRef<{
+    distance: number;
+    midpoint: { x: number; y: number };
+    crop: AvatarCrop;
+  } | null>(null);
+  const avatarCropEditorStartRef = useRef<AvatarCrop>(avatarCrop);
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [urlInput, setUrlInput] = useState("");
   const [avatarBusy, setAvatarBusy] = useState(false);
@@ -1873,6 +1884,8 @@ function CharArchiveView({
     if (briefPersona !== (char.briefPersona || "")) return true;
     if (timeZone !== (char.timeZone || "")) return true;
     if (avatar !== (char.avatar || null)) return true;
+    const originalCrop = char.avatarCrop || { x: 0.5, y: 0.5, scale: 1 };
+    if (avatarCrop.x !== originalCrop.x || avatarCrop.y !== originalCrop.y || avatarCrop.scale !== originalCrop.scale) return true;
     const origTags = char.tags || [];
     if (tags.length !== origTags.length || tags.some((t, i) => t !== origTags[i])) return true;
     return false;
@@ -1898,6 +1911,8 @@ function CharArchiveView({
       setShowTimeZonePicker(false);
       setTags(char.tags || []);
       setAvatar(char.avatar || null);
+      setAvatarCrop(char.avatarCrop || { x: 0.5, y: 0.5, scale: 1 });
+      setShowAvatarCropEditor(false);
     }
   }, [isEditing, char]);
 
@@ -1911,6 +1926,8 @@ function CharArchiveView({
         fallbacks: CHARACTER_AVATAR_COMPRESSION_FALLBACKS,
       });
       setAvatar(url);
+      setAvatarCrop({ x: 0.5, y: 0.5, scale: 1 });
+      setShowAvatarCropEditor(false);
     } catch (error) {
       console.error("Failed to optimize character avatar", error);
       onNotice(error instanceof Error ? error.message : "图片处理失败，请更换图片");
@@ -1919,10 +1936,100 @@ function CharArchiveView({
     }
   }
 
+  function updateAvatarCrop(next: AvatarCrop) {
+    setAvatarCrop({
+      x: Math.min(1, Math.max(0, next.x)),
+      y: Math.min(1, Math.max(0, next.y)),
+      scale: Math.min(3, Math.max(1, next.scale)),
+    });
+  }
+
+  function getAvatarCropPinchBaseline(points: { x: number; y: number }[]) {
+    const [a, b] = points;
+    return {
+      distance: Math.max(1, Math.hypot(a.x - b.x, a.y - b.y)),
+      midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+      crop: avatarCrop,
+    };
+  }
+
+  function handleAvatarCropPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    e.preventDefault();
+    e.currentTarget.setPointerCapture(e.pointerId);
+    avatarCropPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (avatarCropPointersRef.current.size === 2) {
+      avatarCropGestureRef.current = getAvatarCropPinchBaseline([...avatarCropPointersRef.current.values()]);
+    }
+  }
+
+  function handleAvatarCropPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const previous = avatarCropPointersRef.current.get(e.pointerId);
+    if (!previous) return;
+    e.preventDefault();
+    avatarCropPointersRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const points = [...avatarCropPointersRef.current.values()];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const width = Math.max(1, rect.width);
+    const height = Math.max(1, rect.height);
+
+    if (points.length === 2) {
+      const gesture = avatarCropGestureRef.current || getAvatarCropPinchBaseline(points);
+      avatarCropGestureRef.current = gesture;
+      const distance = Math.max(1, Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y));
+      const midpoint = { x: (points[0].x + points[1].x) / 2, y: (points[0].y + points[1].y) / 2 };
+      const nextScale = Math.min(3, Math.max(1, gesture.crop.scale * distance / gesture.distance));
+      const focusX = (gesture.midpoint.x - rect.left) / width - 0.5;
+      const focusY = (gesture.midpoint.y - rect.top) / height - 0.5;
+      const zoomShift = 1 / gesture.crop.scale - 1 / nextScale;
+      updateAvatarCrop({
+        x: gesture.crop.x - (midpoint.x - gesture.midpoint.x) / width / nextScale + focusX * zoomShift,
+        y: gesture.crop.y - (midpoint.y - gesture.midpoint.y) / height / nextScale + focusY * zoomShift,
+        scale: nextScale,
+      });
+      return;
+    }
+
+    avatarCropGestureRef.current = null;
+    if (points.length === 1) {
+      updateAvatarCrop({
+        ...avatarCrop,
+        x: avatarCrop.x - (e.clientX - previous.x) / width / avatarCrop.scale,
+        y: avatarCrop.y - (e.clientY - previous.y) / height / avatarCrop.scale,
+      });
+    }
+  }
+
+  function handleAvatarCropPointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    avatarCropPointersRef.current.delete(e.pointerId);
+    avatarCropGestureRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId);
+    // 双指切回单指时，Map 中保留的当前位置就是新的拖动基准。
+  }
+
+  function handleAvatarCropWheel(e: React.WheelEvent<HTMLDivElement>) {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const nextScale = Math.min(3, Math.max(1, avatarCrop.scale * (e.deltaY < 0 ? 1.08 : 0.92)));
+    const focusX = (e.clientX - rect.left) / Math.max(1, rect.width) - 0.5;
+    const focusY = (e.clientY - rect.top) / Math.max(1, rect.height) - 0.5;
+    const zoomShift = 1 / avatarCrop.scale - 1 / nextScale;
+    updateAvatarCrop({
+      x: avatarCrop.x + focusX * zoomShift,
+      y: avatarCrop.y + focusY * zoomShift,
+      scale: nextScale,
+    });
+  }
+
+  function resetAvatarCrop() {
+    updateAvatarCrop({ x: 0.5, y: 0.5, scale: 1 });
+  }
+
   function handleAvatarUrl() {
     const trimmed = urlInput.trim();
     if (!trimmed) return;
     setAvatar(trimmed);
+    setAvatarCrop({ x: 0.5, y: 0.5, scale: 1 });
+    setShowAvatarCropEditor(false);
     setShowUrlInput(false);
     setUrlInput("");
   }
@@ -1952,7 +2059,8 @@ function CharArchiveView({
           : undefined,
         timeZone: normalizedTimeZone,
         tags,
-        avatar: avatar ?? null
+        avatar: avatar ?? null,
+        avatarCrop: avatar ? avatarCrop : undefined
       }, createVersion);
     }
   }
@@ -2055,7 +2163,13 @@ function CharArchiveView({
               }}
             >
               {avatar ? (
-                <img src={avatar} alt="Avatar" />
+                <CharacterAvatar
+                  avatar={avatar}
+                  avatarCrop={avatarCrop}
+                  alt={name || char.name || "Avatar"}
+                  className="w-full h-full"
+                  imageClassName="w-full h-full"
+                />
               ) : (
                 <CharAvatarFallback name={name || char.name} size="100%" />
               )}
@@ -2066,6 +2180,35 @@ function CharArchiveView({
                 </div>
               )}
             </div>
+
+            {isEditing && avatar && showAvatarCropEditor && (
+              <div className="mt-2 w-full" onClick={(e) => e.stopPropagation()}>
+                <div
+                  className="relative mx-auto aspect-square w-full max-w-[220px] overflow-hidden rounded border border-[#777] bg-black"
+                  style={{ touchAction: "none", cursor: "grab" }}
+                  onPointerDown={handleAvatarCropPointerDown}
+                  onPointerMove={handleAvatarCropPointerMove}
+                  onPointerUp={handleAvatarCropPointerUp}
+                  onPointerCancel={handleAvatarCropPointerUp}
+                  onWheel={handleAvatarCropWheel}
+                >
+                  <img
+                    src={avatar}
+                    alt="取景预览"
+                    className="absolute inset-0 h-full w-full select-none"
+                    draggable={false}
+                    style={{ objectFit: "cover", objectPosition: `${avatarCrop.x * 100}% ${avatarCrop.y * 100}%`, transform: `scale(${avatarCrop.scale})`, transformOrigin: "center center" }}
+                  />
+                  <div className="pointer-events-none absolute inset-0 border-2 border-white/70" />
+                </div>
+                <div className="mt-1 text-center ts-10 opacity-70">拖动图片调整取景；双指或滚轮缩放</div>
+                <div className="mt-2 flex justify-center gap-2">
+                  <button type="button" className="ts-10 px-2 py-1 border border-[var(--c-input-border)] rounded" onClick={resetAvatarCrop}>重置</button>
+                  <button type="button" className="ts-10 px-2 py-1 border border-[var(--c-input-border)] rounded" onClick={() => { setAvatarCrop(avatarCropEditorStartRef.current); setShowAvatarCropEditor(false); }}>取消</button>
+                  <button type="button" className="ts-10 px-2 py-1 bg-[#111] text-white rounded" onClick={() => setShowAvatarCropEditor(false)}>保存</button>
+                </div>
+              </div>
+            )}
 
             <input
               ref={fileRef}
@@ -2081,6 +2224,19 @@ function CharArchiveView({
             />
             {isEditing && (
               <div className="mt-2 flex flex-col gap-1 w-full justify-center">
+                {avatar && (
+                  <button
+                    className="ts-10 px-3 py-1 bg-[#111111] text-white border-none rounded-full cursor-pointer hover:bg-[#222222] transition-colors"
+                    onClick={() => {
+                      setShowAvatarCropEditor((visible) => {
+                        if (!visible) avatarCropEditorStartRef.current = { ...avatarCrop };
+                        return !visible;
+                      });
+                    }}
+                  >
+                    {showAvatarCropEditor ? "Close Crop" : "Adjust Crop"}
+                  </button>
+                )}
                 <button
                   className="ts-10 px-3 py-1 bg-[#111111] text-white border-none rounded-full cursor-pointer hover:bg-[#222222] transition-colors"
                   onClick={() => setShowUrlInput((v) => !v)}

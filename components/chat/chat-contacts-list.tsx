@@ -19,7 +19,7 @@ import { PageShell } from "@/components/ui/page-shell";
 import { pinyin } from "pinyin-pro";
 import { kvSet } from "@/lib/kv-db";
 import { scrollElementWithinContainer } from "@/lib/dom-scroll";
-import { ChatFallbackAvatar } from "./chat-fallback-avatar";
+import { CharacterAvatar } from "./character-avatar";
 import {
     DEFAULT_MASCOT_AVATAR,
     getMascotSettingsSnapshot,
@@ -281,11 +281,12 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
                                             className="minimal-list-item"
                                         >
                                             <div className="minimal-avatar-wrapper">
-                                                {char.avatar ? (
-                                                    <img src={char.avatar} className="w-full h-full object-cover rounded-full" alt="" />
-                                                ) : (
-                                                    <ChatFallbackAvatar className="rounded-full" />
-                                                )}
+                                                <CharacterAvatar
+                                                    avatar={char.avatar}
+                                                    avatarCrop={char.avatarCrop}
+                                                    className="w-full h-full rounded-full"
+                                                    alt=""
+                                                />
                                             </div>
                                             <div className="flex-1 overflow-hidden h-[48px] flex flex-col justify-center gap-1">
                                                 <div className="ts-16 font-medium text-[var(--c-text-title)] truncate">
@@ -342,15 +343,13 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
                                             className="freq-list-item"
                                             onClick={() => setSelectedRequest(req)}
                                         >
-                                            <div className="freq-avatar">
-                                                {char?.avatar ? (
-                                                    <img src={char.avatar} alt="" />
-                                                ) : (
-                                                    <div className="freq-avatar-fallback">
-                                                        {(char?.name || "?")[0]}
-                                                    </div>
-                                                )}
-                                            </div>
+                                            <CharacterAvatar
+                                                avatar={char?.avatar}
+                                                avatarCrop={char?.avatarCrop}
+                                                alt={char?.name || "未知角色"}
+                                                className="freq-avatar"
+                                                imageClassName="w-full h-full"
+                                            />
                                             <div className="flex-1 overflow-hidden">
                                                 <div className="menu-label font-medium truncate">
                                                     {char?.name || "未知角色"}
@@ -383,7 +382,7 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
                             {/* Avatar */}
                             <div className="freq-detail-avatar">
                                 {char?.avatar ? (
-                                    <img src={char.avatar} alt="" />
+                                    <CharacterAvatar avatar={char.avatar} avatarCrop={char.avatarCrop} alt={char.name || "未知角色"} className="w-full h-full" imageClassName="w-full h-full" />
                                 ) : (
                                     <div className="freq-avatar-fallback" style={{ fontSize: "calc(28px*var(--app-text-scale,1))" }}>
                                         {(char?.name || "?")[0]}
@@ -502,11 +501,12 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
                             <div className="menu-group">
                                 <div className="menu-item !items-start">
                                     <div className="add-friend-avatar">
-                                        {addResult.avatar ? (
-                                            <img src={addResult.avatar} className="w-full h-full object-cover" alt="" />
-                                        ) : (
-                                            <ChatFallbackAvatar />
-                                        )}
+                                        <CharacterAvatar
+                                            avatar={addResult.avatar}
+                                            avatarCrop={addResult.avatarCrop}
+                                            alt=""
+                                            className="w-full h-full"
+                                        />
                                     </div>
                                     <div className="menu-label-group">
                                         <div className="ts-18 font-bold text-[var(--c-text-title)] mb-1">{addResult.name || "UNNAMED"}</div>

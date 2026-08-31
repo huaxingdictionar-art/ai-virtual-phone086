@@ -36,6 +36,7 @@ import { clearChatOfflineTurns } from "@/lib/chat-offline-storage";
 import { removeChatSessionCompletely } from "@/lib/chat-session-remove";
 import { triggerDeleteFriendReaction } from "@/lib/friend-request-engine";
 import { loadCharacters } from "@/lib/character-storage";
+import type { Character } from "@/lib/character-types";
 import { isAgentComputerConfigured } from "@/lib/agent-computer";
 import { CharacterComputerPage } from "./character-computer-page";
 import { resolveUserIdentity, loadBindingConfig, loadPresets, resolveBinding } from "@/lib/settings-storage";
@@ -51,6 +52,7 @@ import { ConfirmDialog } from "@/components/ui/modal";
 import { CHAT_SESSION_CSS_EXAMPLE } from "@/lib/css-examples";
 import { Toggle, Input } from "@/components/ui/form";
 import { PageShell } from "@/components/ui/page-shell";
+import { CharacterAvatar } from "./character-avatar";
 
 // 自定义状态栏预填模板：微博主页（契约=「状态栏」章节整段正文，含【逻辑】【格式】与包裹要求）
 // 预览用的默认示例数据：契约没有自带示例时兜底，字段与下面的微博模板对应
@@ -538,7 +540,7 @@ export function ChatSettingsPanel({
         const role = getGroupRole(session, key);
         return role === "owner" ? "群主" : role === "admin" ? "管理员" : "";
     };
-    type MemberEntry = { key: string; name: string; avatar?: string; muteMs: number };
+    type MemberEntry = { key: string; name: string; avatar?: string; avatarCrop?: Character["avatarCrop"]; muteMs: number };
     const memberEntries: MemberEntry[] = session.isGroup
         ? [
             ...(session.isSpectator ? [] : [{
@@ -551,6 +553,7 @@ export function ChatSettingsPanel({
                 key: c!.id,
                 name: c!.name,
                 avatar: c!.avatar || undefined,
+                avatarCrop: c!.avatarCrop,
                 muteMs: getGroupMuteRemainingMs(session, c!.id),
             })),
         ]
@@ -762,13 +765,13 @@ export function ChatSettingsPanel({
                 ) : (
                     <div className="chat-msg-wrapper" data-role={resultRole}>
                         {resultRole === "assistant" && (
-                            <div className="chat-msg-avatar w-[40px] h-[40px] rounded-[20px] bg-[var(--c-page-body-bg)] shrink-0 flex items-center justify-center overflow-hidden">
-                                {senderChar?.avatar ? (
-                                    <img src={senderChar.avatar} className="w-full h-full object-cover" alt="" />
-                                ) : (
-                                    <ChatFallbackAvatar />
-                                )}
-                            </div>
+                            <CharacterAvatar
+                                avatar={senderChar?.avatar}
+                                avatarCrop={senderChar?.avatarCrop}
+                                alt={senderChar?.name || senderName}
+                                className="chat-msg-avatar w-[40px] h-[40px] rounded-[20px] bg-[var(--c-page-body-bg)] shrink-0"
+                                imageClassName="w-full h-full"
+                            />
                         )}
                         <div className={`chat-msg-content-wrap flex flex-col min-w-0 max-w-[70%] ${isStandaloneHtmlPreview ? "chat-msg-content-wrap-html" : ""}`}>
                             {session.isGroup && msg.role !== "user" && (
@@ -880,9 +883,19 @@ export function ChatSettingsPanel({
                                     style={{ paddingLeft: 72, ...(actionable ? {} : { cursor: "default" }) }}
                                     onClick={() => { if (actionable) setMemberActionKey(entry.key); }}
                                 >
-                                    <div className="w-[24px] h-[24px] rounded-full overflow-hidden bg-[var(--c-input)] shrink-0 flex items-center justify-center">
-                                        {entry.avatar ? <img src={entry.avatar} className="w-full h-full object-cover" alt="" /> : <ChatFallbackAvatar />}
-                                    </div>
+                                    {entry.key === GROUP_SELF_KEY ? (
+                                        <div className="w-[24px] h-[24px] rounded-full overflow-hidden bg-[var(--c-input)] shrink-0 flex items-center justify-center">
+                                            {entry.avatar ? <img src={entry.avatar} className="w-full h-full object-cover" alt="" /> : <ChatFallbackAvatar />}
+                                        </div>
+                                    ) : (
+                                        <CharacterAvatar
+                                            avatar={entry.avatar}
+                                            avatarCrop={entry.avatarCrop}
+                                            alt={entry.name}
+                                            className="w-[24px] h-[24px] rounded-full bg-[var(--c-input)] shrink-0"
+                                            imageClassName="w-full h-full"
+                                        />
+                                    )}
                                     <div className="menu-label-group">
                                         <span className="menu-label">{entry.name}</span>
                                         {entry.muteMs > 0 && (
@@ -1155,9 +1168,13 @@ export function ChatSettingsPanel({
                             </div>
                             {groupChars.map(c => c && (
                                 <label key={c.id} className="menu-item" style={{ paddingLeft: 72 }}>
-                                    <div className="w-[24px] h-[24px] rounded-full overflow-hidden bg-[var(--c-input)] shrink-0">
-                                        {c.avatar ? <img src={c.avatar} className="w-full h-full object-cover" alt="" /> : <ChatFallbackAvatar />}
-                                    </div>
+                                    <CharacterAvatar
+                                        avatar={c.avatar}
+                                        avatarCrop={c.avatarCrop}
+                                        alt={c.name}
+                                        className="w-[24px] h-[24px] rounded-full bg-[var(--c-input)] shrink-0"
+                                        imageClassName="w-full h-full"
+                                    />
                                     <div className="menu-label-group"><span className="menu-label">{c.name}</span></div>
                                     <div className="menu-right">
                                         {groupVideoBgs[c.id] && <><span className="menu-desc mr-1">已设置</span><button className="menu-desc mr-1 text-[var(--c-danger)]" onClick={e => { e.preventDefault(); const updated = { ...groupVideoBgs }; delete updated[c.id]; setGroupVideoBgs(updated); updateSession({ groupVideoBackgrounds: updated }); }}>清除</button></>}
@@ -1346,9 +1363,13 @@ export function ChatSettingsPanel({
                                         className="chat-contact-item"
                                         onClick={() => performAdminAction("invite", c.id)}
                                     >
-                                        <div className="chat-contact-avatar">
-                                            {c.avatar ? <img src={c.avatar} alt="" /> : <ChatFallbackAvatar />}
-                                        </div>
+                                        <CharacterAvatar
+                                            avatar={c.avatar}
+                                            avatarCrop={c.avatarCrop}
+                                            alt={c.name}
+                                            className="chat-contact-avatar"
+                                            imageClassName="w-full h-full"
+                                        />
                                         <span className="chat-contact-name">{c.name}</span>
                                     </div>
                                 ))}

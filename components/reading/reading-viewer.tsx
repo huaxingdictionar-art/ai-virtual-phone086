@@ -30,6 +30,7 @@ import { decodeTxtArrayBuffer, parsePdfPageRange, PDF_PAGES_PER_CHAPTER, parseTx
 import type { Book, BookChapter, ReadingAnnotation, ReadingProgress } from "@/lib/reading-types";
 import type { Character } from "@/lib/character-types";
 import { splitBilingualText } from "@/lib/bilingual-text";
+import { CharacterAvatar } from "@/components/chat/character-avatar";
 
 type TxtPageItem =
     | { kind: "line"; text: string; chapterIndex: number; paragraphIndex: number; indent?: boolean; segEnd?: boolean }
@@ -2151,7 +2152,13 @@ export function ReadingViewer({ book, onBack }: Props) {
                                 <div className="chat-contact-avatar"
                                     style={companionId === c.characterId ? { outline: "3px solid var(--c-success)", outlineOffset: "2px" } : undefined}
                                 >
-                                    {c.char.avatar ? <img src={c.char.avatar} alt="" /> : <span className="chat-contact-avatar-fallback">{c.char.name[0]}</span>}
+                                    <CharacterAvatar
+                                        avatar={c.char.avatar}
+                                        avatarCrop={c.char.avatarCrop}
+                                        alt={c.char.name}
+                                        className="w-full h-full"
+                                        imageClassName="w-full h-full"
+                                    />
                                 </div>
                                 <span className="chat-contact-name">{c.char.name}</span>
                             </div>
@@ -2361,11 +2368,13 @@ export function ReadingViewer({ book, onBack }: Props) {
                     onPointerUp={handleChatDragEnd}
                     onPointerCancel={handleChatDragEnd}
                 >
-                    {companion?.avatar ? (
-                        <img src={companion.avatar} alt="" className="w-full h-full object-cover rounded-full" />
-                    ) : (
-                        <span className="ts-13">{companion?.name?.[0] || "?"}</span>
-                    )}
+                    <CharacterAvatar
+                        avatar={companion?.avatar}
+                        avatarCrop={companion?.avatarCrop}
+                        alt={companion?.name || "陪读角色"}
+                        className="w-full h-full rounded-full"
+                        imageClassName="w-full h-full"
+                    />
                 </button>
             )}
 
@@ -2385,11 +2394,13 @@ export function ReadingViewer({ book, onBack }: Props) {
                                 onClick={() => { if (shouldIgnoreChatAction()) return; setShowCharPicker(!showCharPicker); }}
                                 className="reading-bottom-avatar"
                             >
-                                {companion?.avatar ? (
-                                    <img src={companion.avatar} alt="" className="w-full h-full object-cover rounded-full" />
-                                ) : (
-                                    <span className="ts-12">{companion?.name?.[0] || "?"}</span>
-                                )}
+                                <CharacterAvatar
+                                    avatar={companion?.avatar}
+                                    avatarCrop={companion?.avatarCrop}
+                                    alt={companion?.name || "陪读角色"}
+                                    className="w-full h-full rounded-full"
+                                    imageClassName="w-full h-full"
+                                />
                             </button>
                             <button
                                 type="button"
@@ -2405,13 +2416,13 @@ export function ReadingViewer({ book, onBack }: Props) {
                     ) : (
                         <>
                             <div className="reading-chat-float-header">
-                                <div className="reading-bottom-avatar">
-                                    {companion?.avatar ? (
-                                        <img src={companion.avatar} alt="" className="w-full h-full object-cover rounded-full" />
-                                    ) : (
-                                        <span className="ts-12">{companion?.name?.[0] || "?"}</span>
-                                    )}
-                                </div>
+                                <CharacterAvatar
+                                    avatar={companion?.avatar}
+                                    avatarCrop={companion?.avatarCrop}
+                                    alt={companion?.name || "陪读角色"}
+                                    className="reading-bottom-avatar"
+                                    imageClassName="w-full h-full"
+                                />
                                 <div className="reading-chat-float-header-copy">
                                     <span className="reading-chat-float-title">和{companion?.name || "AI"}讨论该章节</span>
                                     <span className="reading-chat-float-subtitle">拖拽任意位置移动</span>
