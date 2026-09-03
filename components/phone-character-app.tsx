@@ -83,7 +83,7 @@ const POLAROID_RATIOS = [
   { label: "9:16", className: "ratio-9-16" },
 ] as const;
 
-const POLAROID_SIZE_WIDTHS = { small: 90, medium: 110, large: 135 } as const;
+const POLAROID_SIZE_WIDTHS = { small: 110, medium: 130, large: 150 } as const;
 
 function clampCharacterImageValue(value: number, min: number, max: number, fallback: number): number {
   return Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback;
@@ -1701,6 +1701,9 @@ function DraggableNode({
   const dragStart = useRef({ cx: 0, cy: 0, startX: 0, startY: 0, moved: false });
 
   useEffect(() => { setPos({ x, y }); }, [x, y]);
+  useEffect(() => {
+    dragStart.current.moved = false;
+  }, [isEditing]);
 
   function handlePointerDown(e: React.PointerEvent) {
     if (pinchRef?.current) return;
@@ -1891,6 +1894,7 @@ function CharArchiveView({
   const previewGesture = useRef<{ distance: number; zoom: number } | null>(null);
   const previewImageState = useRef({ x: polaroidImageX, y: polaroidImageY, zoom: polaroidImageZoom });
   const previewRef = useRef<HTMLDivElement>(null);
+  const previewImageRef = useRef<HTMLImageElement>(null);
   const [previewBoxSize, setPreviewBoxSize] = useState({ width: 0, height: 0 });
   const [previewImageNaturalSize, setPreviewImageNaturalSize] = useState({ width: 0, height: 0 });
   const [showUrlInput, setShowUrlInput] = useState(false);
@@ -1910,6 +1914,14 @@ function CharArchiveView({
     observer?.observe(element);
     return () => observer?.disconnect();
   }, [polaroidStyle]);
+
+  useLayoutEffect(() => {
+    setPreviewImageNaturalSize({ width: 0, height: 0 });
+    const image = previewImageRef.current;
+    if (avatar && image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0) {
+      setPreviewImageNaturalSize({ width: image.naturalWidth, height: image.naturalHeight });
+    }
+  }, [isEditing, avatar, polaroidStyle]);
 
   // Send mascot page context (on mount + field changes)
   useEffect(() => {
@@ -2431,17 +2443,24 @@ function CharArchiveView({
             >
               {avatar ? (
                 <img
+                  ref={previewImageRef}
+                  key={`${char.id}-${avatar}-${polaroidStyle}`}
                   src={avatar}
                   alt="照片墙头像预览"
                   draggable={false}
-                      onLoad={(event) => setPreviewImageNaturalSize({
-                        width: event.currentTarget.naturalWidth,
-                        height: event.currentTarget.naturalHeight,
-                      })}
+                  onLoad={(event) => {
+                    setPreviewImageNaturalSize({
+                      width: event.currentTarget.naturalWidth,
+                      height: event.currentTarget.naturalHeight,
+                    });
+                  }}
                   style={{
-                    width: previewRenderedWidth ? `${previewRenderedWidth}px` : undefined,
-                    height: previewRenderedHeight ? `${previewRenderedHeight}px` : undefined,
-                    transform: `translate(-50%, -50%) translate(${previewTranslateX}px, ${previewTranslateY}px)`,
+                    position: "static",
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    objectPosition: `${100 - polaroidImageX}% ${100 - polaroidImageY}%`,
+                    transform: `scale(${polaroidImageZoom})`,
                   }}
                 />
               ) : (
@@ -2692,7 +2711,10 @@ function CharArchiveView({
                           type="button"
                           className="flex-1 rounded-lg bg-[var(--c-text)] px-3 py-2 ts-12 font-semibold text-[var(--c-page-body-bg)] disabled:opacity-40"
                           disabled={getCharacterCurrentVersion(char.id) === version.version}
-                          onClick={() => setRestoreTarget(version)}
+                          onClick={() => {
+                            setShowVersions(false);
+                            setRestoreTarget(version);
+                          }}
                         >
                           切换到 V{version.version}
                         </button>
