@@ -260,6 +260,65 @@ const RICH_PATTERNS: {
         regex: /\[我向[^\]]+发起了视频通话\]/,
         build: () => ({ content: "", mediaType: "video_call" as const }),
     },
+    {
+        // [线下邀约:方向:地点:时间:台词] or [线下邀约:方向:地点:台词] or [线下邀约:方向:地点]
+        regex: new RegExp(`\\[线下邀约${C}(他来|我去|我来|你来|角色来|用户去|角色赴约|邀请赴约)${C}([^：:\\]]+?)(?:${C}([^：:\\]]+?))?(?:${C}([^\\]]+))?\\]`),
+        build: (m) => {
+            const rawDir = m[1].trim();
+            const direction: "he_comes" | "i_go" = (rawDir === "我去" || rawDir === "你来" || rawDir === "用户去" || rawDir === "邀请赴约") ? "i_go" : "he_comes";
+            const rawPlace = m[2]?.trim() || "";
+            // 华敏锐发现的模型胡乱脑补的抽象地址：如“你发错定位的位置”、“未知位置”、“不知道在哪里”、“你所在的位置”等
+            // 自动纠偏归一化为优美深情的“你身边”！
+            const place = (!rawPlace || /(?:发错|不知道|迷路|哪里|在哪|具体位置|定位的位置|所在的位置|所在地|某个地方|某个屋檐|未定|未知)/.test(rawPlace))
+                ? "你身边"
+                : rawPlace;
+            let timeStr: string | undefined;
+            let rawReason = "";
+
+            if (m[4] !== undefined) {
+                timeStr = m[3]?.trim();
+                rawReason = m[4]?.trim() || "";
+            } else if (m[3] !== undefined) {
+                const segment = m[3].trim();
+                if (segment.includes("|")) {
+                    rawReason = segment;
+                } else if (/^(?:\d+|半个?小时|一刻钟|\d+个?小时|\d+\s*(?:分钟|分|mins?|min)|(?:二十|三十|四十|五十|十五|十|五)[\d分]*)$/.test(segment)) {
+                    timeStr = segment;
+                } else {
+                    rawReason = segment;
+                }
+            }
+
+            const segments = rawReason.split("|").map(s => s.trim());
+            const reason = segments[0] || "";
+            const onTheWayMessage = segments[1] || "";
+            const arrivedMessage = segments[2] || "";
+            return {
+                content: "",
+                mediaType: "offline_invite" as const,
+                mediaData: {
+                    offlineInvite: {
+                        direction,
+                        place,
+                        timeStr,
+                        reason,
+                        onTheWayMessage,
+                        arrivedMessage,
+                        status: "pending" as const,
+                    },
+                    label: `线下邀约:${direction === "he_comes" ? "他来" : "我去"}`,
+                },
+            };
+        },
+    },
+    {
+        // [提醒赴约] or [再次邀约] or [重新邀约]
+        regex: /\[(?:提醒赴约|再次邀约|重新邀约)\]/,
+        build: () => ({
+            content: "",
+            mediaType: "offline_invite_remind" as const,
+        }),
+    },
     // 群聊带主语宾语的格式（优先匹配）
     {
         regex: /\[([^\]]+)领取了([^\]]+)的红包\]/,

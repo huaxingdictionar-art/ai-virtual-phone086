@@ -66,6 +66,8 @@ export type ChatSession = {
      * 关掉就只调一次 API，那一轮没摘要（不进短期记忆的事件流）。按次计费的接口想省一半调用时关它。
      */
     offlineSummaryRetry?: boolean;
+    /** 角色自主线下邀约：开启后角色可根据情境主动提议线下见面，并在从线下回线上时主动回复（仅私聊生效，默认关） */
+    enableOfflineInvite?: boolean;
     // Group chat fields
     isGroup?: boolean;
     groupName?: string;
@@ -119,6 +121,8 @@ export type ChatMessage = {
         | "system_instruction"
         | "group_admin_notice"
         | "media_file"
+        | "offline_invite"
+        | "offline_invite_remind"
         | `plugin:${string}`; // 聊天插件自定义消息类型（由注册该 kind 的插件渲染气泡）
     origin?: "chat" | "reading_discuss" | "custom_app" | "custom_app_background";
     mediaUrl?: string;
@@ -231,6 +235,15 @@ export type ChatMessage = {
         appTags?: string[];
         appHistoryText?: string;
         appHistoryRole?: ChatMessageRole;
+        offlineInvite?: {
+            direction: "he_comes" | "i_go";
+            place?: string;
+            timeStr?: string;
+            reason?: string;
+            onTheWayMessage?: string;
+            arrivedMessage?: string;
+            status?: "pending" | "accepted" | "declined";
+        };
     };
     isTyping?: boolean; // temporary flag for UI rendering
     statusPanel?: string; // AI display-only status content from [状态栏] tags

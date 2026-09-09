@@ -73,6 +73,21 @@
   display: none;
 }
 
+/* 角色自主线下邀约悬浮胶囊：紧贴在角色名标题栏正下方一行 */
+.chat-app .chat-room-wrapper .chat-offline-invite-capsule-wrapper {
+  position: absolute;
+  top: calc(var(--safe-area-top, 48px) + var(--page-header-content-height, 42px) + 6px);
+  left: 0;
+  right: 0;
+  z-index: 25;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+.chat-app .chat-room-wrapper .chat-offline-invite-capsule-wrapper > * {
+  pointer-events: auto;
+}
+
 /* 插件自绘设置区（settings.section 坑位）在插件管理卡片内的内边距 */
 .chat-plugin-settings-section {
   padding: 12px 16px 4px;

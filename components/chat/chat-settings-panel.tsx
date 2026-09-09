@@ -396,6 +396,7 @@ export function ChatSettingsPanel({
     // 流式生成：按会话区分（线上/线下），存 ChatSession 字段，默认关
     const [streamOnline, setStreamOnline] = useState(session.streamOnline === true);
     const [streamOffline, setStreamOffline] = useState(session.streamOffline === true);
+    const [enableOfflineInvite, setEnableOfflineInvite] = useState(session.enableOfflineInvite === true);
     const defaultBilingualPrompt = session.isGroup ? DEFAULT_GROUP_CHAT_BILINGUAL_PROMPT : DEFAULT_CHAT_BILINGUAL_PROMPT;
     const defaultOfflineBilingualPrompt = session.isGroup ? DEFAULT_GROUP_OFFLINE_CHAT_BILINGUAL_PROMPT : DEFAULT_OFFLINE_CHAT_BILINGUAL_PROMPT;
     const [bilingualTranslationPrompt, setBilingualTranslationPrompt] = useState(session.bilingualTranslationPrompt || defaultBilingualPrompt);
@@ -1140,6 +1141,24 @@ export function ChatSettingsPanel({
                                 />
                             </div>
                         </div>
+                        {!session.isGroup && (
+                            <div className="menu-item">
+                                <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.preset} />
+                                <div className="menu-label-group">
+                                    <span className="menu-label">角色自主线下邀约</span>
+                                    <span className="menu-desc">仅当前私聊：角色可根据情境主动提议线下见面；关闭则完全不触发邀约及后续响应</span>
+                                </div>
+                                <div className="menu-right">
+                                    <Toggle
+                                        checked={enableOfflineInvite}
+                                        onChange={c => {
+                                            setEnableOfflineInvite(c);
+                                            updateSession({ enableOfflineInvite: c });
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
                         <button className="menu-item" onClick={() => setShowScreenEffects(true)}>
                             <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.preset} />
                             <div className="menu-label-group">
