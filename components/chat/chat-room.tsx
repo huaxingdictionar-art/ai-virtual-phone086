@@ -378,6 +378,91 @@ function extractDurationMinutes(text: string, fallback: number = 15): number {
     return fallback;
 }
 
+function restoreOfflineInviteFromMessages(
+    historyMessages: ChatMessage[],
+    fallbackInvite: OfflineInviteData
+): OfflineInviteData | null {
+    if (fallbackInvite.sourceBatchId === "mock_offline_invite") {
+        return fallbackInvite;
+    }
+
+    const rootId = fallbackInvite.initialBatchId || fallbackInvite.sourceBatchId;
+    const hasRoot = rootId
+        ? historyMessages.some(m => m.responseBatchId === rootId)
+        : historyMessages.some(m => m.mediaType === "offline_invite" || m.mediaData?.offlineInvite);
+
+    if (!hasRoot) {
+        return null;
+    }
+
+    // 沿用当前邀约的基本元数据作为底稿
+    let restored: OfflineInviteData = { ...fallbackInvite };
+
+    // 倒序查找 historyMessages 中最后一条带有碰头地点的变动/邀约消息，提取当时的碰头信息
+    for (let i = historyMessages.length - 1; i >= 0; i--) {
+        const msg = historyMessages[i];
+        const data = msg.mediaData?.offlineInvite;
+        if (data?.place || msg.mediaType === "offline_invite" || msg.mediaType === "offline_invite_change_place") {
+            restored = {
+                ...restored,
+                direction: data?.direction || fallbackInvite.direction,
+                place: data?.place || fallbackInvite.place,
+                reason: data?.reason || fallbackInvite.reason,
+                onTheWayMessage: data?.onTheWayMessage || fallbackInvite.onTheWayMessage,
+                transitCardMessage: data?.transitCardMessage || fallbackInvite.transitCardMessage,
+                arrivedMessage: data?.arrivedMessage || fallbackInvite.arrivedMessage,
+                arrivalCardMessage: data?.arrivalCardMessage || fallbackInvite.arrivalCardMessage,
+                durationMinutes: data?.timeStr ? extractDurationMinutes(data.timeStr, fallbackInvite.durationMinutes || 15) : fallbackInvite.durationMinutes,
+                sourceBatchId: msg.responseBatchId || fallbackInvite.sourceBatchId,
+            };
+            break;
+        }
+    }
+
+    // 根据保留的聊天记录重新判定生命周期状态：
+    // 1. 如果历史中有提前到达或如约到达事实记录/到达消息，状态判定为 arrived
+    const hasEarlyArrivedInHistory = historyMessages.some(m =>
+        m.mediaType === "offline_invite_early_arrive" ||
+        (m.role === "system" && m.content.includes("已提前到达"))
+    );
+    const hasNaturalArrivedInHistory = historyMessages.some(m =>
+        m.mediaType === "offline_invite_arrive_notice" ||
+        (m.role === "system" && (m.content.includes("已如约到达") || m.content.includes("已在") && m.content.includes("就位等候")))
+    );
+    const hasArrivedInHistory = hasEarlyArrivedInHistory || hasNaturalArrivedInHistory;
+
+    // 2. 如果历史中有用户同意赴约记录，说明已动身
+    const hasAcceptedInHistory = historyMessages.some(m =>
+        m.role === "system" && m.content.includes("你已同意赴约")
+    );
+
+    if (hasArrivedInHistory) {
+        restored.status = "arrived";
+        restored.isEarlyArrived = hasEarlyArrivedInHistory;
+    } else {
+        restored.isEarlyArrived = false;
+        if (restored.direction === "i_go") {
+            restored.status = "pending";
+            restored.startTime = undefined;
+        } else if (hasAcceptedInHistory && restored.direction === "he_comes") {
+            restored.status = "on_the_way";
+            // 华敏锐洞察的防秒到达自愈：若原本倒计时已耗尽(<=0)，回溯至在途时自动重置为 Date.now() 重新倒数；若未耗尽则继续倒数
+            const remaining = getRemainingMinutes(fallbackInvite.startTime, restored.durationMinutes || 15);
+            restored.startTime = remaining > 0 ? fallbackInvite.startTime : Date.now();
+        } else if (!hasAcceptedInHistory && restored.direction === "he_comes") {
+            restored.status = "pending";
+            restored.startTime = undefined;
+        }
+    }
+
+    // 修剪关联节点列表：仅保留依然存在于当前 historyMessages 中的批次 ID
+    const historyBatchIds = new Set(historyMessages.map(m => m.responseBatchId).filter(Boolean));
+    const validRelated = (fallbackInvite.relatedBatchIds || []).filter(id => historyBatchIds.has(id));
+    restored.relatedBatchIds = validRelated;
+
+    return restored;
+}
+
 type ManagedGenerationOptions = {
     history: ChatMessage[];
     errorPrefix?: string;
@@ -699,6 +784,7 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
     onStopGeneration: () => void;
     onTriggerAIResponse: () => void;
 	onSendSticker: (name: string, url?: string) => void;
+    offlineMeetingActive?: boolean;
 }>(function ChatTextInputBar({
     characterName,
     characterId,
@@ -730,6 +816,7 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
     onStopGeneration,
     onTriggerAIResponse,
     onSendSticker,
+    offlineMeetingActive,
 }, ref) {
     const [inputText, setInputText] = useState("");
     const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -884,7 +971,7 @@ const ChatTextInputBar = memo(forwardRef<ChatTextInputHandle, {
                 disabled={inputLocked}
                 placeholder={inputLocked
                     ? (isSpectator ? "围观中，你不在这个群里" : `禁言中，剩余${Math.ceil(muteRemainingMs / 60000)}分钟`)
-                    : (theaterMode ? "写下番外指令..." : undefined)}
+                    : (theaterMode ? "写下番外指令..." : (offlineMeetingActive ? "对方就在你身边呢…（可发悄悄话或打个招呼）" : undefined))}
             />
 
             <div className="chat-input-actions">
@@ -1171,12 +1258,13 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             if (!raw) return null;
             const parsed: OfflineInviteData = JSON.parse(raw);
             const currentMsgs = loadChatMessages(session.id);
-            // 华的精妙发现：若触发该邀约的源消息已被删除，绝不留下悬空卡死胶囊，直接清理！
-            if (parsed.sourceBatchId) {
-                if (parsed.sourceBatchId === "mock_offline_invite") {
+            // 华的精妙发现：若触发该邀约的最初发起消息已被删除，绝不留下悬空卡死胶囊，直接清理！
+            const rootId = parsed.initialBatchId || parsed.sourceBatchId;
+            if (rootId) {
+                if (rootId === "mock_offline_invite") {
                     return parsed;
                 }
-                const hasRoot = currentMsgs.some(m => m.responseBatchId === parsed.sourceBatchId);
+                const hasRoot = currentMsgs.some(m => m.responseBatchId === rootId);
                 if (!hasRoot) {
                     kvRemove(ACTIVE_OFFLINE_INVITE_PREFIX + session.id);
                     return null;
@@ -1209,29 +1297,44 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
     // 华提出的黄金体验：删除邀约/赴约消息前弹窗确认，提示将同时取消相关赴约状态
     const [pendingInviteDeleteConfirm, setPendingInviteDeleteConfirm] = useState<{
         title: string;
-        message: string;
+        message: string | React.ReactNode;
         confirmLabel?: string;
+        cancelLabel?: string;
+        variant?: "danger" | "action" | "default";
         onConfirm: () => void;
     } | null>(null);
 
+    // 华提出的生命根源与变动节点界定：最初发起消息是根，后续改地址消息是关联节点
     const isOfflineInviteRootMessage = useCallback((msg: ChatMessage) => {
         const invite = activeOfflineInviteRef.current;
         if (!invite) return false;
-        if (invite.sourceBatchId && invite.sourceBatchId !== "mock_offline_invite") {
-            return msg.responseBatchId === invite.sourceBatchId;
+        if (invite.sourceBatchId === "mock_offline_invite") return false;
+        const rootId = invite.initialBatchId || invite.sourceBatchId;
+        if (rootId && msg.responseBatchId === rootId) {
+            return true;
         }
-        return Boolean(msg.mediaType === "offline_invite" || msg.mediaData?.offlineInvite);
+        if (invite.relatedBatchIds && msg.responseBatchId && invite.relatedBatchIds.includes(msg.responseBatchId)) {
+            return true;
+        }
+        return Boolean(
+            msg.mediaType === "offline_invite" ||
+            msg.mediaType === "offline_invite_early_arrive" ||
+            msg.mediaType === "offline_invite_change_place" ||
+            msg.mediaType === "offline_invite_arrive_notice" ||
+            msg.mediaData?.offlineInvite
+        );
     }, []);
 
-    const getInviteDeleteConfirmMessage = useCallback(() => {
-        const invite = activeOfflineInviteRef.current;
-        if (invite?.status === "on_the_way") {
-            return "该消息是本次线下赴约的发起消息。删除后将同时取消当前的在途赶来状态，是否确认删除？";
-        }
-        if (invite?.direction === "i_go") {
-            return "该消息是本次线下赴约的发起消息。删除后将同时取消当前的等候赴约状态，是否确认删除？";
-        }
-        return "该消息是本次线下赴约的发起消息。删除后将同时取消当前的赴约提议，是否确认删除？";
+    // 华提出的防误触保护：线下赴约专属系统记录小灰字（防误碰）
+    const isOfflineInviteSystemMessage = useCallback((msg: ChatMessage) => {
+        if (msg.role !== "system") return false;
+        if (msg.mediaType === "offline_invite_system_notice") return true;
+        const text = msg.content || "";
+        return /(?:向你发起了.*线下赴约提议|你已同意赴约|赴约地点已更改为|赴约提议地点已更改为|已得知新地点，正在重新赶往|已如约到达|已提前到达|已在.*就位等候|你婉拒了.*线下赴约提议|本次线下赴约已结束，双方已返回线上)/.test(text);
+    }, []);
+
+    const getInviteDeleteConfirmMessage = useCallback((_msg?: ChatMessage): string => {
+        return "删除的内容中包含本次线下赴约的发起或变动消息，删除后将直接清除当前的赴约状态。若只想回退赴约状态，可取消并重试消息。";
     }, []);
 
     // 华提出的黄金体验：[提醒赴约] 消息出现后留足 4 秒供用户安稳读消息，随后再自动平滑弹出
@@ -1284,11 +1387,34 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         const place = invite.place ? invite.place.trim() : "";
         if (invite.direction === "he_comes") {
             if (place === "你身边") {
-                return "我到了，抬头就能看见我。";
+                return "我到了，在附近等你，慢慢走出来就好。";
             }
-            return place ? `我到了，在${place}等你。` : "我到了，随时可以出来见我。";
+            return place ? `我到了，在${place}等你，慢慢走别着急。` : "我到了，在附近等你，随时可以出来。";
         }
-        return place ? `我在${place}等到了，慢慢过来不着急。` : "我已经就位等你了，慢慢过来。";
+        return place ? `我在${place}就位等你了，慢慢过来不着急。` : "我已经就位等你了，慢慢过来。";
+    }, []);
+
+    // 华敏锐提出的产品洞察：在途聊天时，若角色自然聊到了“我已经到了/在门口了/看到你了”，自动识别并提前结束到达倒计时！
+    const isNaturalArrivalStatement = useCallback((text?: string): boolean => {
+        if (!text || typeof text !== "string") return false;
+        const trimmed = text.trim();
+        if (!trimmed) return false;
+
+        // 排除否定、疑问、假设或仍在途中的词汇
+        if (/(?:还没到|还没|快到|差不?多到|还要?多久|等我到|如果到|几点到|什么时候到|才到哪|才刚出门|还在路上|路上堵|到了吗|到了没|到哪了|到哪里了)/.test(trimmed)) {
+            return false;
+        }
+
+        // 匹配已到达现场的明确语义
+        const patterns = [
+            /(?:我|车|人)?(?:已经|刚|刚刚|正好|现在)?(?:到|赶到|抵达|到了|到啦|到喽|到嘞)(?:你?家|楼下|门口|门外|外边|大堂|这儿|这里|店里|店门口|附近|约定地点|目的地)/,
+            /(?:我|人|车)(?:已经|刚|刚刚|正好|现在)?在(?:楼下|门口|门外|外边|大堂|店门?口|路边|台阶下|车里|停车场)/,
+            /(?:我|人|车)(?:到啦|到了|已经到了|已经到啦)/,
+            /(?:看到|看见|瞅见|望见)(?:你了|你的车|你在|你窗户|你家灯)/,
+            /(?:下楼|出来|下楼来|出来吧|快下楼|快出来)(?:给我开门|接我|碰面|见一面|吧)/,
+            /(?:我在|我就在)(?:你身边|你跟前|你面前|你身后|你旁边)/,
+        ];
+        return patterns.some(p => p.test(trimmed));
     }, []);
 
     const updateActiveOfflineInvite = useCallback((invite: OfflineInviteData | null) => {
@@ -1306,9 +1432,11 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         const checkArrival = () => {
             const remaining = getRemainingMinutes(activeOfflineInvite.startTime, activeOfflineInvite.durationMinutes || 15);
             if (remaining <= 0) {
+                const arriveBatchId = `offline_arrive_${Date.now()}`;
                 const arrivedInvite: OfflineInviteData = {
                     ...activeOfflineInvite,
                     status: "arrived",
+                    relatedBatchIds: Array.from(new Set([...(activeOfflineInvite.relatedBatchIds || []), arriveBatchId])),
                 };
                 updateActiveOfflineInvite(arrivedInvite);
                 setIsOfflineInviteMinimized(false);
@@ -1323,6 +1451,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     content: activeOfflineInvite.direction === "he_comes"
                         ? `${charName} 已如约到达${placeStr}`
                         : `${charName} 已在${placeStr}就位等候`,
+                    mediaType: "offline_invite_system_notice",
                 });
                 setMessages(prev => [...prev, sysArriveMsg]);
 
@@ -1333,6 +1462,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                         sessionId: session.id,
                         role: "assistant",
                         content: arrivalChatText,
+                        responseBatchId: arriveBatchId,
+                        mediaType: "offline_invite_arrive_notice",
                     });
                     setMessages(prev => [...prev, newMsg]);
                 }, 1000);
@@ -1655,8 +1786,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         // 一旦用户删除了该条发起消息（单条删除、删除以下、多选删除等），
         // 相关的邀约/在途状态立即干干净净自动取消，弹窗/胶囊彻底移除，绝不留悬空死状态！
         const currentInvite = activeOfflineInviteRef.current;
-        if (currentInvite?.sourceBatchId && currentInvite.sourceBatchId !== "mock_offline_invite") {
-            const hasRoot = stored.some(m => m.responseBatchId === currentInvite.sourceBatchId);
+        if (currentInvite && currentInvite.sourceBatchId !== "mock_offline_invite") {
+            const rootId = currentInvite.initialBatchId || currentInvite.sourceBatchId;
+            const hasRoot = rootId ? stored.some(m => m.responseBatchId === rootId) : false;
             if (!hasRoot) {
                 updateActiveOfflineInvite(null);
                 setIsOfflineInviteMinimized(false);
@@ -1664,7 +1796,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     clearTimeout(remindExpandTimerRef.current);
                     remindExpandTimerRef.current = null;
                 }
-                showChatToast("邀约消息已删除，相关赴约状态已自动取消");
+                showChatToast("邀约发起消息已删除，相关赴约状态已自动取消");
             }
         }
     }, [applyStoredMessageWindow, session.id, updateActiveOfflineInvite, showChatToast]);
@@ -2314,10 +2446,20 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         prevMsgCountRef.current = displayMessages.length;
     }, [displayMessages, flashMessageHighlight, restoreScrollAnchor, watchLoadMoreAnchorImages]);
 
+    // 华敏锐发现的体验痛点：从线下切回线上时，必须自动平滑停留在最新一条消息底部，坚决杜绝手动滑到底部的繁琐操作
     useLayoutEffect(() => {
-        if (!offlineMode) return;
         const el = scrollRef.current;
-        if (el) el.scrollTop = el.scrollHeight;
+        if (!el) return;
+        el.scrollTop = el.scrollHeight;
+        isNearBottomRef.current = true;
+        if (!offlineMode) {
+            requestAnimationFrame(() => {
+                if (scrollRef.current) {
+                    scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+                    isNearBottomRef.current = true;
+                }
+            });
+        }
     }, [offlineMode, offlineTurns.length, isOfflineGenerating, pendingOfflineUserText]);
 
     // 流式预览增量更新时跟随滚动到底：仅在用户本来就停在底部附近时跟随，
@@ -3130,40 +3272,110 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             }
             if (p.mediaType === "offline_invite") {
                 if (session.enableOfflineInvite && !session.isGroup && p.mediaData?.offlineInvite) {
-                    // 华敏锐发现的重大逻辑漏洞：若当前已经在途中（on_the_way）、已到达（arrived）或已在线下模式中，
-                    // 绝对严禁被模型的重复邀约指令重置或覆盖！直接忽略丢弃，保证正在进行的在途倒计时绝对不被中断！
-                    if (offlineMode || (activeOfflineInvite && (activeOfflineInvite.status === "on_the_way" || activeOfflineInvite.status === "arrived"))) {
+                    if (offlineMode) {
                         continue;
+                    }
+
+                    if (activeOfflineInvite) {
+                        if (activeOfflineInvite.status === "arrived") {
+                            continue;
+                        }
+                        if (activeOfflineInvite.status === "on_the_way") {
+                            // 华提出的外卖中途改地址黄金体验：若在途阶段用户更换了碰头地点，平滑更新地点，倒计时不中断！
+                            const newPlace = p.mediaData.offlineInvite.place?.trim();
+                            if (newPlace && newPlace !== activeOfflineInvite.place) {
+                                const newTimeStr = p.mediaData.offlineInvite.timeStr || "";
+                                const newParsedMins = extractDurationMinutes(newTimeStr, 0);
+                                // 华指出的铁律：地点变更时，旧地点的一切心语与呼唤台词全部作废报废，重新生成契合新地点的台词！
+                                const newTransitCardMessage = p.mediaData.offlineInvite.transitCardMessage?.trim()
+                                    || (newPlace === "你身边" ? "正重新赶去你身边，稍等我片刻，马上就到。" : `正重新赶往${newPlace}的途中，稍候片刻。`);
+                                const newArrivedMessage = p.mediaData.offlineInvite.arrivedMessage?.trim()
+                                    || (newPlace === "你身边" ? "我到了，在附近等你，不用着急慢慢走。" : `我已经到${newPlace}了，在附近等你，不用着急慢慢走。`);
+                                const newArrivalCardMessage = p.mediaData.offlineInvite.arrivalCardMessage?.trim()
+                                    || (newPlace === "你身边" ? "已经在你身边了，安静等候碰面的那一刻。" : `已经赶到${newPlace}了，在安静等候你，慢慢走别急。`);
+                                const updatedInvite: OfflineInviteData = {
+                                    ...activeOfflineInvite,
+                                    place: newPlace,
+                                    transitCardMessage: newTransitCardMessage,
+                                    arrivedMessage: newArrivedMessage,
+                                    arrivalCardMessage: newArrivalCardMessage,
+                                    ...(newParsedMins > 0 ? { durationMinutes: newParsedMins, startTime: Date.now() } : {}),
+                                };
+                                updateActiveOfflineInvite(updatedInvite);
+                                const placeStr = newPlace === "你身边" ? "你身边" : `「${newPlace}」`;
+                                const sysMsg = pushChatMessage({
+                                    sessionId: session.id,
+                                    role: "system",
+                                    content: `赴约地点已更改为${placeStr}`,
+                                    mediaType: "offline_invite_system_notice",
+                                });
+                                setMessages(prev => [...prev, sysMsg]);
+
+                                // 华提出的核心铁律：每一次新卡片都要在3秒后弹窗！
+                                if (remindExpandTimerRef.current) {
+                                    clearTimeout(remindExpandTimerRef.current);
+                                }
+                                remindExpandTimerRef.current = setTimeout(() => {
+                                    setIsOfflineInviteMinimized(false);
+                                    remindExpandTimerRef.current = null;
+                                }, 3000);
+                            }
+                            continue;
+                        }
                     }
 
                     const rawTimeStr = p.mediaData.offlineInvite.timeStr || "";
                     const rawReason = p.mediaData.offlineInvite.reason || "";
                     // 华提出的黄金细节：正文是用户肉眼所见的第一依据！若角色的对话台词中亲口说了具体时间（如“等我十几分钟”、“大概半小时”），
                     // 倒计时必须以正文亲口许诺的时间为最高优先，坚决杜绝正文说十几分钟倒计时却跳出30/40分钟的割裂出戏！
-                    const cleanSpeechText = (rawResponseText || "").replace(/\[(?:线下邀约|提醒赴约)[^\]]*\]/g, "");
+                    const cleanSpeechText = (rawResponseText || "").replace(/\[(?:线下邀约|提醒赴约|更改地点)[^\]]*\]/g, "");
                     const speechMins = extractDurationMinutes(cleanSpeechText, 0);
                     const tagMins = extractDurationMinutes(rawTimeStr, 0);
                     const reasonMins = extractDurationMinutes(rawReason, 0);
                     const parsedMins = speechMins > 0 ? speechMins : (tagMins > 0 ? tagMins : (reasonMins > 0 ? reasonMins : 15));
                     const inviteData: OfflineInviteData = {
-                        direction: p.mediaData.offlineInvite.direction,
+                        direction: p.mediaData.offlineInvite.direction || activeOfflineInvite?.direction || "he_comes",
                         place: p.mediaData.offlineInvite.place,
                         reason: p.mediaData.offlineInvite.reason,
                         onTheWayMessage: sanitizeTransitMessage(
                             p.mediaData.offlineInvite.onTheWayMessage,
-                            p.mediaData.offlineInvite.direction,
+                            p.mediaData.offlineInvite.direction || activeOfflineInvite?.direction || "he_comes",
                             p.mediaData.offlineInvite.place
                         ),
+                        transitCardMessage: p.mediaData.offlineInvite.transitCardMessage,
                         arrivedMessage: p.mediaData.offlineInvite.arrivedMessage,
+                        arrivalCardMessage: p.mediaData.offlineInvite.arrivalCardMessage,
                         status: "pending",
                         durationMinutes: parsedMins,
-                        sourceBatchId: responseBatchId,
+                        initialBatchId: activeOfflineInvite ? (activeOfflineInvite.initialBatchId || activeOfflineInvite.sourceBatchId || responseBatchId) : responseBatchId,
+                        sourceBatchId: activeOfflineInvite?.sourceBatchId || responseBatchId,
+                        relatedBatchIds: Array.from(new Set([
+                            ...(activeOfflineInvite?.relatedBatchIds || []),
+                            activeOfflineInvite?.initialBatchId,
+                            activeOfflineInvite?.sourceBatchId,
+                            responseBatchId,
+                        ].filter(Boolean) as string[])),
                     };
 
                     // 华提出的至尊黄金体验：初次触发时，胶囊提示语和弹窗一起晚 3 秒出现！
                     // 这 3 秒钟屏幕干干净净，供用户从容读完角色发出的第一条邀约消息；3 秒后胶囊与弹窗平滑展开！
                     // 之后若收起，胶囊常驻在顶部；后续触发也只是弹窗平滑展开。
                     if (!activeOfflineInvite) {
+                        // 华敏锐指出的核心生活常理：地点是申请的前提，对方答应是出发的前提！
+                        // 若大模型在未知地点、正文还在发问“你在哪 / 在哪见 / 发个定位”时，抢跑发起了“你身边”或未定地点的提议：
+                        // 且用户前置消息并非危机/脆弱求助，属于大模型自嗨违规抢跑！直接拦截该邀约，让角色老老实实纯文本向用户问清地点！
+                        const asksForLocation = /(?:你在[哪哪儿里]|在[哪哪儿里]|去[哪哪儿里]|在哪个地方|发个?定位|你在家还是|在公司还是|到你身边找你好不好|去你身边找你好不好)/.test(cleanSpeechText);
+                        const isByYourSide = !inviteData.place || inviteData.place === "你身边";
+                        const recentUserMessages = messages.filter(m => m.role === "user").slice(-3);
+                        const isCrisisOrHelp = recentUserMessages.some(m =>
+                            m.mediaType === "location" ||
+                            /(?:哭|眼泪|难受|好痛|好怕|救命|救我|喝醉|醉了|迷路|车祸|医院|走丢|好想见你|好想你在身边|快来陪我|来我身边)/.test(m.content || "")
+                        );
+
+                        if (asksForLocation && isByYourSide && !isCrisisOrHelp) {
+                            continue;
+                        }
+
                         if (remindExpandTimerRef.current) {
                             clearTimeout(remindExpandTimerRef.current);
                         }
@@ -3172,21 +3384,192 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             setIsOfflineInviteMinimized(false);
                             // 华提出的黄金体验节点①【发起提议】：初次发起邀约时，在聊天流中留下居中小灰字系统记录（记忆锚点）
                             const charName = character?.name || "对方";
-                            const placeStr = inviteData.place ? `前往「${inviteData.place}」的` : "";
+                            const placeStr = inviteData.place ? (inviteData.place === "你身边" ? "前往你身边的" : `前往「${inviteData.place}」的`) : "";
                             const sysMsg = pushChatMessage({
                                 sessionId: session.id,
                                 role: "system",
                                 content: `${charName} 向你发起了${placeStr}线下赴约提议`,
+                                mediaType: "offline_invite_system_notice",
                             });
                             setMessages(prev => [...prev, sysMsg]);
                             remindExpandTimerRef.current = null;
                         }, 3000);
                     } else {
+                        // 华敏锐发现：在申请待答应阶段，若用户要求改地址（如“不去我家，去606”），更新地点并在聊天流留下居中小灰字记录！
+                        const oldPlace = activeOfflineInvite.place?.trim();
+                        const newPlace = inviteData.place?.trim();
+                        const isDirectionChanged = inviteData.direction !== activeOfflineInvite.direction;
+                        const isPlaceChanged = Boolean(newPlace && oldPlace && newPlace !== oldPlace);
+                        const isStatusChanged = inviteData.status !== activeOfflineInvite.status;
+
+                        if (isPlaceChanged) {
+                            const placeStr = newPlace === "你身边" ? "你身边" : `「${newPlace}」`;
+                            const sysMsg = pushChatMessage({
+                                sessionId: session.id,
+                                role: "system",
+                                content: `赴约提议地点已更改为${placeStr}`,
+                                mediaType: "offline_invite_system_notice",
+                            });
+                            setMessages(prev => [...prev, sysMsg]);
+                        }
                         updateActiveOfflineInvite(inviteData);
-                        if (inviteData.direction === "i_go") {
-                            setIsOfflineInviteMinimized(true);
+
+                        // 华提出的核心铁律：每一次新卡片都要在3秒后弹窗！
+                        // 包括方向切换（我去 <-> 他来）、状态切换、以及地点变更产生的全新提议卡片！
+                        if (isDirectionChanged || isPlaceChanged || isStatusChanged) {
+                            if (remindExpandTimerRef.current) {
+                                clearTimeout(remindExpandTimerRef.current);
+                            }
+                            remindExpandTimerRef.current = setTimeout(() => {
+                                setIsOfflineInviteMinimized(false);
+                                remindExpandTimerRef.current = null;
+                            }, 3000);
                         }
                     }
+                }
+                continue;
+            }
+            if (p.mediaType === "offline_invite_change_place") {
+                if (session.enableOfflineInvite && !session.isGroup && activeOfflineInvite && p.mediaData?.offlineInvite?.place) {
+                    const newPlace = p.mediaData.offlineInvite.place?.trim() || activeOfflineInvite.place || "";
+                    const newDirection = p.mediaData.offlineInvite.direction || activeOfflineInvite.direction;
+                    const isPlaceChanged = newPlace !== activeOfflineInvite.place;
+                    const isDirectionChanged = newDirection !== activeOfflineInvite.direction;
+
+                    if (isPlaceChanged || isDirectionChanged) {
+                        const newTimeStr = p.mediaData.offlineInvite.timeStr || "";
+                        const newParsedMins = extractDurationMinutes(newTimeStr, 0);
+                        const wasArrived = activeOfflineInvite.status === "arrived";
+                        const wasOnTheWay = activeOfflineInvite.status === "on_the_way";
+                        const durationMins = newParsedMins > 0 ? newParsedMins : (wasArrived ? 5 : (activeOfflineInvite.durationMinutes || 10));
+
+                        // 华敏锐提出的绝妙情境：若角色已到达目的地（如用户家楼下），用户却告知走错了/在别处（如肯德基门口）
+                        // 自动将到达状态切换回在途状态，重新启动赶路倒计时并生成针对新地点的到达文案！
+                        const isPending = activeOfflineInvite.status === "pending";
+                        const nextStatus = (wasArrived || wasOnTheWay) ? "on_the_way" : activeOfflineInvite.status;
+                        const newTransitCardMessage = p.mediaData.offlineInvite.transitCardMessage?.trim()
+                            || (newPlace === "你身边" ? "正重新赶去你身边，稍等我片刻，马上就到。" : `正重新赶往${newPlace}的途中，稍候片刻。`);
+                        const newArrivedMessage = p.mediaData.offlineInvite.arrivedMessage?.trim()
+                            || (newPlace === "你身边" ? "我到了，在附近等你，不用着急慢慢走。" : `我已经到${newPlace}了，在附近等你，不用着急慢慢走。`);
+                        const newArrivalCardMessage = p.mediaData.offlineInvite.arrivalCardMessage?.trim()
+                            || (newPlace === "你身边" ? "已经在你身边了，安静等候碰面的那一刻。" : `已经赶到${newPlace}了，在安静等候你，慢慢走别急。`);
+                        const newReason = p.mediaData.offlineInvite.reason?.trim()
+                            || (isPending ? (newPlace === "你身边" ? "想去你身边找你碰面" : `想改去${newPlace}找你碰面`) : activeOfflineInvite.reason);
+
+                        // 华指出的老句子彻底报废铁律：
+                        if (newDirection === "i_go") {
+                            // 切换为/保持【我去】：角色处于现场等候，旧的【他来】所有在途报备、在途心语、到达呼唤、到达心语全部彻底作废！
+                            const updatedInvite: OfflineInviteData = {
+                                direction: "i_go",
+                                place: newPlace,
+                                reason: newReason,
+                                status: "pending",
+                                initialBatchId: activeOfflineInvite.initialBatchId || activeOfflineInvite.sourceBatchId || responseBatchId,
+                                sourceBatchId: activeOfflineInvite.sourceBatchId || responseBatchId,
+                                relatedBatchIds: Array.from(new Set([
+                                    ...(activeOfflineInvite.relatedBatchIds || []),
+                                    activeOfflineInvite.initialBatchId,
+                                    activeOfflineInvite.sourceBatchId,
+                                    responseBatchId,
+                                ].filter(Boolean) as string[])),
+                            };
+                            updateActiveOfflineInvite(updatedInvite);
+                            setIsOfflineInviteMinimized(true);
+                        } else {
+                            // 保持/切换为【他来】：旧句全部作废，必须使用契合新地点的全新句子！
+                            const sanitizedOnTheWay = p.mediaData.offlineInvite.onTheWayMessage?.trim()
+                                ? sanitizeTransitMessage(p.mediaData.offlineInvite.onTheWayMessage, "he_comes", newPlace)
+                                : sanitizeTransitMessage(undefined, "he_comes", newPlace);
+
+                            const updatedInvite: OfflineInviteData = {
+                                direction: "he_comes",
+                                place: newPlace,
+                                reason: newReason,
+                                onTheWayMessage: sanitizedOnTheWay,
+                                status: nextStatus,
+                                durationMinutes: durationMins,
+                                transitCardMessage: newTransitCardMessage,
+                                arrivedMessage: newArrivedMessage,
+                                arrivalCardMessage: newArrivalCardMessage,
+                                initialBatchId: activeOfflineInvite.initialBatchId || activeOfflineInvite.sourceBatchId || responseBatchId,
+                                sourceBatchId: activeOfflineInvite.sourceBatchId || responseBatchId,
+                                relatedBatchIds: Array.from(new Set([
+                                    ...(activeOfflineInvite.relatedBatchIds || []),
+                                    activeOfflineInvite.initialBatchId,
+                                    activeOfflineInvite.sourceBatchId,
+                                    responseBatchId,
+                                ].filter(Boolean) as string[])),
+                                ...((wasArrived || wasOnTheWay) ? { startTime: Date.now() } : {}),
+                            };
+                            updateActiveOfflineInvite(updatedInvite);
+                        }
+
+                        const charName = character?.name || "对方";
+                        const placeStr = newPlace === "你身边" ? "你身边" : `「${newPlace}」`;
+                        const noticeText = wasArrived
+                            ? `${charName} 已得知新地点，正在重新赶往${placeStr}`
+                            : (wasOnTheWay
+                                ? `赴约地点已更改为${placeStr}`
+                                : `赴约提议地点已更改为${placeStr}`);
+
+                        const sysMsg = pushChatMessage({
+                            sessionId: session.id,
+                            role: "system",
+                            content: noticeText,
+                            mediaType: "offline_invite_system_notice",
+                        });
+                        setMessages(prev => [...prev, sysMsg]);
+
+                        // 华提出的核心铁律：每一次新卡片都要在3秒后弹窗！
+                        // 包括方向切换（我去 <-> 他来）、地点变更导致的状态切换（如 arrived -> on_the_way 重新在途）、新地点新卡片等！
+                        if (remindExpandTimerRef.current) {
+                            clearTimeout(remindExpandTimerRef.current);
+                        }
+                        remindExpandTimerRef.current = setTimeout(() => {
+                            setIsOfflineInviteMinimized(false);
+                            remindExpandTimerRef.current = null;
+                        }, 3000);
+                    }
+                }
+                continue;
+            }
+            if (p.mediaType === "offline_invite_early_arrive") {
+                if (session.enableOfflineInvite && !session.isGroup && activeOfflineInvite && activeOfflineInvite.status === "on_the_way") {
+                    const customArrivalCard = p.mediaData?.offlineInvite?.arrivalCardMessage?.trim();
+                    const arrivedInvite: OfflineInviteData = {
+                        ...activeOfflineInvite,
+                        status: "arrived",
+                        isEarlyArrived: true,
+                        arrivalCardMessage: customArrivalCard || activeOfflineInvite.arrivalCardMessage,
+                        relatedBatchIds: Array.from(new Set([
+                            ...(activeOfflineInvite.relatedBatchIds || []),
+                            activeOfflineInvite.initialBatchId,
+                            activeOfflineInvite.sourceBatchId,
+                            responseBatchId,
+                        ].filter(Boolean) as string[])),
+                    };
+                    updateActiveOfflineInvite(arrivedInvite);
+
+                    // 华指出的核心铁律：提前到达也是新卡片/状态切换，发完消息 3 秒后必须平滑弹窗！
+                    if (remindExpandTimerRef.current) {
+                        clearTimeout(remindExpandTimerRef.current);
+                    }
+                    remindExpandTimerRef.current = setTimeout(() => {
+                        setIsOfflineInviteMinimized(false);
+                        remindExpandTimerRef.current = null;
+                    }, 3000);
+
+                    // 华提出的黄金体验：提前到达时，在聊天流中留下到达事实记录
+                    const charName = character?.name || "对方";
+                    const rawPlace = activeOfflineInvite.place?.trim();
+                    const placeStr = rawPlace ? (rawPlace === "你身边" ? "你身边" : `「${rawPlace}」`) : "约定地点";
+                    const sysMsg = pushChatMessage({
+                        sessionId: session.id,
+                        role: "system",
+                        content: `${charName} 已提前到达${placeStr}`,
+                        mediaType: "offline_invite_system_notice",
+                    });
+                    setMessages(prev => [...prev, sysMsg]);
                 }
                 continue;
             }
@@ -3356,6 +3739,48 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             await Promise.allSettled(imageReplacementTasks);
             throwIfGenerationStopped(options);
         }
+
+        // 华提出的黄金体验：在途期间若角色自然聊到了“我到了/到门口了/看见你了”等，自动提前结束倒计时并将顶部胶囊切换为【去见Ta】
+        if (session.enableOfflineInvite && !session.isGroup) {
+            const currentInvite = activeOfflineInviteRef.current;
+            if (currentInvite && currentInvite.status === "on_the_way") {
+                const combinedSpeech = messageDrafts.map(d => d.draft.content || "").join("\n");
+                if (isNaturalArrivalStatement(combinedSpeech)) {
+                    const arrivedInvite: OfflineInviteData = {
+                        ...currentInvite,
+                        status: "arrived",
+                        isEarlyArrived: true,
+                        relatedBatchIds: Array.from(new Set([
+                            ...(currentInvite.relatedBatchIds || []),
+                            currentInvite.initialBatchId,
+                            currentInvite.sourceBatchId,
+                            responseBatchId,
+                        ].filter(Boolean) as string[])),
+                    };
+                    updateActiveOfflineInvite(arrivedInvite);
+
+                    // 华指出的核心铁律：提前到达也是新卡片/状态切换，发完消息 3 秒后必须平滑弹窗！
+                    if (remindExpandTimerRef.current) {
+                        clearTimeout(remindExpandTimerRef.current);
+                    }
+                    remindExpandTimerRef.current = setTimeout(() => {
+                        setIsOfflineInviteMinimized(false);
+                        remindExpandTimerRef.current = null;
+                    }, 3000);
+
+                    const charName = character?.name || "对方";
+                    const rawPlace = currentInvite.place?.trim();
+                    const placeStr = rawPlace ? (rawPlace === "你身边" ? "你身边" : `「${rawPlace}」`) : "约定地点";
+                    const sysMsg = pushChatMessage({
+                        sessionId: session.id,
+                        role: "system",
+                        content: `${charName} 已提前到达${placeStr}`,
+                    });
+                    setMessages(prev => [...prev, sysMsg]);
+                }
+            }
+        }
+
         return { hasVisible: true, stateValues, triggerCall, hasDecline };
     };
 
@@ -4527,6 +4952,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             const next = !prev;
             kvSet(CHAT_OFFLINE_MODE_PREFIX + session.id, next ? "1" : "0");
             if (prev && !next) {
+                // 华敏锐指出的体验细节：从线下切回线上时重置初始滚动标记，确保定位至最新对话
+                needsInitialScrollRef.current = true;
                 // 只有当明确是由角色邀约赴约结束（用户在确认弹窗点击确认）时，才触发角色主动发信（报平安/余韵）
                 // 用户平时的手动线下切换绝对不触发！
                 if (isFromConfirmedInviteExit && session.enableOfflineInvite && !session.isGroup) {
@@ -4586,6 +5013,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 sessionId: session.id,
                 role: "system",
                 content: `你已同意赴约，${charName} 正在动身赶往${placeStr}`,
+                mediaType: "offline_invite_system_notice",
             });
             setMessages(prev => [...prev, sysAcceptMsg]);
 
@@ -4629,6 +5057,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 sessionId: session.id,
                 role: "system",
                 content: `你已同意赴约，请前往${placeStr}与 ${charName} 碰面`,
+                mediaType: "offline_invite_system_notice",
             });
             setMessages(prev => [...prev, sysAcceptMsg]);
         }
@@ -4659,6 +5088,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             sessionId: session.id,
             role: "system",
             content: `你婉拒了 ${charName} 的线下赴约提议`,
+            mediaType: "offline_invite_system_notice",
         });
         setMessages(prev => [...prev, sysDeclineMsg]);
 
@@ -4676,14 +5106,17 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
 
     const handleEarlyArriveOfflineInvite = () => {
         if (!activeOfflineInvite) return;
+        const arriveBatchId = `offline_early_arrive_${Date.now()}`;
         const arrivedInvite: OfflineInviteData = {
             ...activeOfflineInvite,
             status: "arrived",
+            isEarlyArrived: true,
+            relatedBatchIds: Array.from(new Set([...(activeOfflineInvite.relatedBatchIds || []), arriveBatchId])),
         };
         updateActiveOfflineInvite(arrivedInvite);
         setIsOfflineInviteMinimized(false);
 
-        // 华提出的黄金体验节点③【行程到达】：提前到达时，在聊天流中留下到达事实系统记录
+        // 华提出的黄金体验节点③【行程到达】：提前到达时，在聊天流中留下提前到达事实系统记录
         const charName = character?.name || "对方";
         const rawPlace = activeOfflineInvite.place?.trim();
         const placeStr = rawPlace ? (rawPlace === "你身边" ? "你身边" : `「${rawPlace}」`) : "约定地点";
@@ -4691,8 +5124,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             sessionId: session.id,
             role: "system",
             content: activeOfflineInvite.direction === "he_comes"
-                ? `${charName} 已如约到达${placeStr}`
+                ? `${charName} 已提前到达${placeStr}`
                 : `${charName} 已在${placeStr}就位等候`,
+            mediaType: "offline_invite_system_notice",
         });
         setMessages(prev => [...prev, sysArriveMsg]);
 
@@ -4703,6 +5137,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 sessionId: session.id,
                 role: "assistant",
                 content: arrivalChatText,
+                responseBatchId: arriveBatchId,
+                mediaType: "offline_invite_arrive_notice",
             });
             setMessages(prev => [...prev, newMsg]);
         }, 1000);
@@ -4979,6 +5415,15 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         const contextMessages = messages.slice(0, msgIndex);
         const truncatedMessages = messages.slice(msgIndex);
 
+        const currentInvite = activeOfflineInviteRef.current;
+        const rootId = currentInvite?.initialBatchId || currentInvite?.sourceBatchId;
+        const truncatesInitialRoot = Boolean(
+            currentInvite &&
+            currentInvite.sourceBatchId !== "mock_offline_invite" &&
+            rootId &&
+            truncatedMessages.some(m => m.responseBatchId === rootId)
+        );
+
         const executeRetry = async () => {
             // Delete this message and everything after it
             deleteChatMessagesFrom(msgId);
@@ -4988,18 +5433,22 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             // Cancel any pending follow-up for this session
             cancelFollowUp(session.id);
 
-            // 华提出的“皮之不存，毛将焉附”原则：
-            // 若重试截断了生成当前邀约的源消息，同步重置邀约状态，绝不留悬空卡死胶囊
-            const currentInvite = activeOfflineInviteRef.current;
-            if (currentInvite?.sourceBatchId && currentInvite.sourceBatchId !== "mock_offline_invite") {
-                const hasRoot = contextMessages.some(m => m.responseBatchId === currentInvite.sourceBatchId);
-                if (!hasRoot) {
+            // 华提出的“皮之不存，毛将焉附”与“重试智能保全”原则：
+            if (currentInvite && currentInvite.sourceBatchId !== "mock_offline_invite") {
+                if (truncatesInitialRoot) {
+                    // 若重试截断了最初发起消息，彻底取消邀约
                     updateActiveOfflineInvite(null);
                     setIsOfflineInviteMinimized(false);
                     if (remindExpandTimerRef.current) {
                         clearTimeout(remindExpandTimerRef.current);
                         remindExpandTimerRef.current = null;
                     }
+                } else {
+                    // 若重试的是中间节点或普通回复（如中途改地址或在途闲聊时 AI 崩了/OOC），
+                    // 绝不能无脑将整个赴约状态一锅端取消！
+                    // 基于 contextMessages 智能回滚/保全邀约状态，使大模型重新生成时依然能拿到完整的赴约提示词上下文！
+                    const restoredInvite = restoreOfflineInviteFromMessages(contextMessages, currentInvite);
+                    updateActiveOfflineInvite(restoredInvite);
                 }
             }
 
@@ -5010,17 +5459,37 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             });
         };
 
-        if (truncatedMessages.some(isOfflineInviteRootMessage)) {
+        // 华敏锐确立的黄金交互三阶分流：
+        // 1. 若重试截断了最初发起邀约的根源消息（生命之根）：弹窗预警会彻底取消赴约
+        if (truncatesInitialRoot) {
             setActiveMessageId(null);
             setPendingInviteDeleteConfirm({
                 title: "重试此条回复？",
                 message: "重试将重新生成本条回复，并删除之后的内容（包含本次线下赴约的发起消息），同时取消当前的赴约状态，是否确认重试？",
                 confirmLabel: "重试",
+                variant: "danger",
                 onConfirm: () => void executeRetry(),
             });
             return;
         }
 
+        // 2. 场景 B（时光倒流）：只有当截断的后续内容包含用户发言（role === "user"）或系统变动记录（role === "system"）时，
+        // 说明用户是在跨轮次倒退历史（会抹去用户自己后续说的话或同意/改地点记录），才弹窗确认防止误删！
+        // 若截断的仅仅是最新一轮 AI 连发的多个气泡（后续无用户发言），即便点击倒数第二条气泡也是纯粹的当场重抽，0 弹窗 0 阻碍！
+        const hasSubsequentTurns = truncatedMessages.slice(1).some(m => m.role === "user" || m.role === "system");
+        if (currentInvite && hasSubsequentTurns) {
+            setActiveMessageId(null);
+            setPendingInviteDeleteConfirm({
+                title: "回溯并重新生成？",
+                message: `重试将删除本条及之后的 ${truncatedMessages.length} 条消息，赴约状态将同步回溯至当时。是否确认重新生成？`,
+                confirmLabel: "确认回溯",
+                variant: "default",
+                onConfirm: () => void executeRetry(),
+            });
+            return;
+        }
+
+        // 3. 场景 A：当场重试最新一轮回复（无后续用户发言），0 弹窗 0 阻碍无缝即点即抽！
         await executeRetry();
     };
 
@@ -5468,9 +5937,33 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         if (isOfflineInviteRootMessage(targetMsg)) {
             setPendingInviteDeleteConfirm({
                 title: "删除邀约消息？",
-                message: getInviteDeleteConfirmMessage(),
+                message: getInviteDeleteConfirmMessage(targetMsg),
                 confirmLabel: "删除",
-                onConfirm: executeDelete,
+                variant: "danger",
+                onConfirm: () => {
+                    updateActiveOfflineInvite(null);
+                    setIsOfflineInviteMinimized(false);
+                    if (remindExpandTimerRef.current) {
+                        clearTimeout(remindExpandTimerRef.current);
+                        remindExpandTimerRef.current = null;
+                    }
+                    executeDelete();
+                },
+            });
+            return;
+        }
+
+        // 华提出的防误触保护：线下赴约专属系统记录小灰字（防误碰）
+        // 华敏锐确立的体验法则：只有在当前正处于活跃的线下赴约生命周期中，才弹出防误碰小框；若赴约已结束回到线上，直接删除无弹窗！
+        if (activeOfflineInviteRef.current && isOfflineInviteSystemMessage(targetMsg)) {
+            setPendingInviteDeleteConfirm({
+                title: "删除系统记录？",
+                message: "该记录为本次线下赴约的关键系统提示，删除后将从聊天记录中移除，但不影响当前的赴约状态，是否确认删除？",
+                confirmLabel: "删除",
+                variant: "default",
+                onConfirm: () => {
+                    executeDelete();
+                },
             });
             return;
         }
@@ -5505,9 +5998,18 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         if (targetMessages.some(isOfflineInviteRootMessage)) {
             setPendingInviteDeleteConfirm({
                 title: "删除以下消息？",
-                message: "删除的内容中包含本次线下赴约的发起消息，删除后将同时取消当前的赴约状态，是否确认删除？",
+                message: "删除的内容中包含本次线下赴约的发起或变动消息，删除后将直接清除当前的赴约状态。若只想回退赴约状态，可取消并重试消息。",
                 confirmLabel: "删除",
-                onConfirm: executeDeleteFrom,
+                variant: "danger",
+                onConfirm: () => {
+                    updateActiveOfflineInvite(null);
+                    setIsOfflineInviteMinimized(false);
+                    if (remindExpandTimerRef.current) {
+                        clearTimeout(remindExpandTimerRef.current);
+                        remindExpandTimerRef.current = null;
+                    }
+                    executeDeleteFrom();
+                },
             });
             return;
         }
@@ -5968,6 +6470,14 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         const targetIds = new Set(multiDeleteTargetIds);
         const targetMessages = loadChatMessages(session.id).filter(msg => targetIds.has(msg.id));
         setShowConfirmMultiDelete(false);
+        if (targetMessages.some(isOfflineInviteRootMessage)) {
+            updateActiveOfflineInvite(null);
+            setIsOfflineInviteMinimized(false);
+            if (remindExpandTimerRef.current) {
+                clearTimeout(remindExpandTimerRef.current);
+                remindExpandTimerRef.current = null;
+            }
+        }
         void deleteWeixinCloudBeforeLocal(targetMessages, () => {
             const deletedCount = deleteChatMessagesByIds(session.id, multiDeleteTargetIds);
             syncMessagesFromStorage();
@@ -6136,15 +6646,44 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 className="chat-plugin-header chat-room-main-pane"
             />
 
-            {activeOfflineInvite && isOfflineInviteMinimized && !offlineMode && (
-                <div className="chat-offline-invite-capsule-wrapper">
-                    <OfflineInviteCapsule
-                        invite={activeOfflineInvite}
-                        character={character}
-                        onClick={handleExpandOfflineInvite}
-                        onAccept={handleAcceptOfflineInvite}
-                    />
-                </div>
+            {!offlineMode && (
+                activeOfflineInvite && isOfflineInviteMinimized ? (
+                    <div className="chat-offline-invite-capsule-wrapper">
+                        <OfflineInviteCapsule
+                            invite={activeOfflineInvite}
+                            character={character}
+                            onClick={handleExpandOfflineInvite}
+                            onAccept={handleAcceptOfflineInvite}
+                        />
+                    </div>
+                ) : (kvGet(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id) === "1" ? (
+                    <div className="chat-offline-invite-capsule-wrapper">
+                        <div
+                            onClick={() => doToggleOfflineMode(false)}
+                            className="w-fit max-w-[92%] mx-auto px-3.5 py-1.5 rounded-full bg-[var(--c-panel,#ffffff)]/95 backdrop-blur-md border border-[var(--c-panel-border,rgba(0,0,0,0.12))] shadow-md flex items-center gap-2 cursor-pointer select-none hover:scale-[1.02] active:scale-[0.98] transition-all"
+                            data-ui="offline-invite-capsule"
+                            title="点击返回面对面碰面"
+                        >
+                            <span className="relative flex h-2 w-2 shrink-0">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--c-primary,#2563eb)] opacity-75" />
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--c-primary,#2563eb)]" />
+                            </span>
+                            <span className="text-xs font-medium text-[var(--c-text-title,#111827)] truncate">
+                                ✨ 与 {character?.name || "对方"} 线下碰面中
+                            </span>
+                            <button
+                                type="button"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    doToggleOfflineMode(false);
+                                }}
+                                className="text-[11px] bg-[var(--c-primary,#2563eb)] text-white font-semibold px-2 py-0.5 rounded-full hover:opacity-90 active:scale-95 transition-all shrink-0 cursor-pointer shadow-sm"
+                            >
+                                回到现场
+                            </button>
+                        </div>
+                    </div>
+                ) : null)
             )}
 
             {/* Message List */}
@@ -6922,6 +7461,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 ref={chatTextInputRef}
                 characterName={character?.name || "对方"}
                 characterId={session.contactId}
+                offlineMeetingActive={!session.isGroup && kvGet(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id) === "1"}
 	                stickerCharacterIds={session.isGroup ? session.participantIds : undefined}
 	                isGroup={!!session.isGroup}
 	                isSpectator={!!session.isGroup && !!session.isSpectator}
@@ -6956,16 +7496,17 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             {showConfirmMultiDelete && (
                 <ConfirmDialog
                     title="删除选中消息？"
+                    dialogClassName="[&_p]:whitespace-pre-line"
                     message={(() => {
                         const targetIds = new Set(multiDeleteTargetIds);
                         const storedMessages = loadChatMessages(session.id);
                         const hasInviteRoot = storedMessages.some(m => targetIds.has(m.id) && isOfflineInviteRootMessage(m));
-                        const baseMsg = multiDeleteTargetIds.length > selectedMessageIds.size
-                            ? `将删除已选消息，并一并删除相邻已选消息之间的隐藏历史。实际删除 ${multiDeleteTargetIds.length} 条，删除后无法恢复。`
-                            : `将删除已选的 ${multiDeleteTargetIds.length} 条消息，删除后无法恢复。`;
+                        const count = multiDeleteTargetIds.length;
                         return hasInviteRoot
-                            ? `${baseMsg}\n\n⚠️ 注意：所选消息中包含本次线下赴约的发起消息，删除后将同时取消当前的赴约状态。`
-                            : baseMsg;
+                            ? `删除的 ${count} 条消息中包含本次线下赴约的发起或变动消息，删除后将直接清除当前的赴约状态。若只想回退赴约状态，可取消并重试消息。`
+                            : (count > selectedMessageIds.size
+                                ? `将删除已选消息，并一并删除相邻已选消息之间的隐藏历史。实际删除 ${count} 条，删除后无法恢复。`
+                                : `将删除已选的 ${count} 条消息，删除后无法恢复。`);
                     })()}
                     icon={AlertCircle}
                     variant="danger"
@@ -6977,42 +7518,114 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             )}
 
             {pendingInviteDeleteConfirm && (
-                <ConfirmDialog
-                    title={pendingInviteDeleteConfirm.title}
-                    message={pendingInviteDeleteConfirm.message}
-                    icon={AlertCircle}
-                    variant="danger"
-                    confirmLabel={pendingInviteDeleteConfirm.confirmLabel || "删除"}
-                    cancelLabel="取消"
-                    onConfirm={() => {
-                        const act = pendingInviteDeleteConfirm.onConfirm;
-                        setPendingInviteDeleteConfirm(null);
-                        act();
-                    }}
-                    onCancel={() => setPendingInviteDeleteConfirm(null)}
-                />
+                <div
+                    className="modal-overlay"
+                    data-ui="modal"
+                    onClick={() => setPendingInviteDeleteConfirm(null)}
+                >
+                    <div
+                        className="modal-dialog relative"
+                        data-ui="modal-dialog"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div className="modal-header" data-ui="modal-header">
+                            {pendingInviteDeleteConfirm.variant === "danger" && (
+                                <div className="ui-icon-circle" data-variant="danger">
+                                    <AlertCircle size={20} />
+                                </div>
+                            )}
+                            <h3 className="modal-title">{pendingInviteDeleteConfirm.title}</h3>
+                        </div>
+                        <div className="modal-body text-center" data-ui="modal-body">
+                            <p className="leading-relaxed whitespace-pre-line text-[14px]">
+                                {pendingInviteDeleteConfirm.message}
+                            </p>
+                        </div>
+                        <div className="modal-footer" data-ui="modal-footer">
+                            <button
+                                type="button"
+                                className="ui-btn"
+                                onClick={() => setPendingInviteDeleteConfirm(null)}
+                            >
+                                {pendingInviteDeleteConfirm.cancelLabel || "取消"}
+                            </button>
+                            <button
+                                type="button"
+                                className={`ui-btn ${pendingInviteDeleteConfirm.variant === "danger" ? "ui-btn-danger" : "ui-btn-primary"}`}
+                                onClick={() => {
+                                    const act = pendingInviteDeleteConfirm.onConfirm;
+                                    setPendingInviteDeleteConfirm(null);
+                                    act();
+                                }}
+                            >
+                                {pendingInviteDeleteConfirm.confirmLabel || "删除"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {showConfirmExitOfflineInvite && (
-                <ConfirmDialog
-                    title="结束线下赴约？"
-                    message="确认结束线下赴约，回到线上吗？"
-                    confirmLabel="确认"
-                    cancelLabel="取消"
-                    onConfirm={() => {
-                        setShowConfirmExitOfflineInvite(false);
-                        kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
-                        // 华提出的黄金体验节点④【结束闭环】：结束线下赴约回到线上时，在聊天流中留下结束闭环系统记录
-                        const sysEndMsg = pushChatMessage({
-                            sessionId: session.id,
-                            role: "system",
-                            content: "本次线下赴约已结束，双方已返回线上",
-                        });
-                        setMessages(prev => [...prev, sysEndMsg]);
-                        doToggleOfflineMode(true);
-                    }}
-                    onCancel={() => setShowConfirmExitOfflineInvite(false)}
-                />
+                <div
+                    className="modal-overlay"
+                    data-ui="modal"
+                    onClick={() => setShowConfirmExitOfflineInvite(false)}
+                >
+                    <div
+                        className="modal-dialog relative"
+                        data-ui="modal-dialog"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <button
+                            type="button"
+                            className="absolute top-3.5 right-3.5 w-7 h-7 rounded-full flex items-center justify-center bg-[var(--c-input,rgba(0,0,0,0.06))] hover:bg-[var(--c-input-border,rgba(0,0,0,0.12))] text-[var(--c-icon,#9ca3af)] hover:text-[var(--c-text-title,#111827)] transition-all cursor-pointer active:scale-90 shadow-xs"
+                            onClick={() => setShowConfirmExitOfflineInvite(false)}
+                            title="继续留在现场"
+                            aria-label="继续留在现场"
+                        >
+                            <X size={16} />
+                        </button>
+                        <div className="modal-header" data-ui="modal-header">
+                            <h3 className="modal-title">结束线下赴约？</h3>
+                        </div>
+                        <div className="modal-body text-center" data-ui="modal-body">
+                            <p className="leading-relaxed">你可以选择暂时切回线上查阅消息，也可以正式结束本次线下赴约回到线上。</p>
+                        </div>
+                        <div className="modal-footer" data-ui="modal-footer">
+                            <button
+                                type="button"
+                                className="ui-btn"
+                                onClick={() => {
+                                    setShowConfirmExitOfflineInvite(false);
+                                    // 华提出的“暂时离开”：返回线上，不清除邀约，不发结束系统消息，不触发角色主动发信
+                                    doToggleOfflineMode(false);
+                                }}
+                            >
+                                暂时离开
+                            </button>
+                            <button
+                                type="button"
+                                className="ui-btn ui-btn-primary"
+                                onClick={() => {
+                                    setShowConfirmExitOfflineInvite(false);
+                                    kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
+                                    updateActiveOfflineInvite(null);
+                                    // 华提出的黄金体验节点④【结束闭环】：结束线下赴约回到线上时，在聊天流中留下结束闭环系统记录
+                                    const sysEndMsg = pushChatMessage({
+                                        sessionId: session.id,
+                                        role: "system",
+                                        content: "本次线下赴约已结束，双方已返回线上",
+                                        mediaType: "offline_invite_system_notice",
+                                    });
+                                    setMessages(prev => [...prev, sysEndMsg]);
+                                    doToggleOfflineMode(true);
+                                }}
+                            >
+                                结束赴约
+                            </button>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Settings Panel — portaled outside session-scoped CSS, preserves chat room mount */}

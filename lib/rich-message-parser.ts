@@ -262,16 +262,21 @@ const RICH_PATTERNS: {
     },
     {
         // [线下邀约:方向:地点:时间:台词] or [线下邀约:方向:地点:台词] or [线下邀约:方向:地点]
-        regex: new RegExp(`\\[线下邀约${C}(他来|我去|我来|你来|角色来|用户去|角色赴约|邀请赴约)${C}([^：:\\]]+?)(?:${C}([^：:\\]]+?))?(?:${C}([^\\]]+))?\\]`),
+        regex: new RegExp(`\\[线下邀约(?:${C}(他来|我去|我来|你来|角色来|用户去|角色赴约|邀请赴约))?${C}([^：:\\]]+?)(?:${C}([^：:\\]]+?))?(?:${C}([^\\]]+))?\\]`),
         build: (m) => {
-            const rawDir = m[1].trim();
-            const direction: "he_comes" | "i_go" = (rawDir === "我去" || rawDir === "你来" || rawDir === "用户去" || rawDir === "邀请赴约") ? "i_go" : "he_comes";
+            const rawDir = m[1]?.trim();
+            const direction: "he_comes" | "i_go" | undefined = rawDir
+                ? ((rawDir === "我去" || rawDir === "你来" || rawDir === "用户去" || rawDir === "邀请赴约") ? "i_go" : "he_comes")
+                : undefined;
             const rawPlace = m[2]?.trim() || "";
-            // 华敏锐发现的模型胡乱脑补的抽象地址：如“你发错定位的位置”、“未知位置”、“不知道在哪里”、“你所在的位置”等
-            // 自动纠偏归一化为优美深情的“你身边”！
-            const place = (!rawPlace || /(?:发错|不知道|迷路|哪里|在哪|具体位置|定位的位置|所在的位置|所在地|某个地方|某个屋檐|未定|未知)/.test(rawPlace))
-                ? "你身边"
-                : rawPlace;
+            // 华敏锐指出：地点是发起提议的前提！如果大模型在还没问出地点时胡乱把“你在哪/哪里/未定”填入地点，
+            // 绝不可强行包装成合法地点，应视为空，由后续逻辑拦截，让角色老老实实在正文中向用户问清楚！
+            const isInvalidQuestionPlace = /^(?:你在[哪哪儿里]|在[哪哪儿里]|在哪个地方|去[哪哪儿里]|未知|未定|未知位置|不知道在哪[儿里]?)$/.test(rawPlace);
+            const place = isInvalidQuestionPlace
+                ? ""
+                : ((!rawPlace || /(?:发错|迷路|具体位置|定位的位置|所在的位置|所在地|某个地方|某个屋檐)/.test(rawPlace))
+                    ? "你身边"
+                    : rawPlace);
             let timeStr: string | undefined;
             let rawReason = "";
 
@@ -292,7 +297,24 @@ const RICH_PATTERNS: {
             const segments = rawReason.split("|").map(s => s.trim());
             const reason = segments[0] || "";
             const onTheWayMessage = segments[1] || "";
-            const arrivedMessage = segments[2] || "";
+            let transitCardMessage = "";
+            let arrivedMessage = "";
+            let arrivalCardMessage = "";
+
+            if (segments.length >= 5) {
+                // 5段格式：提议由头 | 微信在途报备 | 卡片在途心语 | 微信到达呼唤 | 卡片到达私房心语
+                transitCardMessage = segments[2] || "";
+                arrivedMessage = segments[3] || "";
+                arrivalCardMessage = segments[4] || "";
+            } else if (segments.length === 4) {
+                // 4段格式：提议由头 | 微信在途报备 | 微信到达呼唤 | 卡片到达私房心语
+                arrivedMessage = segments[2] || "";
+                arrivalCardMessage = segments[3] || "";
+            } else if (segments.length >= 3) {
+                // 3段传统格式：提议由头 | 微信在途报备 | 微信到达呼唤
+                arrivedMessage = segments[2] || "";
+            }
+
             return {
                 content: "",
                 mediaType: "offline_invite" as const,
@@ -303,10 +325,114 @@ const RICH_PATTERNS: {
                         timeStr,
                         reason,
                         onTheWayMessage,
+                        transitCardMessage,
                         arrivedMessage,
+                        arrivalCardMessage,
                         status: "pending" as const,
                     },
-                    label: `线下邀约:${direction === "he_comes" ? "他来" : "我去"}`,
+                    label: `线下邀约:${direction === "i_go" ? "我去" : "他来"}`,
+                },
+            };
+        },
+    },
+    {
+        // [更改地点:方向(可选):新地点:新用时(可选):由头|在途|呼唤|到达(可选)]
+        regex: new RegExp(`\\[(?:更改地点|修改地点|变更地点)(?:${C}(他来|我去))?${C}([^：:\\]]+?)(?:${C}([^：:\\]]+?))?(?:${C}([^\\]]+))?\\]`),
+        build: (m) => {
+            const directionStr = m[1]?.trim();
+            const direction = directionStr ? (directionStr === "我去" ? ("i_go" as const) : ("he_comes" as const)) : undefined;
+            const rawPlace = m[2]?.trim() || "";
+            const isInvalidQuestionPlace = /^(?:你在[哪哪儿里]|在[哪哪儿里]|在哪个地方|去[哪哪儿里]|未知|未定|未知位置|不知道在哪[儿里]?)$/.test(rawPlace);
+            const place = isInvalidQuestionPlace
+                ? ""
+                : ((!rawPlace || /(?:发错|迷路|具体位置|定位的位置|所在的位置|所在地|某个地方|某个屋檐)/.test(rawPlace))
+                    ? "你身边"
+                    : rawPlace);
+            let timeStr: string | undefined;
+            let rawArrival = "";
+
+            if (m[4] !== undefined) {
+                timeStr = m[3]?.trim();
+                rawArrival = m[4]?.trim() || "";
+            } else if (m[3] !== undefined) {
+                const seg = m[3].trim();
+                if (seg.includes("|") || seg.length > 8 || !/^(?:\d+|半个?小时|一刻钟|\d+个?小时|\d+\s*(?:分钟|分|mins?|min)|(?:二十|三十|四十|五十|十五|十|五)[\d分]*)$/.test(seg)) {
+                    rawArrival = seg;
+                } else {
+                    timeStr = seg;
+                }
+            }
+
+            const arrivalSegments = rawArrival ? rawArrival.split("|").map(s => s.trim()) : [];
+            let reason = "";
+            let onTheWayMessage = "";
+            let transitCardMessage = "";
+            let arrivedMessage = "";
+            let arrivalCardMessage = "";
+
+            if (arrivalSegments.length >= 5) {
+                // 5段格式：提议由头 | 微信在途报备 | 卡片在途心语 | 微信到达呼唤 | 卡片到达心语
+                reason = arrivalSegments[0] || "";
+                onTheWayMessage = arrivalSegments[1] || "";
+                transitCardMessage = arrivalSegments[2] || "";
+                arrivedMessage = arrivalSegments[3] || "";
+                arrivalCardMessage = arrivalSegments[4] || "";
+            } else if (arrivalSegments.length === 4) {
+                // 4段格式：由头/在途报备 | 卡片在途心语 | 微信到达呼唤 | 卡片到达心语
+                reason = arrivalSegments[0] || "";
+                onTheWayMessage = arrivalSegments[0] || "";
+                transitCardMessage = arrivalSegments[1] || "";
+                arrivedMessage = arrivalSegments[2] || "";
+                arrivalCardMessage = arrivalSegments[3] || "";
+            } else if (arrivalSegments.length === 3) {
+                // 3段格式：卡片在途心语 | 微信到达呼唤 | 卡片到达心语
+                transitCardMessage = arrivalSegments[0] || "";
+                arrivedMessage = arrivalSegments[1] || "";
+                arrivalCardMessage = arrivalSegments[2] || "";
+            } else if (arrivalSegments.length === 2) {
+                // 2段格式：微信到达呼唤 | 卡片到达心语
+                arrivedMessage = arrivalSegments[0] || "";
+                arrivalCardMessage = arrivalSegments[1] || "";
+            } else if (arrivalSegments.length === 1) {
+                // 1段格式：现场等候语 / 由头 / 在途心语
+                reason = arrivalSegments[0] || "";
+                transitCardMessage = arrivalSegments[0] || "";
+            }
+
+            return {
+                content: "",
+                mediaType: "offline_invite_change_place" as const,
+                mediaData: {
+                    offlineInvite: {
+                        direction,
+                        place,
+                        timeStr,
+                        reason,
+                        onTheWayMessage,
+                        transitCardMessage,
+                        arrivedMessage,
+                        arrivalCardMessage,
+                        status: "pending" as const,
+                    },
+                    label: `更改地点:${place}`,
+                },
+            };
+        },
+    },
+    {
+        // [提前到达] or [我已到达] or [到达现场] or [提前抵达] or [提前到达:卡片到达私房心语]
+        regex: new RegExp(`\\[(?:提前到达|我已到达|到达现场|提前抵达)(?:${C}([^\\]]+))?\\]`),
+        build: (m) => {
+            const arrivalCardMessage = m[1]?.trim() || "";
+            return {
+                content: "",
+                mediaType: "offline_invite_early_arrive" as const,
+                mediaData: {
+                    offlineInvite: {
+                        direction: "he_comes",
+                        arrivalCardMessage,
+                    },
+                    label: "提前到达",
                 },
             };
         },

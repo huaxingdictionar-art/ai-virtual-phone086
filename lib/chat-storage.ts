@@ -123,6 +123,10 @@ export type ChatMessage = {
         | "media_file"
         | "offline_invite"
         | "offline_invite_remind"
+        | "offline_invite_change_place"
+        | "offline_invite_early_arrive"
+        | "offline_invite_arrive_notice"
+        | "offline_invite_system_notice"
         | `plugin:${string}`; // 聊天插件自定义消息类型（由注册该 kind 的插件渲染气泡）
     origin?: "chat" | "reading_discuss" | "custom_app" | "custom_app_background";
     mediaUrl?: string;
@@ -236,12 +240,14 @@ export type ChatMessage = {
         appHistoryText?: string;
         appHistoryRole?: ChatMessageRole;
         offlineInvite?: {
-            direction: "he_comes" | "i_go";
+            direction?: "he_comes" | "i_go";
             place?: string;
             timeStr?: string;
             reason?: string;
             onTheWayMessage?: string;
+            transitCardMessage?: string;
             arrivedMessage?: string;
+            arrivalCardMessage?: string;
             status?: "pending" | "accepted" | "declined";
         };
     };

@@ -9,11 +9,18 @@ export type OfflineInviteData = {
     place?: string;
     reason?: string;
     onTheWayMessage?: string;
+    transitCardMessage?: string;
     arrivedMessage?: string;
+    arrivalCardMessage?: string;
     status: "pending" | "on_the_way" | "arrived";
+    isEarlyArrived?: boolean;
     startTime?: number;
     durationMinutes?: number;
     sourceBatchId?: string;
+    /** 初次发起邀约的批次ID（全场唯一生命之根，永不覆盖） */
+    initialBatchId?: string;
+    /** 该赴约生命周期中涉及的所有批次ID（包含发起、改地点、在途、到达等） */
+    relatedBatchIds?: string[];
 };
 
 export function getRemainingMinutes(startTime?: number, durationMinutes: number = 15): number {
@@ -33,23 +40,35 @@ function formatReason(text?: string): string {
 
 function getModalDescription(invite: OfflineInviteData): string {
     if (invite.status === "arrived") {
-        if (invite.arrivedMessage) {
+        // 到达状态：优先展示角色以第一人称现场亲口所说的私房心语/叮嘱，绝无生硬第三人称旁白
+        if (invite.arrivalCardMessage?.trim()) {
+            return `“${formatReason(invite.arrivalCardMessage)}”`;
+        }
+        if (invite.arrivedMessage?.trim()) {
             return `“${formatReason(invite.arrivedMessage)}”`;
         }
         return invite.direction === "he_comes"
             ? "对方已到达约定地点，正在等待与你碰面。"
             : "对方正在约定的地方等候你的到来。";
     }
-    if (invite.reason) {
-        return `“${formatReason(invite.reason)}”`;
-    }
     if (invite.status === "on_the_way") {
-        if (invite.onTheWayMessage) {
-            return `“${formatReason(invite.onTheWayMessage)}”`;
+        // 在途状态：优先展示角色以第一人称表达的在途私房心语（5段格式专属），绝不与微信发信重复
+        if (invite.transitCardMessage?.trim() && invite.transitCardMessage.trim() !== invite.onTheWayMessage?.trim()) {
+            return `“${formatReason(invite.transitCardMessage)}”`;
+        }
+        if (invite.transitCardMessage?.trim()) {
+            return `“${formatReason(invite.transitCardMessage)}”`;
+        }
+        // 若缺少独立在途心语，退回展示提议初衷，避免与微信聊天框里刚刚发出的动身报备逐字重复
+        if (invite.reason?.trim() && invite.reason.trim() !== invite.onTheWayMessage?.trim()) {
+            return `“${formatReason(invite.reason)}”`;
         }
         return invite.direction === "he_comes"
             ? "对方正在赶来的路上，请稍作等候。"
             : "对方正在约定的地方等候你的到来。";
+    }
+    if (invite.reason?.trim()) {
+        return `“${formatReason(invite.reason)}”`;
     }
     return invite.direction === "he_comes"
         ? "对方想要来见你，正在等待你的回应。"
@@ -146,7 +165,7 @@ export function OfflineInviteModal({
                             {isOnTheWay
                                 ? "在途赶来中"
                                 : isArrived
-                                ? "已经到达"
+                                ? (invite.isEarlyArrived ? "已提前到达" : "已经到达")
                                 : isHeComes
                                 ? "奔赴提议"
                                 : "线下邀约"}
@@ -156,7 +175,7 @@ export function OfflineInviteModal({
                         {isOnTheWay
                             ? `${charName} 正在赶来的路上`
                             : isArrived
-                            ? `${charName} 已到达${invite.place ? (invite.place === "你身边" ? "你身边" : `（${invite.place}）`) : ""}`
+                            ? `${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${invite.place ? (invite.place === "你身边" ? "「你身边」" : `「${invite.place}」`) : ""}`
                             : isHeComes
                             ? `${charName} 提议来找你`
                             : `${charName} 邀请你赴约`}
@@ -291,7 +310,7 @@ export function OfflineInviteCapsule({
                 {isOnTheWay
                     ? `${charName}正在赶来，约剩${remainingMins > 0 ? remainingMins : 1}分钟后到达`
                     : isArrived
-                    ? `✨ ${charName} 已到达${invite.place ? (invite.place === "你身边" ? "你身边" : `（${invite.place}）`) : ""}`
+                    ? `✨ ${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${invite.place ? (invite.place === "你身边" ? "「你身边」" : `「${invite.place}」`) : ""}`
                     : isHeComes
                     ? `${charName} 提议来见你（待赴约）`
                     : `${charName} 正在等候你赴约`}
