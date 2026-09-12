@@ -248,7 +248,14 @@ export type ChatMessage = {
             transitCardMessage?: string;
             arrivedMessage?: string;
             arrivalCardMessage?: string;
-            status?: "pending" | "accepted" | "declined";
+            status?: "pending" | "accepted" | "declined" | "on_the_way" | "arrived";
+            sourceBatchId?: string;
+            initialBatchId?: string;
+            isEarlyArrived?: boolean;
+            frozenRemainingMinutes?: number;
+            durationMinutes?: number;
+            startTime?: number;
+            relatedBatchIds?: string[];
         };
     };
     isTyping?: boolean; // temporary flag for UI rendering
@@ -1595,6 +1602,28 @@ export function clearChatSessionMessages(sessionId: string) {
     }
 
     dispatchDeletedMessages(deletedMessages);
+}
+
+export function replaceChatSessionMessages(sessionId: string, messages: ChatMessage[]): void {
+    clearChatSessionMessages(sessionId);
+    for (const msg of messages) {
+        const item = { ...msg, sessionId };
+        _messagesCache.push(item);
+        dbPutMessage(item);
+    }
+    if (messages.length > 0) {
+        const sorted = getSortedSessionMessages(sessionId);
+        const lastMsg = sorted[sorted.length - 1];
+        if (lastMsg) {
+            const sessions = loadChatSessions();
+            const sessIdx = sessions.findIndex(s => s.id === sessionId);
+            if (sessIdx !== -1) {
+                sessions[sessIdx].lastMessageId = lastMsg.id;
+                sessions[sessIdx].lastMessagePreview = getChatMessagePreview(lastMsg);
+                saveChatSessions(sessions);
+            }
+        }
+    }
 }
 
 function dispatchDeletedMessages(messages: ChatMessage[]): void {

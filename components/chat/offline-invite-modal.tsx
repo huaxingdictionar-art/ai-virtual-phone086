@@ -14,6 +14,8 @@ export type OfflineInviteData = {
     arrivalCardMessage?: string;
     status: "pending" | "on_the_way" | "arrived";
     isEarlyArrived?: boolean;
+    /** 提前到达时冻结的剩余分钟数（用于回溯时精准无损断点续存，绝不被磨蹭时间蚕食） */
+    frozenRemainingMinutes?: number;
     startTime?: number;
     durationMinutes?: number;
     sourceBatchId?: string;
