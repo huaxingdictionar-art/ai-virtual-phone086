@@ -257,6 +257,9 @@ export type ChatMessage = {
             startTime?: number;
             relatedBatchIds?: string[];
         };
+        /** 🌸 华确立的黄金体验：在途阶段每轮 AI 回复定格的实时剩余倒计时（用于回溯时毫秒级精准断点续存） */
+        inTransitRemainingSeconds?: number;
+        inTransitRemainingMinutes?: number;
     };
     isTyping?: boolean; // temporary flag for UI rendering
     statusPanel?: string; // AI display-only status content from [状态栏] tags
