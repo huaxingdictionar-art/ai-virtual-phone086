@@ -21,6 +21,8 @@ export type OfflineInviteData = {
     sourceBatchId?: string;
     /** 初次发起邀约时的地点（如“你身边”；若最初是身边，即使中途改了坐标，到达时标题依然保持“已到达你身边”的情感浪漫） */
     initialPlace?: string;
+    /** 卡片情绪视觉主题：default（经典蓝白）| alert（心跳白红·危机/吃醋）| forced（强行动身·暂以白红渲染，未来黑红） */
+    theme?: "default" | "alert" | "forced";
     /** 初次发起邀约的批次ID（全场唯一生命之根，永不覆盖） */
     initialBatchId?: string;
     /** 该赴约生命周期中涉及的所有批次ID（包含发起、改地点、在途、到达等） */
@@ -142,133 +144,148 @@ export function OfflineInviteModal({
                 </button>
 
                 {/* 角色头像与状态光晕徽章 */}
-                <div className="relative mt-2">
-                    <div className="w-16 h-16 rounded-full overflow-hidden border-2 border-[var(--c-primary,#2563eb)]/30 shadow-md flex items-center justify-center bg-[var(--c-input,#f3f4f6)]">
-                        {character?.avatar ? (
-                            <img src={character.avatar} alt={charName} className="w-full h-full object-cover" />
-                        ) : (
-                            <User size={30} className="text-[var(--c-text,#9ca3af)]" />
-                        )}
-                    </div>
-                    <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[var(--c-primary,#2563eb)] text-white flex items-center justify-center shadow">
-                        {isOnTheWay ? (
-                            <Navigation size={12} className="animate-pulse" />
-                        ) : isArrived ? (
-                            <Sparkles size={12} />
-                        ) : (
-                            <MapPin size={13} />
-                        )}
-                    </div>
-                </div>
+                {(() => {
+                    const isAlertTheme = invite.theme === "alert" || invite.theme === "forced";
+                    const badgeBg = isAlertTheme ? "bg-rose-600" : "bg-[var(--c-primary,#2563eb)]";
+                    const badgeBorder = isAlertTheme ? "border-rose-500/30" : "border-[var(--c-primary,#2563eb)]/30";
+                    const tagStyle = isAlertTheme ? "bg-rose-500/10 text-rose-600" : "bg-[var(--c-primary,#2563eb)]/10 text-[var(--c-primary,#2563eb)]";
+                    const accentText = isAlertTheme ? "text-rose-600" : "text-[var(--c-primary,#2563eb)]";
+                    const primaryBtn = isAlertTheme
+                        ? "bg-rose-600 text-white hover:bg-rose-700"
+                        : "bg-[var(--c-primary,#2563eb)] text-white hover:opacity-90";
 
-                {/* 标题与情境标签 */}
-                <div className="flex flex-col items-center gap-1">
-                    <div className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-[var(--c-primary,#2563eb)]/10 text-[var(--c-primary,#2563eb)]">
-                        <Sparkles size={11} />
-                        <span>
-                            {isOnTheWay
-                                ? "在途赶来中"
-                                : isArrived
-                                ? (invite.isEarlyArrived ? "已提前到达" : "已经到达")
-                                : isHeComes
-                                ? "奔赴提议"
-                                : "线下邀约"}
-                        </span>
-                    </div>
-                    {(() => {
-                        const isOriginByYourSide = invite.initialPlace === "你身边" || (!invite.initialPlace && invite.place === "你身边");
-                        const arrivedPlaceText = isOriginByYourSide
-                            ? "你身边"
-                            : (invite.place ? `「${invite.place}」` : "");
-                        return (
-                            <h3 className="text-[16px] font-bold text-[var(--c-text-title,#111827)] mt-1">
-                                {isOnTheWay
-                                    ? `${charName} 正在赶来的路上`
-                                    : isArrived
-                                    ? `${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`
-                                    : isHeComes
-                                    ? `${charName} 提议来找你`
-                                    : `${charName} 邀请你赴约`}
-                            </h3>
-                        );
-                    })()}
-                    <div className="inline-flex items-center justify-center gap-1 text-[11px] text-[var(--c-text,#9ca3af)] mt-0.5">
-                        <span>按右上角</span>
-                        <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-[var(--c-input,rgba(0,0,0,0.06))] text-[var(--c-text,#6b7280)]">
-                            <Undo2 size={9.5} />
-                        </span>
-                        <span>{isOnTheWay ? "可收起状态" : isArrived ? "可收起通知" : "可稍后处理"}</span>
-                    </div>
-                </div>
-
-                {/* 说明卡片与在途倒计时 */}
-                <div className="w-full rounded-xl bg-[var(--c-input,#f3f4f6)]/70 p-3 text-left flex flex-col gap-1.5 border border-[var(--c-input-border,rgba(0,0,0,0.04))]">
-                    {isOnTheWay ? (
-                        <div className="flex items-center gap-2 text-xs font-semibold text-[var(--c-primary,#2563eb)]">
-                            <Clock size={14} className="shrink-0" />
-                            <span>预计约 {remainingMins > 0 ? remainingMins : 1} 分钟后到达</span>
-                        </div>
-                    ) : null}
-
-                    {invite.place && (
-                        <div className="text-xs text-[var(--c-text-title,#111827)] font-medium flex items-center gap-1">
-                            <MapPin size={12} className="text-[var(--c-primary,#2563eb)] shrink-0" />
-                            <span>奔赴地点：{invite.place}</span>
-                        </div>
-                    )}
-
-                    <div className="text-xs text-[var(--c-text,#4b5563)] leading-relaxed italic line-clamp-3">
-                        {getModalDescription(invite)}
-                    </div>
-                </div>
-
-                {/* 操作按钮组 */}
-                <div className="flex items-center gap-2.5 w-full mt-1">
-                    {isPending ? (
+                    return (
                         <>
-                            <button
-                                type="button"
-                                onClick={onDecline}
-                                className="flex-1 py-2.5 px-3 rounded-xl border border-[var(--c-border,#d1d5db)] text-xs font-medium text-[var(--c-text,#4b5563)] hover:bg-[var(--c-input,#f3f4f6)] active:scale-95 transition-all cursor-pointer"
-                            >
-                                拒绝Ta
-                            </button>
-                            <button
-                                type="button"
-                                onClick={onAccept}
-                                className="flex-1 py-2.5 px-3 rounded-xl bg-[var(--c-primary,#2563eb)] text-white text-xs font-semibold shadow hover:opacity-90 active:scale-95 transition-all cursor-pointer"
-                            >
-                                {isHeComes ? "答应Ta" : "去见Ta"}
-                            </button>
+                            <div className="relative mt-2">
+                                <div className={`w-16 h-16 rounded-full overflow-hidden border-2 ${badgeBorder} shadow-md flex items-center justify-center bg-[var(--c-input,#f3f4f6)]`}>
+                                    {character?.avatar ? (
+                                        <img src={character.avatar} alt={charName} className="w-full h-full object-cover" />
+                                    ) : (
+                                        <User size={30} className="text-[var(--c-text,#9ca3af)]" />
+                                    )}
+                                </div>
+                                <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full ${badgeBg} text-white flex items-center justify-center shadow`}>
+                                    {isOnTheWay ? (
+                                        <Navigation size={12} className="animate-pulse" />
+                                    ) : isArrived ? (
+                                        <Sparkles size={12} />
+                                    ) : (
+                                        <MapPin size={13} />
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* 标题与情境标签 */}
+                            <div className="flex flex-col items-center gap-1">
+                                <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${tagStyle}`}>
+                                    <Sparkles size={11} />
+                                    <span>
+                                        {isOnTheWay
+                                            ? (invite.theme === "forced" ? "强行动身赶来中" : "在途赶来中")
+                                            : isArrived
+                                            ? (invite.isEarlyArrived ? "已提前到达" : "已经到达")
+                                            : isHeComes
+                                            ? (isAlertTheme ? "急迫奔赴" : "奔赴提议")
+                                            : (isAlertTheme ? "严肃碰面" : "线下邀约")}
+                                    </span>
+                                </div>
+                                {(() => {
+                                    const isOriginByYourSide = invite.initialPlace === "你身边" || (!invite.initialPlace && invite.place === "你身边");
+                                    const arrivedPlaceText = isOriginByYourSide
+                                        ? "你身边"
+                                        : (invite.place ? `「${invite.place}」` : "");
+                                    return (
+                                        <h3 className="text-[16px] font-bold text-[var(--c-text-title,#111827)] mt-1">
+                                            {isOnTheWay
+                                                ? `${charName} 正在赶来的路上`
+                                                : isArrived
+                                                ? `${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`
+                                                : isHeComes
+                                                ? (isAlertTheme ? `${charName} 要求来找你` : `${charName} 提议来找你`)
+                                                : (isAlertTheme ? `${charName} 勒令你赴约` : `${charName} 邀请你赴约`)}
+                                        </h3>
+                                    );
+                                })()}
+                                <div className="inline-flex items-center justify-center gap-1 text-[11px] text-[var(--c-text,#9ca3af)] mt-0.5">
+                                    <span>按右上角</span>
+                                    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-[var(--c-input,rgba(0,0,0,0.06))] text-[var(--c-text,#6b7280)]">
+                                        <Undo2 size={9.5} />
+                                    </span>
+                                    <span>{isOnTheWay ? "可收起状态" : isArrived ? "可收起通知" : "可稍后处理"}</span>
+                                </div>
+                            </div>
+
+                            {/* 说明卡片与在途倒计时 */}
+                            <div className="w-full rounded-xl bg-[var(--c-input,#f3f4f6)]/70 p-3 text-left flex flex-col gap-1.5 border border-[var(--c-input-border,rgba(0,0,0,0.04))]">
+                                {isOnTheWay ? (
+                                    <div className={`flex items-center gap-2 text-xs font-semibold ${accentText}`}>
+                                        <Clock size={14} className="shrink-0" />
+                                        <span>预计约 {remainingMins > 0 ? remainingMins : 1} 分钟后到达</span>
+                                    </div>
+                                ) : null}
+
+                                {invite.place && (
+                                    <div className="text-xs text-[var(--c-text-title,#111827)] font-medium flex items-center gap-1">
+                                        <MapPin size={12} className={`${accentText} shrink-0`} />
+                                        <span>奔赴地点：{invite.place}</span>
+                                    </div>
+                                )}
+
+                                <div className="text-xs text-[var(--c-text,#4b5563)] leading-relaxed italic line-clamp-3">
+                                    {getModalDescription(invite)}
+                                </div>
+                            </div>
+
+                            {/* 操作按钮组 */}
+                            <div className="flex items-center gap-2.5 w-full mt-1">
+                                {isPending ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={onDecline}
+                                            className="flex-1 py-2.5 px-3 rounded-xl border border-[var(--c-border,#d1d5db)] text-xs font-medium text-[var(--c-text,#4b5563)] hover:bg-[var(--c-input,#f3f4f6)] active:scale-95 transition-all cursor-pointer"
+                                        >
+                                            拒绝Ta
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={onAccept}
+                                            className={`flex-1 py-2.5 px-3 rounded-xl ${primaryBtn} text-xs font-semibold shadow active:scale-95 transition-all cursor-pointer`}
+                                        >
+                                            {isHeComes ? "答应Ta" : "去见Ta"}
+                                        </button>
+                                    </>
+                                ) : isOnTheWay ? (
+                                    <>
+                                        <button
+                                            type="button"
+                                            onClick={onMinimize}
+                                            className="flex-1 py-2.5 px-3 rounded-xl border border-[var(--c-border,#d1d5db)] text-xs font-medium text-[var(--c-text,#4b5563)] hover:bg-[var(--c-input,#f3f4f6)] active:scale-95 transition-all cursor-pointer"
+                                        >
+                                            线上继续聊
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={onEarlyArrive || onAccept}
+                                            className={`flex-1 py-2.5 px-3 rounded-xl ${primaryBtn} text-xs font-semibold shadow active:scale-95 transition-all cursor-pointer`}
+                                        >
+                                            已经到了/去见Ta
+                                        </button>
+                                    </>
+                                ) : (
+                                    /* isArrived */
+                                    <button
+                                        type="button"
+                                        onClick={onAccept}
+                                        className={`w-full py-2.5 px-4 rounded-xl ${primaryBtn} text-xs font-semibold shadow active:scale-95 transition-all cursor-pointer`}
+                                    >
+                                        去见Ta
+                                    </button>
+                                )}
+                            </div>
                         </>
-                    ) : isOnTheWay ? (
-                        <>
-                            <button
-                                type="button"
-                                onClick={onMinimize}
-                                className="flex-1 py-2.5 px-3 rounded-xl border border-[var(--c-border,#d1d5db)] text-xs font-medium text-[var(--c-text,#4b5563)] hover:bg-[var(--c-input,#f3f4f6)] active:scale-95 transition-all cursor-pointer"
-                            >
-                                线上继续聊
-                            </button>
-                            <button
-                                type="button"
-                                onClick={onEarlyArrive || onAccept}
-                                className="flex-1 py-2.5 px-3 rounded-xl bg-[var(--c-primary,#2563eb)] text-white text-xs font-semibold shadow hover:opacity-90 active:scale-95 transition-all cursor-pointer"
-                            >
-                                已经到了/去见Ta
-                            </button>
-                        </>
-                    ) : (
-                        /* isArrived */
-                        <button
-                            type="button"
-                            onClick={onAccept}
-                            className="w-full py-2.5 px-4 rounded-xl bg-[var(--c-primary,#2563eb)] text-white text-xs font-semibold shadow hover:opacity-90 active:scale-95 transition-all cursor-pointer"
-                        >
-                            去见Ta
-                        </button>
-                    )}
-                </div>
+                    );
+                })()}
             </div>
         </div>
     );
@@ -307,6 +324,12 @@ export function OfflineInviteCapsule({
         return () => clearInterval(timer);
     }, [isOnTheWay, invite.startTime, invite.durationMinutes]);
 
+    const isAlertTheme = invite.theme === "alert" || invite.theme === "forced";
+    const pingDotBg = isAlertTheme ? "bg-rose-500" : "bg-[var(--c-primary,#2563eb)]";
+    const solidDotBg = isAlertTheme ? "bg-rose-600" : "bg-[var(--c-primary,#2563eb)]";
+    const btnBg = isAlertTheme ? "bg-rose-600 hover:bg-rose-700" : "bg-[var(--c-primary,#2563eb)] hover:opacity-90";
+    const actionText = isAlertTheme ? "text-rose-600" : "text-[var(--c-primary,#2563eb)]";
+
     return (
         <div
             onClick={onClick}
@@ -315,8 +338,8 @@ export function OfflineInviteCapsule({
             title="点击查看邀约详情"
         >
             <span className="relative flex h-2 w-2 shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--c-primary,#2563eb)] opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--c-primary,#2563eb)]" />
+                <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${pingDotBg}`} />
+                <span className={`relative inline-flex rounded-full h-2 w-2 ${solidDotBg}`} />
             </span>
             <span className="text-xs font-medium text-[var(--c-text-title,#111827)] truncate">
                 {isOnTheWay
@@ -330,8 +353,8 @@ export function OfflineInviteCapsule({
                         return `✨ ${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`;
                     })()
                     : isHeComes
-                    ? `${charName} 提议来见你（待赴约）`
-                    : `${charName} 正在等候你赴约`}
+                    ? (isAlertTheme ? `${charName} 要求来见你（待赴约）` : `${charName} 提议来见你（待赴约）`)
+                    : (isAlertTheme ? `${charName} 勒令你赴约` : `${charName} 正在等候你赴约`)}
             </span>
             {onAccept && (isArrived || !isHeComes) ? (
                 <button
@@ -340,12 +363,12 @@ export function OfflineInviteCapsule({
                         e.stopPropagation();
                         onAccept();
                     }}
-                    className="text-[11px] bg-[var(--c-primary,#2563eb)] text-white font-semibold px-2 py-0.5 rounded-full hover:opacity-90 active:scale-95 transition-all shrink-0 cursor-pointer shadow-sm"
+                    className={`text-[11px] text-white font-semibold px-2 py-0.5 rounded-full active:scale-95 transition-all shrink-0 cursor-pointer shadow-sm ${btnBg}`}
                 >
                     去见Ta
                 </button>
             ) : (
-                <span className="text-[10px] text-[var(--c-primary,#2563eb)] font-semibold shrink-0">
+                <span className={`text-[10px] font-semibold shrink-0 ${actionText}`}>
                     {isOnTheWay ? "查看" : isArrived ? "去见Ta" : "处理"}
                 </span>
             )}

@@ -252,6 +252,7 @@ export type ChatMessage = {
             sourceBatchId?: string;
             initialBatchId?: string;
             initialPlace?: string;
+            theme?: "default" | "alert" | "forced";
             isEarlyArrived?: boolean;
             frozenRemainingMinutes?: number;
             durationMinutes?: number;

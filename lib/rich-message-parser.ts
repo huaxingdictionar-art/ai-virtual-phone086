@@ -261,14 +261,89 @@ const RICH_PATTERNS: {
         build: () => ({ content: "", mediaType: "video_call" as const }),
     },
     {
-        // [线下邀约:方向:地点:时间:台词] or [线下邀约:方向:地点:台词] or [线下邀约:方向:地点]
-        regex: new RegExp(`\\[线下邀约(?:${C}(他来|我去|我来|你来|角色来|用户去|角色赴约|邀请赴约))?${C}([^：:\\]]+?)(?:${C}([^：:\\]]+?))?(?:${C}([^\\]]+))?\\]`),
+        // [强行动身:碰头地点:用时(可选):台词] or [强行赴约:碰头地点:用时(可选):台词]
+        regex: new RegExp(`\\[(?:强行动身|强行赴约|霸道奔赴)${C}([^：:\\]]+?)(?:${C}([^：:\\]]+?))?(?:${C}([^\\]]+))?\\]`),
         build: (m) => {
-            const rawDir = m[1]?.trim();
-            const direction: "he_comes" | "i_go" | undefined = rawDir
-                ? ((rawDir === "我去" || rawDir === "你来" || rawDir === "用户去" || rawDir === "邀请赴约") ? "i_go" : "he_comes")
-                : undefined;
-            const rawPlace = m[2]?.trim() || "";
+            const rawPlace = m[1]?.trim() || "";
+            const isInvalidQuestionPlace = /^(?:你在[哪哪儿里]|在[哪哪儿里]|在哪个地方|去[哪哪儿里]|未知|未定|未知位置|不知道在哪[儿里]?)$/.test(rawPlace);
+            const place = isInvalidQuestionPlace
+                ? ""
+                : ((!rawPlace || /(?:发错|迷路|具体位置|定位的位置|所在的位置|所在地|某个地方|某个屋檐)/.test(rawPlace))
+                    ? "你身边"
+                    : rawPlace);
+            let timeStr: string | undefined;
+            let rawReason = "";
+
+            if (m[3] !== undefined) {
+                timeStr = m[2]?.trim();
+                rawReason = m[3]?.trim() || "";
+            } else if (m[2] !== undefined) {
+                const segment = m[2].trim();
+                if (segment.includes("|")) {
+                    rawReason = segment;
+                } else if (/^(?:\d+|半个?小时|一刻钟|\d+个?小时|\d+\s*(?:分钟|分|mins?|min)|(?:二十|三十|四十|五十|十五|十|五)[\d分]*)$/.test(segment)) {
+                    timeStr = segment;
+                } else {
+                    rawReason = segment;
+                }
+            }
+
+            const segments = rawReason.split("|").map(s => s.trim());
+            const reason = segments[0] || "";
+            const onTheWayMessage = segments[1] || "";
+            let transitCardMessage = "";
+            let arrivedMessage = "";
+            let arrivalCardMessage = "";
+
+            if (segments.length >= 5) {
+                transitCardMessage = segments[2] || "";
+                arrivedMessage = segments[3] || "";
+                arrivalCardMessage = segments[4] || "";
+            } else if (segments.length === 4) {
+                arrivedMessage = segments[2] || "";
+                arrivalCardMessage = segments[3] || "";
+            } else if (segments.length >= 3) {
+                arrivedMessage = segments[2] || "";
+            }
+
+            return {
+                content: "",
+                mediaType: "offline_invite" as const,
+                mediaData: {
+                    offlineInvite: {
+                        direction: "he_comes" as const,
+                        theme: "forced" as const,
+                        place,
+                        timeStr,
+                        reason,
+                        onTheWayMessage,
+                        transitCardMessage,
+                        arrivedMessage,
+                        arrivalCardMessage,
+                        status: "on_the_way" as const,
+                    },
+                    label: "线下邀约:强行动身",
+                },
+            };
+        },
+    },
+    {
+        // [线下邀约:情绪(可选):方向(可选):地点:时间:台词] or [线下邀约:方向:地点:时间:台词] or [线下邀约:方向:地点:台词] or [线下邀约:方向:地点]
+        regex: new RegExp(`\\[线下邀约(?:${C}(危机|警报|白红|紧急|严肃))?(?:${C}(他来|我去|我来|你来|角色来|用户去|角色赴约|邀请赴约|强行动身|强行赴约))?${C}([^：:\\]]+?)(?:${C}([^：:\\]]+?))?(?:${C}([^\\]]+))?\\]`),
+        build: (m) => {
+            const rawTone = m[1]?.trim();
+            const rawDir = m[2]?.trim();
+            const isForced = rawDir === "强行动身" || rawDir === "强行赴约";
+            const theme: "default" | "alert" | "forced" = isForced
+                ? "forced"
+                : ((rawTone || rawDir === "危机" || rawDir === "警报") ? "alert" : "default");
+            const direction: "he_comes" | "i_go" | undefined = isForced
+                ? "he_comes"
+                : (rawDir
+                    ? ((rawDir === "我去" || rawDir === "你来" || rawDir === "用户去" || rawDir === "邀请赴约") ? "i_go" : "he_comes")
+                    : undefined);
+            const status = isForced ? ("on_the_way" as const) : ("pending" as const);
+            const rawPlace = m[3]?.trim() || "";
             // 华敏锐指出：地点是发起提议的前提！如果大模型在还没问出地点时胡乱把“你在哪/哪里/未定”填入地点，
             // 绝不可强行包装成合法地点，应视为空，由后续逻辑拦截，让角色老老实实在正文中向用户问清楚！
             const isInvalidQuestionPlace = /^(?:你在[哪哪儿里]|在[哪哪儿里]|在哪个地方|去[哪哪儿里]|未知|未定|未知位置|不知道在哪[儿里]?)$/.test(rawPlace);
@@ -280,11 +355,11 @@ const RICH_PATTERNS: {
             let timeStr: string | undefined;
             let rawReason = "";
 
-            if (m[4] !== undefined) {
-                timeStr = m[3]?.trim();
-                rawReason = m[4]?.trim() || "";
-            } else if (m[3] !== undefined) {
-                const segment = m[3].trim();
+            if (m[5] !== undefined) {
+                timeStr = m[4]?.trim();
+                rawReason = m[5]?.trim() || "";
+            } else if (m[4] !== undefined) {
+                const segment = m[4].trim();
                 if (segment.includes("|")) {
                     rawReason = segment;
                 } else if (/^(?:\d+|半个?小时|一刻钟|\d+个?小时|\d+\s*(?:分钟|分|mins?|min)|(?:二十|三十|四十|五十|十五|十|五)[\d分]*)$/.test(segment)) {
@@ -321,6 +396,7 @@ const RICH_PATTERNS: {
                 mediaData: {
                     offlineInvite: {
                         direction,
+                        theme,
                         place,
                         timeStr,
                         reason,
@@ -328,9 +404,9 @@ const RICH_PATTERNS: {
                         transitCardMessage,
                         arrivedMessage,
                         arrivalCardMessage,
-                        status: "pending" as const,
+                        status,
                     },
-                    label: `线下邀约:${direction === "i_go" ? "我去" : "他来"}`,
+                    label: `线下邀约:${direction === "i_go" ? "我去" : (isForced ? "强行动身" : "他来")}`,
                 },
             };
         },
