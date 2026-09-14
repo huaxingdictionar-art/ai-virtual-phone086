@@ -81,7 +81,7 @@ function getModalDescription(invite: OfflineInviteData): string {
         : "对方正在约定的地方等候你的到来。";
 }
 
-/** 🌸 华特调的灵动三睫毛眼眸图标：神采醒目、线条克制雅致 */
+/** 🌸 华特调的灵动三睫毛眼眸图标：神采醒目、线条克制雅致、瞳孔带警觉探查微动 */
 function EyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; size?: number }) {
     return (
         <svg
@@ -97,8 +97,16 @@ function EyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; s
         >
             {/* 杏仁眼型轮廓 */}
             <path d="M2 13.5C2 13.5 5.5 7.5 12 7.5C18.5 7.5 22 13.5 22 13.5C22 13.5 18.5 19.5 12 19.5C5.5 19.5 2 13.5 2 13.5Z" />
-            {/* 眼球/瞳孔 */}
-            <circle cx="12" cy="13.5" r="2.8" />
+            {/* 灵动眼球/瞳孔：定睛凝视 ➔ 警觉微探 ➔ 瞬间回锁正中 */}
+            <circle cx="12" cy="13.5" r="2.8">
+                <animate
+                    attributeName="cx"
+                    values="12; 12; 10.6; 10.6; 13.4; 13.4; 12; 12"
+                    keyTimes="0; 0.45; 0.53; 0.65; 0.73; 0.85; 0.92; 1"
+                    dur="4s"
+                    repeatCount="indefinite"
+                />
+            </circle>
             {/* 三根生动翘起的眼睫毛 */}
             <path d="M12 7.5V3" />
             <path d="M7 9.2L4.5 5.2" />
@@ -234,7 +242,7 @@ export function OfflineInviteModal({
                             <div className="flex flex-col items-center gap-1">
                                 <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${tagStyle}`}>
                                     {invite.theme === "forced" ? (
-                                        <EyelashEyeIcon size={16.5} className="animate-pulse shrink-0" />
+                                        <EyelashEyeIcon size={16.5} className="shrink-0" />
                                     ) : (
                                         <Sparkles size={11} className="shrink-0" />
                                     )}
