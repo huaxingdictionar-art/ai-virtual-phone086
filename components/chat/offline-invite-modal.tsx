@@ -186,7 +186,7 @@ export function OfflineInviteModal({
                                             ? (invite.isEarlyArrived ? "已提前到达" : "已经到达")
                                             : isHeComes
                                             ? (isAlertTheme ? "紧急赶来" : "奔赴提议")
-                                            : (isAlertTheme ? "紧急碰面" : "线下邀约")}
+                                            : (isAlertTheme ? "紧急邀约" : "线下邀约")}
                                     </span>
                                 </div>
                                 {(() => {
@@ -201,8 +201,8 @@ export function OfflineInviteModal({
                                                 : isArrived
                                                 ? `${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`
                                                 : isHeComes
-                                                ? (isAlertTheme ? `${charName} 执意来找你` : `${charName} 提议来找你`)
-                                                : (isAlertTheme ? `${charName} “请求”你赴约` : `${charName} 邀请你赴约`)}
+                                                ? (isAlertTheme ? `${charName} 执意来见你` : `${charName} 提议来见你`)
+                                                : (isAlertTheme ? `${charName} “邀请你”赴约` : `${charName} 邀请你赴约`)}
                                         </h3>
                                     );
                                 })()}
@@ -354,7 +354,7 @@ export function OfflineInviteCapsule({
                     })()
                     : isHeComes
                     ? (isAlertTheme ? `${charName} 执意来见你（待赴约）` : `${charName} 提议来见你（待赴约）`)
-                    : (isAlertTheme ? `${charName} “请求”你赴约` : `${charName} 正在等候你赴约`)}
+                    : (isAlertTheme ? `${charName} “邀请你”赴约` : `${charName} 正在等候你赴约`)}
             </span>
             {onAccept && (isArrived || !isHeComes) ? (
                 <button

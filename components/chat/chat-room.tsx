@@ -3583,8 +3583,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             noticeContent = `${charName} 已直接动身赶往${placeStr}`;
                         } else if (inviteTheme === "alert") {
                             noticeContent = inviteData.direction === "he_comes"
-                                ? `${charName} 执意前往${placeStr === "你身边" ? "你身边" : placeStr}找你碰面`
-                                : `${charName} “请求”你前往${placeStr}与Ta见面`;
+                                ? `${charName} “请求”前往${placeStr === "你身边" ? "你身边" : placeStr}找你碰面`
+                                : `${charName} “邀请你”前往${placeStr}与Ta见面`;
                         } else {
                             noticeContent = `${charName} 向你发起了前往${placeStr === "你身边" ? "你身边的" : `${placeStr}的`}线下赴约提议`;
                         }
