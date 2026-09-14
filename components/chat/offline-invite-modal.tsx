@@ -354,7 +354,8 @@ export function OfflineInviteCapsule({
                         const arrivedPlaceText = isOriginByYourSide
                             ? "你身边"
                             : (invite.place ? (invite.place === "你身边" ? "你身边" : `「${invite.place}」`) : "");
-                        return `✨ ${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`;
+                        const prefix = isAlertTheme ? "" : "✨ ";
+                        return `${prefix}${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`;
                     })()
                     : isHeComes
                     ? (isAlertTheme ? `${charName} 执意来见你（待赴约）` : `${charName} 提议来见你（待赴约）`)

@@ -3967,6 +3967,51 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
 
         // 🌸 华确立的黄金体验法则：在途闲聊中，每一轮 AI 回复都打上那一轮专属的实时倒计时时间戳！
         // 只记住 AI 回复那一轮，不记住用户；回溯时凭此时间戳实现毫秒级精准断点续存，绝不被机械重置为满额时间！
+        // 🌸 华敏锐发现的核心体验痛点：当角色处于在途中（on_the_way），如果角色在正文回复中亲口宣布自己已经到达碰头地点
+        // （例如：“我到门外了。把门打开。”、“我已经在楼下了”、“听见敲门声了吗”、“我到606门外了，开门”），
+        // 但由于大模型漏输出了 [提前到达] 指令，导致角色嘴上说到了、顶栏却依然挂着倒计时的严重时间矛盾！
+        // 在此做强力智能语义双保险兜底：一旦检测到确凿的现场到达意图，自动推进为提前到达！
+        const hasExplicitEarlyArrive = parts.some(p => p.mediaType === "offline_invite_early_arrive");
+        const curEarlyInviteAuto = activeOfflineInviteRef.current;
+        if (!hasExplicitEarlyArrive && session.enableOfflineInvite && !session.isGroup && curEarlyInviteAuto && curEarlyInviteAuto.status === "on_the_way") {
+            const speech = (rawResponseText || "").replace(/\[[^\]]+\]/g, "");
+            const isStillMovingOrErrand = /(?:去便利店|顺便去|顺路去|顺路在|顺便在|去买|在路上|路上有点|这就出门|快到了|还要一会儿|还要几分钟|等我片刻|等我|耐心等|在赶去|赶过去|准备出门|刚出门|在打车|开着车|堵车|红绿灯|on my way|stop by|buying)/i.test(speech);
+            const isExplicitlyArrivedSpeech = /(?:我(?:已经?)?到(?:门外|楼下|门口|你家|你身边|了|[0-9a-zA-Z一二三四五六七八九十]+室?门外)|在门外[了，。！\s]|到门外[了，。！\s]|在楼下[了，。！\s]|到楼下[了，。！\s]|听见敲门声|出来开门|把门打?开|站在门外|我已经在[门楼]|到地方了)/.test(speech);
+
+            if (isExplicitlyArrivedSpeech && !isStillMovingOrErrand) {
+                const remainingMins = getRemainingMinutes(curEarlyInviteAuto.startTime, curEarlyInviteAuto.durationMinutes || 15);
+                const arrivedInvite: OfflineInviteData = {
+                    ...curEarlyInviteAuto,
+                    status: "arrived",
+                    isEarlyArrived: true,
+                    frozenRemainingMinutes: remainingMins,
+                    relatedBatchIds: Array.from(new Set([
+                        ...(curEarlyInviteAuto.relatedBatchIds || []),
+                        curEarlyInviteAuto.initialBatchId,
+                        curEarlyInviteAuto.sourceBatchId,
+                        responseBatchId,
+                    ].filter(Boolean) as string[])),
+                };
+                updateActiveOfflineInvite(arrivedInvite);
+
+                setIsOfflineInviteMinimized(true);
+                shouldAutoExpandInviteModalAfterTyping = true;
+
+                const charName = character?.name || "对方";
+                const isOriginByYourSide = curEarlyInviteAuto.initialPlace === "你身边" || (!curEarlyInviteAuto.initialPlace && curEarlyInviteAuto.place === "你身边");
+                const rawPlace = curEarlyInviteAuto.place?.trim();
+                const placeStr = isOriginByYourSide ? "你身边" : (rawPlace ? (rawPlace === "你身边" ? "你身边" : `「${rawPlace}」`) : "约定地点");
+                const sysMsg = pushChatMessage({
+                    sessionId: session.id,
+                    role: "system",
+                    content: `${charName} 已提前到达${placeStr}`,
+                    mediaType: "offline_invite_system_notice",
+                    mediaData: { offlineInvite: arrivedInvite },
+                });
+                setMessages(prev => [...prev, sysMsg]);
+            }
+        }
+
         const currentInTransitInvite = (
             session.enableOfflineInvite &&
             !session.isGroup &&
