@@ -558,9 +558,10 @@ function restoreOfflineInviteFromMessages(
     const hasAcceptedInHistory = historyMessages.some(m =>
         m.role === "system" && m.content && m.content.includes("你已同意赴约")
     );
-    const hasForcedDeparture = historyMessages.some(m =>
+    // 🌸 严格判定强制出发：绝不能把普通的在途（status === "on_the_way"）算作强制！
+    // 且一旦历史中存在用户同意赴约（hasAcceptedInHistory），绝对属于双方约定奔赴，绝非强制！
+    const hasForcedDeparture = !hasAcceptedInHistory && historyMessages.some(m =>
         (m.role === "system" && m.content && (m.content.includes("已直接动身赶往") || m.content.includes("已直接动身"))) ||
-        m.mediaData?.offlineInvite?.status === "on_the_way" ||
         m.mediaData?.offlineInvite?.theme === "forced"
     );
     const hasDepartedInHistory = hasAcceptedInHistory || hasForcedDeparture || (baseInvite?.status === "on_the_way");
@@ -573,6 +574,10 @@ function restoreOfflineInviteFromMessages(
             arriveMsg.mediaData?.offlineInvite?.isEarlyArrived ||
             (arriveMsg.role === "system" && arriveMsg.content && arriveMsg.content.includes("已提前到达"))
         );
+        // 🌸 华确立的最高法则：若是用户同意的赴约，即便到达，也绝对保持原始 alert/default 主题，绝不被误判为 forced！
+        if (hasAcceptedInHistory) {
+            restored.theme = (baseInvite?.theme === "forced" ? "alert" : baseInvite?.theme) || "alert";
+        }
     } else {
         restored.isEarlyArrived = false;
         if (restored.direction === "i_go") {
@@ -580,8 +585,11 @@ function restoreOfflineInviteFromMessages(
             restored.startTime = undefined;
         } else if (hasDepartedInHistory && restored.direction === "he_comes") {
             restored.status = "on_the_way";
-            if (baseInvite?.theme === "forced" || hasForcedDeparture) {
+            if (hasForcedDeparture && !hasAcceptedInHistory) {
                 restored.theme = "forced";
+            } else if (hasAcceptedInHistory) {
+                // 🌸 华确立的铁律：用户已同意赴约，严格保持原始主题（alert 保持 alert，default 保持 default），绝不篡改为 forced！
+                restored.theme = (baseInvite?.theme === "forced" ? "alert" : baseInvite?.theme) || "alert";
             }
             const duration = restored.durationMinutes || 15;
             const departureIdx = historyMessages.findIndex(m =>
@@ -603,6 +611,9 @@ function restoreOfflineInviteFromMessages(
                 restored.startTime = baseInvite.startTime;
                 restored.durationMinutes = baseInvite.durationMinutes || duration;
                 restored.status = "on_the_way";
+                if (hasAcceptedInHistory) {
+                    restored.theme = (baseInvite.theme === "forced" ? "alert" : baseInvite.theme) || "alert";
+                }
                 return restored;
             }
 
@@ -1520,6 +1531,12 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 kvRemove(ACTIVE_OFFLINE_INVITE_PREFIX + session.id);
                 return null;
             }
+            // 🌸 华专属守护：如果历史中存在“你已同意赴约”，且原本属于红色邀约，坚决纠偏为 alert，绝不被误判为 forced！
+            const hasAccepted = currentMsgs.some(m => m.role === "system" && m.content && m.content.includes("你已同意赴约"));
+            if (hasAccepted && parsed.theme === "forced") {
+                parsed.theme = "alert";
+                kvSet(ACTIVE_OFFLINE_INVITE_PREFIX + session.id, JSON.stringify(parsed));
+            }
             return parsed;
         } catch {
             return null;
@@ -1665,6 +1682,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
     useEffect(() => {
         if (!activeOfflineInvite || activeOfflineInvite.status !== "on_the_way") return;
         const checkArrival = () => {
+            if (!activeOfflineInvite.startTime) return;
             const remaining = getRemainingMinutes(activeOfflineInvite.startTime, activeOfflineInvite.durationMinutes || 15);
             if (remaining <= 0) {
                 const arriveBatchId = `offline_arrive_${Date.now()}`;

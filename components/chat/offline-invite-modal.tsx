@@ -277,13 +277,7 @@ export function OfflineInviteModal({
                                     {isOnTheWay ? (
                                         <Navigation size={12} className="animate-pulse" />
                                     ) : isArrived ? (
-                                        invite.theme === "forced" ? (
-                                            <EyelashEyeIcon size={12} />
-                                        ) : isAlertTheme ? (
-                                            <HeartbeatWaveIcon size={12} />
-                                        ) : (
-                                            <Sparkles size={12} />
-                                        )
+                                        <Sparkles size={12} />
                                     ) : (
                                         <MapPin size={13} />
                                     )}
