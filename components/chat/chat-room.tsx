@@ -1682,7 +1682,6 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
     useEffect(() => {
         if (!activeOfflineInvite || activeOfflineInvite.status !== "on_the_way") return;
         const checkArrival = () => {
-            if (!activeOfflineInvite.startTime) return;
             const remaining = getRemainingMinutes(activeOfflineInvite.startTime, activeOfflineInvite.durationMinutes || 15);
             if (remaining <= 0) {
                 const arriveBatchId = `offline_arrive_${Date.now()}`;
