@@ -188,6 +188,7 @@ type ChatSettingsPanelProps = {
     onJumpToMessage?: (messageId: string) => void;
     onDeleteFriend?: () => void;
     onSessionDeleted?: () => void;
+    onHistoryCleared?: () => void;
     onToolHistoryCleared?: () => void;
     onOfflineHistoryCleared?: () => void;
     offlineHistoryBusy?: boolean;
@@ -289,6 +290,7 @@ export function ChatSettingsPanel({
     onJumpToMessage,
     onDeleteFriend,
     onSessionDeleted,
+    onHistoryCleared,
     onToolHistoryCleared,
     onOfflineHistoryCleared,
     offlineHistoryBusy = false,
@@ -634,6 +636,7 @@ export function ChatSettingsPanel({
 
     const handleClearHistory = () => {
         clearChatSessionMessages(session.id);
+        onHistoryCleared?.();
         setShowConfirmClear(false);
     };
 

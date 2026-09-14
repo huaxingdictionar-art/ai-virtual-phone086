@@ -2011,8 +2011,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     m.content.includes("就位等候")
                 ))
             );
-            if (!hasRoot && (!currentInvite || !currentInvite.status)) {
+            if (!hasRoot) {
                 kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
+                kvRemove(PENDING_OFFLINE_INVITE_DECLINE_PREFIX + session.id);
                 updateActiveOfflineInvite(null);
                 setIsOfflineInviteMinimized(false);
                 if (remindExpandTimerRef.current) {
@@ -3628,13 +3629,15 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                 if (wasOnTheWay) {
                                     noticeContent = isPlaceChanged
                                         ? `赴约地点已更改为${placeStr}，对方正在现场等候你碰面`
-                                        : `碰头方式已变更为对方在${placeStr}等候你碰面`;
+                                        : (newPlace === "你身边" ? "碰头方式已变更为由你前去找对方" : `碰头方式已变更为由你前往${placeStr}找对方`);
                                 } else if (wasArrived) {
-                                    noticeContent = `碰头方式已变更为对方在${placeStr}等候你碰面`;
+                                    noticeContent = isPlaceChanged
+                                        ? `赴约地点已更改为${placeStr}，对方正在现场等候你碰面`
+                                        : (newPlace === "你身边" ? "碰头方式已变更为由你前去找对方" : `碰头方式已变更为由你前往${placeStr}找对方`);
                                 } else {
                                     noticeContent = isPlaceChanged
                                         ? `赴约地点已更改为${placeStr}，对方正在现场等候你碰面`
-                                        : `赴约提议已变更为你在${placeStr}与对方碰面`;
+                                        : (newPlace === "你身边" ? "赴约提议已变更为由你前去找对方" : `赴约提议已变更为由你前往${placeStr}找对方`);
                                 }
                             } else {
                                 noticeContent = `赴约提议地点已更改为${placeStr}`;
@@ -3763,7 +3766,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             updateActiveOfflineInvite(updatedInvite);
 
                             const noticeContent = isDirectionChanged
-                                ? "赴约提议已变更为由对方前来接你"
+                                ? "赴约提议已变更为由对方前来找你"
                                 : `赴约提议地点已更改为${placeStr}`;
 
                             const sysMsg = pushChatMessage({
@@ -6023,6 +6026,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     const restoredInvite = restoreOfflineInviteFromMessages(contextMessages, currentInvite, targetRetryMsg);
                     if (restoredInvite) {
                         updateActiveOfflineInvite(restoredInvite);
+                        // 🌸 华确立的黄金体验法则：重试期间必须保持收起状态，让用户清晰看到“对方正在输入中”！
+                        setIsOfflineInviteMinimized(true);
                     }
                 }
             }
@@ -6032,6 +6037,15 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 errorPrefix: "重试失败",
                 onDecline: triggerReply,
             });
+
+            // 🌸 华确立的“新卡片3秒必弹律”：重试生成完毕后，留足 3 秒供用户读完文本，再平滑自动展开大卡片
+            const currentRestored = activeOfflineInviteRef.current;
+            if (currentRestored && currentRestored.status === "pending" && !remindExpandTimerRef.current) {
+                remindExpandTimerRef.current = setTimeout(() => {
+                    setIsOfflineInviteMinimized(false);
+                    remindExpandTimerRef.current = null;
+                }, 3000);
+            }
         };
 
         // 华敏锐确立的黄金交互三阶分流：
@@ -6095,7 +6109,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             const restoredInvite = restoreOfflineInviteFromMessages(contextMessages, null, targetMsg);
             if (restoredInvite) {
                 updateActiveOfflineInvite(restoredInvite);
-                setIsOfflineInviteMinimized(restoredInvite.status === "on_the_way");
+                // 🌸 华确立的黄金体验法则：重试期间必须保持收起状态，让用户清晰看到“对方正在输入中”！
+                setIsOfflineInviteMinimized(true);
             } else {
                 updateActiveOfflineInvite(null);
                 setIsOfflineInviteMinimized(false);
@@ -6108,6 +6123,16 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             errorPrefix: "重试失败",
             onDecline: triggerReply,
         });
+
+        // 🌸 华确立的“新卡片3秒必弹律”：重试生成完毕后，留足 3 秒供用户读完文本，再平滑自动展开大卡片
+        const currentRestored = activeOfflineInviteRef.current;
+        if (currentRestored && currentRestored.status === "pending" && !remindExpandTimerRef.current) {
+            remindExpandTimerRef.current = setTimeout(() => {
+                setIsOfflineInviteMinimized(false);
+                remindExpandTimerRef.current = null;
+            }, 3000);
+        }
+
         showChatToast("已回溯至当时，线下赴约状态已结束");
     };
 
@@ -8310,6 +8335,18 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                         onJumpToMessage={(messageId) => {
                             setShowSettings(false);
                             jumpToStoredMessage(messageId);
+                        }}
+                        onHistoryCleared={() => {
+                            updateActiveOfflineInvite(null);
+                            setIsOfflineInviteMinimized(false);
+                            if (remindExpandTimerRef.current) {
+                                clearTimeout(remindExpandTimerRef.current);
+                                remindExpandTimerRef.current = null;
+                            }
+                            kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
+                            kvRemove(PENDING_OFFLINE_INVITE_DECLINE_PREFIX + session.id);
+                            syncMessagesFromStorage();
+                            showChatToast("已清空聊天记录与赴约状态");
                         }}
                         onToolHistoryCleared={syncMessagesFromStorage}
                         offlineHistoryBusy={isOfflineGenerating}
