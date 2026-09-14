@@ -81,8 +81,42 @@ function getModalDescription(invite: OfflineInviteData): string {
         : "对方正在约定的地方等候你的到来。";
 }
 
-/** 🌸 华特调的灵动三睫毛眼眸图标：凝神定格（单次蓦然睁大 + 维持定格 0.65秒 + 缓缓舒展归平） */
-function EyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; size?: number }) {
+/** 🌸 华特调的灵动三睫毛搜寻眼眸：原汁原味回退！专用于在途赶来中，无缩放无变形，纯粹左右警觉巡视探查（搜寻中） */
+function SearchingEyeIcon({ className = "", size = 16.5 }: { className?: string; size?: number }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={className}
+        >
+            {/* 杏仁眼型轮廓 */}
+            <path d="M2 13.5C2 13.5 5.5 7.5 12 7.5C18.5 7.5 22 13.5 22 13.5C22 13.5 18.5 19.5 12 19.5C5.5 19.5 2 13.5 2 13.5Z" />
+            {/* 灵动眼球/瞳孔：原版纯粹的定睛凝视 ➔ 左右警觉微探搜寻 ➔ 瞬间回锁正中 */}
+            <circle cx="12" cy="13.5" r="2.8">
+                <animate
+                    attributeName="cx"
+                    values="12; 12; 10.6; 10.6; 13.4; 13.4; 12; 12"
+                    keyTimes="0; 0.45; 0.53; 0.65; 0.73; 0.85; 0.92; 1"
+                    dur="4s"
+                    repeatCount="indefinite"
+                />
+            </circle>
+            {/* 三根生动翘起的眼睫毛：根部顺应外沿，无丝毫内渗 */}
+            <path d="M12 6.6V2.6" />
+            <path d="M6.5 8.2L4.2 4.4" />
+            <path d="M17.5 8.2L19.8 4.4" />
+        </svg>
+    );
+}
+
+/** 🌸 华特调的灵动三睫毛锁定眼眸：专用于强制到达「Ta来了……」，眼眶克制睁大至 1.18 倍 + 维持定格 0.65秒（已找到锁定） */
+function LockedEyeIcon({ className = "", size = 16.5 }: { className?: string; size?: number }) {
     return (
         <svg
             width={size}
@@ -97,11 +131,11 @@ function EyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; s
             style={{ overflow: "visible" }}
         >
             <g style={{ transformOrigin: "12px 13.5px" }}>
-                {/* 华确立的灵魂体验：只缩放一次！瞬间睁大 ➔ 牢牢维持定格 0.65秒 ➔ 缓缓舒展归平 */}
+                {/* 华确立的灵魂体验：只缩放一次！克制睁大至 1.18 倍 ➔ 牢牢维持定格 0.65秒 ➔ 缓缓舒展归平 */}
                 <animateTransform
                     attributeName="transform"
                     type="scale"
-                    values="1; 1.22; 1.22; 1; 1"
+                    values="1; 1.18; 1.18; 1; 1"
                     keyTimes="0; 0.05; 0.25; 0.41; 1"
                     dur="3.2s"
                     repeatCount="indefinite"
@@ -308,7 +342,11 @@ export function OfflineInviteModal({
                             <div className="flex flex-col items-center gap-1">
                                 <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${tagStyle}`}>
                                     {invite.theme === "forced" ? (
-                                        <EyelashEyeIcon size={16.5} className="shrink-0" />
+                                        isOnTheWay ? (
+                                            <SearchingEyeIcon size={16.5} className="shrink-0" />
+                                        ) : (
+                                            <LockedEyeIcon size={16.5} className="shrink-0" />
+                                        )
                                     ) : isAlertTheme ? (
                                         <HeartbeatWaveIcon size={16} className="shrink-0" />
                                     ) : (
