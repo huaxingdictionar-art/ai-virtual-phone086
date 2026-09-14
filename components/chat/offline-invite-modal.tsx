@@ -185,7 +185,7 @@ export function OfflineInviteModal({
                                             : isArrived
                                             ? (invite.isEarlyArrived ? "已提前到达" : "已经到达")
                                             : isHeComes
-                                            ? (isAlertTheme ? "执意奔赴" : "奔赴提议")
+                                            ? (isAlertTheme ? "紧急赶来" : "奔赴提议")
                                             : (isAlertTheme ? "紧急碰面" : "线下邀约")}
                                     </span>
                                 </div>
