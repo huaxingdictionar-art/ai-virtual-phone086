@@ -3471,6 +3471,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         // Detect call triggers and AI media actions, filter them out
         let triggerCall: "voice" | "video" | undefined;
         let hasDecline = false;
+        let shouldAutoExpandInviteModalAfterTyping = false;
         const charN = character?.name || "对方";
         const userN = userIdentity?.name || "你";
         const filteredParts: typeof parts = [];
@@ -3495,17 +3496,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                         durationMinutes: parsedMins,
                     };
                     updateActiveOfflineInvite(updatedInvite);
+                    setIsOfflineInviteMinimized(true);
                     lastRemindBatchIdRef.current = responseBatchId;
-
-                    // 华提出的黄金体验：绝不同步立即弹窗糊在脸上挡住角色新消息！
-                    // 先让消息安安稳稳发出来，留足 3 秒给用户舒服读完这句消息，然后弹窗再平滑自动展开！
-                    if (remindExpandTimerRef.current) {
-                        clearTimeout(remindExpandTimerRef.current);
-                    }
-                    remindExpandTimerRef.current = setTimeout(() => {
-                        setIsOfflineInviteMinimized(false);
-                        remindExpandTimerRef.current = null;
-                    }, 3000);
+                    shouldAutoExpandInviteModalAfterTyping = true;
                 }
                 continue;
             }
@@ -3566,25 +3559,23 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             relatedBatchIds: [responseBatchId],
                         };
 
-                        if (remindExpandTimerRef.current) {
-                            clearTimeout(remindExpandTimerRef.current);
-                        }
-                        remindExpandTimerRef.current = setTimeout(() => {
-                            updateActiveOfflineInvite(inviteData);
-                            setIsOfflineInviteMinimized(false);
-                            // 华提出的黄金体验节点①【发起提议】：初次发起邀约时，在聊天流中留下居中小灰字系统记录（记忆锚点）
-                            const charName = character?.name || "对方";
-                            const placeStr = inviteData.place ? (inviteData.place === "你身边" ? "前往你身边的" : `前往「${inviteData.place}」的`) : "";
-                            const sysMsg = pushChatMessage({
-                                sessionId: session.id,
-                                role: "system",
-                                content: `${charName} 向你发起了${placeStr}线下赴约提议`,
-                                mediaType: "offline_invite_system_notice",
-                                mediaData: { offlineInvite: inviteData },
-                            });
-                            setMessages(prev => [...prev, sysMsg]);
-                            remindExpandTimerRef.current = null;
-                        }, 3000);
+                        updateActiveOfflineInvite(inviteData);
+                        setIsOfflineInviteMinimized(true);
+
+                        // 华提出的黄金体验节点①【发起提议】：初次发起邀约时，在聊天流中立即留下居中小灰字系统记录（记忆锚点）
+                        const charName = character?.name || "对方";
+                        const placeStr = inviteData.place ? (inviteData.place === "你身边" ? "前往你身边的" : `前往「${inviteData.place}」的`) : "";
+                        const sysMsg = pushChatMessage({
+                            sessionId: session.id,
+                            role: "system",
+                            content: `${charName} 向你发起了${placeStr}线下赴约提议`,
+                            mediaType: "offline_invite_system_notice",
+                            mediaData: { offlineInvite: inviteData },
+                        });
+                        setMessages(prev => [...prev, sysMsg]);
+
+                        // 标记在打字结束后留足 3 秒供用户读完文本，再平滑自动展开大卡片
+                        shouldAutoExpandInviteModalAfterTyping = true;
                         continue;
                     }
 
@@ -3651,16 +3642,10 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                 mediaData: { offlineInvite: updatedInvite },
                             });
                             setMessages(prev => [...prev, sysMsg]);
-
-                            // 华提出的核心铁律：每一次新卡片都要在3秒后弹窗！
-                            if (remindExpandTimerRef.current) {
-                                clearTimeout(remindExpandTimerRef.current);
-                            }
-                            remindExpandTimerRef.current = setTimeout(() => {
-                                setIsOfflineInviteMinimized(false);
-                                remindExpandTimerRef.current = null;
-                            }, 3000);
                         }
+
+                        // 华提出的核心铁律：【我去】模式下打字发完消息后留足 3 秒平滑弹窗！
+                        shouldAutoExpandInviteModalAfterTyping = true;
                     } else {
                         // 切换为 / 保持【他来】
                         if (wasArrived && isPlaceChanged) {
@@ -3698,13 +3683,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             });
                             setMessages(prev => [...prev, sysMsg]);
 
-                            if (remindExpandTimerRef.current) {
-                                clearTimeout(remindExpandTimerRef.current);
-                            }
-                            remindExpandTimerRef.current = setTimeout(() => {
-                                setIsOfflineInviteMinimized(false);
-                                remindExpandTimerRef.current = null;
-                            }, 3000);
+                            setIsOfflineInviteMinimized(true);
+                            shouldAutoExpandInviteModalAfterTyping = true;
                         } else if (wasOnTheWay && isPlaceChanged) {
                             // 在途中改地点（外卖中途改地址）：平滑更新地点，不打断倒计时（除非特别指定了新用时）
                             const newTransitCardMessage = incoming.transitCardMessage?.trim()
@@ -3736,55 +3716,48 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             });
                             setMessages(prev => [...prev, sysMsg]);
 
-                            if (remindExpandTimerRef.current) {
-                                clearTimeout(remindExpandTimerRef.current);
-                            }
-                            remindExpandTimerRef.current = setTimeout(() => {
-                                setIsOfflineInviteMinimized(false);
-                                remindExpandTimerRef.current = null;
-                            }, 3000);
-                        } else if (wasPending && (isDirectionChanged || isPlaceChanged)) {
-                            // 待答应阶段改地点，或从【我去】转为【他来】（如用户希望对方来接）
+                            setIsOfflineInviteMinimized(true);
+                            shouldAutoExpandInviteModalAfterTyping = true;
+                        } else if (wasPending) {
+                            // 待答应阶段改地点，或从【我去】转为【他来】，或重试/再次确认提议
                             const sanitizedOnTheWay = incoming.onTheWayMessage?.trim()
                                 ? sanitizeTransitMessage(incoming.onTheWayMessage, "he_comes", newPlace)
                                 : sanitizeTransitMessage(undefined, "he_comes", newPlace);
 
                             const updatedInvite: OfflineInviteData = {
+                                ...curInvite,
                                 direction: "he_comes",
                                 place: newPlace,
                                 reason: incoming.reason?.trim() || curInvite.reason,
                                 onTheWayMessage: sanitizedOnTheWay,
-                                transitCardMessage: incoming.transitCardMessage,
-                                arrivedMessage: incoming.arrivedMessage,
-                                arrivalCardMessage: incoming.arrivalCardMessage,
+                                transitCardMessage: incoming.transitCardMessage || curInvite.transitCardMessage,
+                                arrivedMessage: incoming.arrivedMessage || curInvite.arrivedMessage,
+                                arrivalCardMessage: incoming.arrivalCardMessage || curInvite.arrivalCardMessage,
                                 status: "pending",
-                                durationMinutes: parsedMins,
+                                durationMinutes: parsedMins > 0 ? parsedMins : curInvite.durationMinutes,
                                 initialBatchId: curInvite.initialBatchId || curInvite.sourceBatchId || responseBatchId,
                                 sourceBatchId: curInvite.sourceBatchId || responseBatchId,
                                 relatedBatchIds: newBatchIds,
                             };
                             updateActiveOfflineInvite(updatedInvite);
 
-                            const noticeContent = isDirectionChanged
-                                ? "赴约提议已变更为由对方前来找你"
-                                : `赴约提议地点已更改为${placeStr}`;
+                            if (isDirectionChanged || isPlaceChanged) {
+                                const noticeContent = isDirectionChanged
+                                    ? "赴约提议已变更为由对方前来找你"
+                                    : `赴约提议地点已更改为${placeStr}`;
 
-                            const sysMsg = pushChatMessage({
-                                sessionId: session.id,
-                                role: "system",
-                                content: noticeContent,
-                                mediaType: "offline_invite_system_notice",
-                                mediaData: { offlineInvite: updatedInvite },
-                            });
-                            setMessages(prev => [...prev, sysMsg]);
-
-                            if (remindExpandTimerRef.current) {
-                                clearTimeout(remindExpandTimerRef.current);
+                                const sysMsg = pushChatMessage({
+                                    sessionId: session.id,
+                                    role: "system",
+                                    content: noticeContent,
+                                    mediaType: "offline_invite_system_notice",
+                                    mediaData: { offlineInvite: updatedInvite },
+                                });
+                                setMessages(prev => [...prev, sysMsg]);
                             }
-                            remindExpandTimerRef.current = setTimeout(() => {
-                                setIsOfflineInviteMinimized(false);
-                                remindExpandTimerRef.current = null;
-                            }, 3000);
+
+                            setIsOfflineInviteMinimized(true);
+                            shouldAutoExpandInviteModalAfterTyping = true;
                         }
                     }
                     continue;
@@ -3818,14 +3791,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     };
                     updateActiveOfflineInvite(arrivedInvite);
 
-                    // 华指出的核心铁律：提前到达也是新卡片/状态切换，发完消息 3 秒后必须平滑弹窗！
-                    if (remindExpandTimerRef.current) {
-                        clearTimeout(remindExpandTimerRef.current);
-                    }
-                    remindExpandTimerRef.current = setTimeout(() => {
-                        setIsOfflineInviteMinimized(false);
-                        remindExpandTimerRef.current = null;
-                    }, 3000);
+                    // 华指出的核心铁律：提前到达也是新卡片/状态切换，打字发完消息 3 秒后平滑弹窗！
+                    setIsOfflineInviteMinimized(true);
+                    shouldAutoExpandInviteModalAfterTyping = true;
 
                     // 华提出的黄金体验：提前到达时，在聊天流中留下到达事实记录
                     const charName = character?.name || "对方";
@@ -4038,6 +4006,17 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         if (imageReplacementTasks.length > 0) {
             await Promise.allSettled(imageReplacementTasks);
             throwIfGenerationStopped(options);
+        }
+
+        // 🌸 华确立的“新卡片3秒必弹律”：所有气泡打字彻底完毕后，留足 3 秒供用户读完文本，再平滑自动展开大卡片
+        if (shouldAutoExpandInviteModalAfterTyping) {
+            if (remindExpandTimerRef.current) {
+                clearTimeout(remindExpandTimerRef.current);
+            }
+            remindExpandTimerRef.current = setTimeout(() => {
+                setIsOfflineInviteMinimized(false);
+                remindExpandTimerRef.current = null;
+            }, 3000);
         }
 
         return { hasVisible: true, stateValues, triggerCall, hasDecline };
@@ -6040,7 +6019,14 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
 
             // 🌸 华确立的“新卡片3秒必弹律”：重试生成完毕后，留足 3 秒供用户读完文本，再平滑自动展开大卡片
             const currentRestored = activeOfflineInviteRef.current;
-            if (currentRestored && currentRestored.status === "pending" && !remindExpandTimerRef.current) {
+            const needsModalExpand = Boolean(
+                currentRestored && (
+                    currentRestored.status === "pending" ||
+                    currentRestored.status === "arrived" ||
+                    currentRestored.direction === "i_go"
+                )
+            );
+            if (needsModalExpand && !remindExpandTimerRef.current) {
                 remindExpandTimerRef.current = setTimeout(() => {
                     setIsOfflineInviteMinimized(false);
                     remindExpandTimerRef.current = null;
@@ -6126,7 +6112,14 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
 
         // 🌸 华确立的“新卡片3秒必弹律”：重试生成完毕后，留足 3 秒供用户读完文本，再平滑自动展开大卡片
         const currentRestored = activeOfflineInviteRef.current;
-        if (currentRestored && currentRestored.status === "pending" && !remindExpandTimerRef.current) {
+        const needsModalExpand = Boolean(
+            currentRestored && (
+                currentRestored.status === "pending" ||
+                currentRestored.status === "arrived" ||
+                currentRestored.direction === "i_go"
+            )
+        );
+        if (needsModalExpand && !remindExpandTimerRef.current) {
             remindExpandTimerRef.current = setTimeout(() => {
                 setIsOfflineInviteMinimized(false);
                 remindExpandTimerRef.current = null;
