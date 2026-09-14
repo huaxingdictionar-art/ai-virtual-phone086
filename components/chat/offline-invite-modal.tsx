@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import type { Character } from "@/lib/character-types";
-import { User, MapPin, Sparkles, Navigation, Clock, Undo2, Eye } from "lucide-react";
+import { User, MapPin, Sparkles, Navigation, Clock, Undo2 } from "lucide-react";
 
 export type OfflineInviteData = {
     direction: "he_comes" | "i_go";
@@ -81,6 +81,32 @@ function getModalDescription(invite: OfflineInviteData): string {
         : "对方正在约定的地方等候你的到来。";
 }
 
+/** 🌸 华特调的灵动三睫毛眼眸图标：神采醒目、线条克制雅致 */
+function EyelashEyeIcon({ className = "", size = 14.5 }: { className?: string; size?: number }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={className}
+        >
+            {/* 杏仁眼型轮廓 */}
+            <path d="M2 13.5C2 13.5 5.5 7.5 12 7.5C18.5 7.5 22 13.5 22 13.5C22 13.5 18.5 19.5 12 19.5C5.5 19.5 2 13.5 2 13.5Z" />
+            {/* 眼球/瞳孔 */}
+            <circle cx="12" cy="13.5" r="2.8" />
+            {/* 三根生动翘起的眼睫毛 */}
+            <path d="M12 7.5V3" />
+            <path d="M7 9.2L4.5 5.2" />
+            <path d="M17 9.2L19.5 5.2" />
+        </svg>
+    );
+}
+
 interface OfflineInviteModalProps {
     invite: OfflineInviteData;
     character?: Character | null;
@@ -146,13 +172,18 @@ export function OfflineInviteModal({
                 {/* 角色头像与状态光晕徽章 */}
                 {(() => {
                     const isAlertTheme = invite.theme === "alert" || invite.theme === "forced";
-                    const badgeBg = isAlertTheme ? "bg-rose-600" : "bg-[var(--c-primary,#2563eb)]";
-                    const badgeBorder = isAlertTheme ? "border-rose-500/30" : "border-[var(--c-primary,#2563eb)]/30";
-                    const tagStyle = isAlertTheme ? "bg-rose-500/10 text-rose-600" : "bg-[var(--c-primary,#2563eb)]/10 text-[var(--c-primary,#2563eb)]";
-                    const accentText = isAlertTheme ? "text-rose-600" : "text-[var(--c-primary,#2563eb)]";
+                    // 🌸 华专属审美升级：采用纯正鲜艳的 Apple Danger 红（#FF3B30），并注入非常柔和浅漫的红光外溢光晕！
+                    const badgeBg = isAlertTheme
+                        ? "bg-[var(--c-danger,#FF3B30)] shadow-[0_2px_8px_rgba(255,59,48,0.4)]"
+                        : "bg-[var(--c-primary,#2563eb)] shadow-[0_2px_8px_rgba(37,99,235,0.35)]";
+                    const badgeBorder = isAlertTheme ? "border-[var(--c-danger,#FF3B30)]/30" : "border-[var(--c-primary,#2563eb)]/30";
+                    const tagStyle = isAlertTheme
+                        ? "bg-[var(--c-danger,#FF3B30)]/10 text-[var(--c-danger,#FF3B30)] border border-[var(--c-danger,#FF3B30)]/20"
+                        : "bg-[var(--c-primary,#2563eb)]/10 text-[var(--c-primary,#2563eb)] border border-[var(--c-primary,#2563eb)]/20";
+                    const accentText = isAlertTheme ? "text-[var(--c-danger,#FF3B30)]" : "text-[var(--c-primary,#2563eb)]";
                     const primaryBtn = isAlertTheme
-                        ? "bg-rose-600 text-white hover:bg-rose-700"
-                        : "bg-[var(--c-primary,#2563eb)] text-white hover:opacity-90";
+                        ? "bg-[var(--c-danger,#FF3B30)] text-white shadow-[0_4px_16px_rgba(255,59,48,0.38),inset_0_1px_1px_rgba(255,255,255,0.2)] hover:opacity-95"
+                        : "bg-[var(--c-primary,#2563eb)] text-white shadow-[0_4px_16px_rgba(37,99,235,0.35),inset_0_1px_1px_rgba(255,255,255,0.2)] hover:opacity-95";
 
                     return (
                         <>
@@ -177,11 +208,11 @@ export function OfflineInviteModal({
 
                             {/* 标题与情境标签 */}
                             <div className="flex flex-col items-center gap-1">
-                                <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${tagStyle}`}>
+                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${tagStyle}`}>
                                     {isOnTheWay && invite.theme === "forced" ? (
-                                        <Eye size={12} className="animate-pulse" />
+                                        <EyelashEyeIcon size={14.5} className="animate-pulse shrink-0" />
                                     ) : (
-                                        <Sparkles size={11} />
+                                        <Sparkles size={11} className="shrink-0" />
                                     )}
                                     <span>
                                         {isOnTheWay
@@ -254,7 +285,7 @@ export function OfflineInviteModal({
                                         <button
                                             type="button"
                                             onClick={onAccept}
-                                            className={`flex-1 py-2.5 px-3 rounded-xl ${primaryBtn} text-xs font-semibold shadow active:scale-95 transition-all cursor-pointer`}
+                                            className={`flex-1 py-2.5 px-3 rounded-xl ${primaryBtn} text-xs font-semibold active:scale-95 transition-all cursor-pointer`}
                                         >
                                             {isHeComes ? "答应Ta" : "去见Ta"}
                                         </button>
@@ -271,7 +302,7 @@ export function OfflineInviteModal({
                                         <button
                                             type="button"
                                             onClick={onEarlyArrive || onAccept}
-                                            className={`flex-1 py-2.5 px-3 rounded-xl ${primaryBtn} text-xs font-semibold shadow active:scale-95 transition-all cursor-pointer`}
+                                            className={`flex-1 py-2.5 px-3 rounded-xl ${primaryBtn} text-xs font-semibold active:scale-95 transition-all cursor-pointer`}
                                         >
                                             已经到了/去见Ta
                                         </button>
@@ -281,7 +312,7 @@ export function OfflineInviteModal({
                                     <button
                                         type="button"
                                         onClick={onAccept}
-                                        className={`w-full py-2.5 px-4 rounded-xl ${primaryBtn} text-xs font-semibold shadow active:scale-95 transition-all cursor-pointer`}
+                                        className={`w-full py-2.5 px-4 rounded-xl ${primaryBtn} text-xs font-semibold active:scale-95 transition-all cursor-pointer`}
                                     >
                                         去见Ta
                                     </button>
@@ -329,10 +360,12 @@ export function OfflineInviteCapsule({
     }, [isOnTheWay, invite.startTime, invite.durationMinutes]);
 
     const isAlertTheme = invite.theme === "alert" || invite.theme === "forced";
-    const pingDotBg = isAlertTheme ? "bg-rose-500" : "bg-[var(--c-primary,#2563eb)]";
-    const solidDotBg = isAlertTheme ? "bg-rose-600" : "bg-[var(--c-primary,#2563eb)]";
-    const btnBg = isAlertTheme ? "bg-rose-600 hover:bg-rose-700" : "bg-[var(--c-primary,#2563eb)] hover:opacity-90";
-    const actionText = isAlertTheme ? "text-rose-600" : "text-[var(--c-primary,#2563eb)]";
+    const pingDotBg = isAlertTheme ? "bg-[var(--c-danger,#FF3B30)]" : "bg-[var(--c-primary,#2563eb)]";
+    const solidDotBg = isAlertTheme ? "bg-[var(--c-danger,#FF3B30)]" : "bg-[var(--c-primary,#2563eb)]";
+    const btnBg = isAlertTheme
+        ? "bg-[var(--c-danger,#FF3B30)] shadow-[0_2px_8px_rgba(255,59,48,0.38)] hover:opacity-95"
+        : "bg-[var(--c-primary,#2563eb)] shadow-[0_2px_8px_rgba(37,99,235,0.35)] hover:opacity-90";
+    const actionText = isAlertTheme ? "text-[var(--c-danger,#FF3B30)]" : "text-[var(--c-primary,#2563eb)]";
 
     return (
         <div
