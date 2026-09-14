@@ -82,7 +82,7 @@ function getModalDescription(invite: OfflineInviteData): string {
 }
 
 /** 🌸 华特调的灵动三睫毛眼眸图标：神采醒目、线条克制雅致 */
-function EyelashEyeIcon({ className = "", size = 14.5 }: { className?: string; size?: number }) {
+function EyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; size?: number }) {
     return (
         <svg
             width={size}
@@ -210,7 +210,7 @@ export function OfflineInviteModal({
                             <div className="flex flex-col items-center gap-1">
                                 <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${tagStyle}`}>
                                     {isOnTheWay && invite.theme === "forced" ? (
-                                        <EyelashEyeIcon size={14.5} className="animate-pulse shrink-0" />
+                                        <EyelashEyeIcon size={16.5} className="animate-pulse shrink-0" />
                                     ) : (
                                         <Sparkles size={11} className="shrink-0" />
                                     )}

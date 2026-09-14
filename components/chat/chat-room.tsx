@@ -528,7 +528,7 @@ function restoreOfflineInviteFromMessages(
             m.mediaType === "offline_invite_early_arrive" ||
             m.mediaType === "offline_invite_arrive_notice" ||
             m.mediaData?.offlineInvite?.status === "arrived" ||
-            (m.role === "system" && m.content && (m.content.includes("已提前到达") || m.content.includes("已如约到达") || (m.content.includes("已在") && m.content.includes("就位等候"))))
+            (m.role === "system" && m.content && (m.content.includes("已提前到达") || m.content.includes("已如约到达") || m.content.includes("“如约”到达") || (m.content.includes("已在") && m.content.includes("就位等候"))))
         ) {
             lastArriveIdx = i;
             break;
@@ -1588,7 +1588,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         if (msg.role !== "system") return false;
         if (msg.mediaType === "offline_invite_system_notice") return true;
         const text = msg.content || "";
-        return /(?:向你发起了.*线下赴约提议|你已同意赴约|赴约地点已更改为|赴约地点已变更为|赴约提议地点已更改为|赴约提议已变更为|碰头方式已变更为|已得知新地点，正在重新赶往|已直接动身赶往|已如约到达|已提前到达|已在.*就位等候|你婉拒了.*线下赴约提议|本次线下赴约已结束，双方已返回线上)/.test(text);
+        return /(?:向你发起了.*线下赴约提议|你已同意赴约|赴约地点已更改为|赴约地点已变更为|赴约提议地点已更改为|赴约提议已变更为|碰头方式已变更为|已得知新地点，正在重新赶往|已直接动身赶往|已如约到达|已[“"”']如约[“"”']到达|已提前到达|已在.*就位等候|你婉拒了.*线下赴约提议|本次线下赴约已结束，双方已返回线上)/.test(text);
     }, []);
 
     const getInviteDeleteConfirmMessage = useCallback((_msg?: ChatMessage): string => {
@@ -1681,11 +1681,13 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 const isOriginByYourSide = activeOfflineInvite.initialPlace === "你身边" || (!activeOfflineInvite.initialPlace && activeOfflineInvite.place === "你身边");
                 const rawPlace = activeOfflineInvite.place?.trim();
                 const placeStr = isOriginByYourSide ? "你身边" : (rawPlace ? (rawPlace === "你身边" ? "你身边" : `「${rawPlace}」`) : "约定地点");
+                const isForced = activeOfflineInvite.theme === "forced" || activeOfflineInvite.theme === "alert";
+                const asPromisedText = isForced ? "已“如约”到达" : "已如约到达";
                 const sysArriveMsg = pushChatMessage({
                     sessionId: session.id,
                     role: "system",
                     content: activeOfflineInvite.direction === "he_comes"
-                        ? `${charName} 已如约到达${placeStr}`
+                        ? `${charName} ${asPromisedText}${placeStr}`
                         : `${charName} 已在${placeStr}就位等候`,
                     mediaType: "offline_invite_system_notice",
                     mediaData: { offlineInvite: arrivedInvite },
@@ -3976,8 +3978,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         if (!hasExplicitEarlyArrive && session.enableOfflineInvite && !session.isGroup && curEarlyInviteAuto && curEarlyInviteAuto.status === "on_the_way" && curEarlyInviteAuto.direction === "he_comes") {
             const speech = (rawResponseText || "").replace(/\[[^\]]+\]/g, "");
             const isStillMovingOrErrand = /(?:去便利店|顺便去|顺路去|顺路在|顺便在|去买|在路上|路上有点|这就出门|快到了|还要一会儿|还要几分钟|等我片刻|等我|耐心等|在赶去|赶过去|准备出门|刚出门|在打车|开着车|堵车|红绿灯|on my way|stop by|buying)/i.test(speech);
-            // 🌸 华指出的关键细节：必须是角色亲自宣布自己到达（第一人称或无主语确凿现场语境），绝不可误判“你到了吗”、“你到门外了吗”等针对用户的询问！
-            const isExplicitlyArrivedSpeech = /(?:我(?:已经?)?到(?:门外|楼下|门口|你家|你身边|了|[0-9a-zA-Z一二三四五六七八九十]+室?门外)(?![吗么?？])|(?<!你)(?:在门外[了！\s]|到门外[了！\s]|在楼下[了！\s]|到楼下[了！\s]|已经在[门楼]|站在门外|到地方了)(?![吗么?？])|听见敲门声|出来开门|把门打?开)/.test(speech);
+            // 🌸 华发现的真实现场高频语境：包括“我在门口”、“快开门”、“开门”、“给我开门”、“出电梯了”、“敲门了”等！
+            const isExplicitlyArrivedSpeech = /(?:我(?:已经?)?(?:到|在)(?:门外|楼下|门口|你家|你身边|了|[0-9a-zA-Z一二三四五六七八九十]+室?门外)(?![吗么?？])|(?<!你)(?:在门外|到门外|在楼下|到楼下|在门口|到门口|已经在[门楼]|站在门外|站在门口|到地方了|出电梯了?)(?:[了！。，\s]|$)(?![吗么?？])|听见敲门声|敲门了?|快?[点给我]*开门|把门打?开|给[我你]*开门|open the door|i(?:'m| am) (?:here|outside|at the door))/i.test(speech);
 
             if (isExplicitlyArrivedSpeech && !isStillMovingOrErrand) {
                 const remainingMins = getRemainingMinutes(curEarlyInviteAuto.startTime, curEarlyInviteAuto.durationMinutes || 15);
