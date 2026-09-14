@@ -107,10 +107,10 @@ function EyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; s
                     repeatCount="indefinite"
                 />
             </circle>
-            {/* 三根生动翘起的眼睫毛 */}
-            <path d="M12 7.5V3" />
-            <path d="M7 9.2L4.5 5.2" />
-            <path d="M17 9.2L19.5 5.2" />
+            {/* 三根生动翘起的眼睫毛：根部顺应外沿，无丝毫内渗 */}
+            <path d="M12 6.6V2.6" />
+            <path d="M6.5 8.2L4.2 4.4" />
+            <path d="M17.5 8.2L19.8 4.4" />
         </svg>
     );
 }
