@@ -541,7 +541,14 @@ function restoreOfflineInviteFromMessages(
         if (
             m.mediaType === "offline_invite_change_place" ||
             m.mediaData?.offlineInvite?.status === "on_the_way" ||
-            (m.role === "system" && m.content && (m.content.includes("正在重新赶往") || m.content.includes("赴约地点已更改为") || m.content.includes("正在动身赶往") || m.content.includes("你已同意赴约")))
+            (m.role === "system" && m.content && (
+                m.content.includes("正在重新赶往") ||
+                m.content.includes("赴约地点已更改为") ||
+                m.content.includes("正在动身赶往") ||
+                m.content.includes("已直接动身赶往") ||
+                m.content.includes("已直接动身") ||
+                m.content.includes("你已同意赴约")
+            ))
         ) {
             lastMovingIdx = i;
             break;
@@ -551,6 +558,12 @@ function restoreOfflineInviteFromMessages(
     const hasAcceptedInHistory = historyMessages.some(m =>
         m.role === "system" && m.content && m.content.includes("你已同意赴约")
     );
+    const hasForcedDeparture = historyMessages.some(m =>
+        (m.role === "system" && m.content && (m.content.includes("已直接动身赶往") || m.content.includes("已直接动身"))) ||
+        m.mediaData?.offlineInvite?.status === "on_the_way" ||
+        m.mediaData?.offlineInvite?.theme === "forced"
+    );
+    const hasDepartedInHistory = hasAcceptedInHistory || hasForcedDeparture || (baseInvite?.status === "on_the_way");
 
     if (lastArriveIdx > lastMovingIdx && lastArriveIdx !== -1) {
         restored.status = "arrived";
@@ -565,12 +578,22 @@ function restoreOfflineInviteFromMessages(
         if (restored.direction === "i_go") {
             restored.status = "pending";
             restored.startTime = undefined;
-        } else if (hasAcceptedInHistory && restored.direction === "he_comes") {
+        } else if (hasDepartedInHistory && restored.direction === "he_comes") {
             restored.status = "on_the_way";
+            if (baseInvite?.theme === "forced" || hasForcedDeparture) {
+                restored.theme = "forced";
+            }
             const duration = restored.durationMinutes || 15;
-            const agreeIdx = historyMessages.findIndex(m => m.role === "system" && m.content && m.content.includes("你已同意赴约"));
-            const agreeMsg = agreeIdx !== -1 ? historyMessages[agreeIdx] : null;
-            const messagesAfterAgree = agreeIdx !== -1 ? historyMessages.slice(agreeIdx + 1) : [];
+            const departureIdx = historyMessages.findIndex(m =>
+                m.role === "system" && m.content && (
+                    m.content.includes("你已同意赴约") ||
+                    m.content.includes("已直接动身赶往") ||
+                    m.content.includes("已直接动身") ||
+                    m.content.includes("正在动身赶往")
+                )
+            );
+            const departureMsg = departureIdx !== -1 ? historyMessages[departureIdx] : null;
+            const messagesAfterDeparture = departureIdx !== -1 ? historyMessages.slice(departureIdx + 1) : [];
 
             // 🌸 华确立的物理时间锚点法则与单调递减铁律：
             // 若当前已有在途中赴约且拥有有效物理 startTime，
@@ -610,8 +633,8 @@ function restoreOfflineInviteFromMessages(
                 // 2. 次高优先：真实物理时间差推算法（检查消息真实创建时间差 createdAt）
                 const refMsg = targetRetryMsg || (historyMessages.length > 0 ? historyMessages[historyMessages.length - 1] : null);
                 let restoredFromTimestamp = false;
-                if (agreeMsg && refMsg && agreeMsg.createdAt && refMsg.createdAt) {
-                    const startMs = new Date(agreeMsg.createdAt).getTime();
+                if (departureMsg && refMsg && departureMsg.createdAt && refMsg.createdAt) {
+                    const startMs = new Date(departureMsg.createdAt).getTime();
                     const curMs = new Date(refMsg.createdAt).getTime();
                     const elapsedMs = Math.max(0, curMs - startMs);
                     const totalMs = duration * 60000;
@@ -627,29 +650,29 @@ function restoreOfflineInviteFromMessages(
 
                 if (!restoredFromTimestamp) {
                     // 3. 智能轮次平滑推算与到达冻结时间继承（快速测试 / 历史无时间戳但在途有多轮互动的情形）
-                    const totalRoundsAfterAgree = messagesAfterAgree.filter(m => m.role === "assistant").length + (targetRetryMsg ? 1 : 0);
-                    const isBackToDepartureLine = messagesAfterAgree.length <= 1 && (!targetRetryMsg || totalRoundsAfterAgree <= 1);
+                    const totalRoundsAfterDeparture = messagesAfterDeparture.filter(m => m.role === "assistant").length + (targetRetryMsg ? 1 : 0);
+                    const isBackToDepartureLine = messagesAfterDeparture.length <= 1 && (!targetRetryMsg || totalRoundsAfterDeparture <= 1);
 
-                    if (!isBackToDepartureLine && totalRoundsAfterAgree > 1) {
+                    if (!isBackToDepartureLine && totalRoundsAfterDeparture > 1) {
                         const endMins = (baseInvite?.frozenRemainingMinutes && baseInvite.frozenRemainingMinutes > 0)
                             ? Math.min(baseInvite.frozenRemainingMinutes, duration - 1)
                             : 2;
-                        const currentRoundIdx = messagesAfterAgree.filter(m => m.role === "assistant").length;
-                        const totalEstimatedRounds = Math.max(totalRoundsAfterAgree, 5);
+                        const currentRoundIdx = messagesAfterDeparture.filter(m => m.role === "assistant").length;
+                        const totalEstimatedRounds = Math.max(totalRoundsAfterDeparture, 5);
                         const progress = Math.min(1, Math.max(0, currentRoundIdx / totalEstimatedRounds));
                         const estimatedRemMins = Math.max(1, Math.round(duration - progress * (duration - endMins)));
                         restored.durationMinutes = duration;
                         restored.startTime = Date.now() - (duration - estimatedRemMins) * 60000;
                         restored.frozenRemainingMinutes = estimatedRemMins;
                     } else {
-                        // 4. 起跑线：回溯到了刚同意出发的最初出门点，倒计时满额（如 15 分钟）重新开始！
+                        // 4. 起跑线：回溯到了刚动身出发的最初出门点，倒计时满额（如 15 分钟）重新开始！
                         restored.durationMinutes = duration;
                         restored.startTime = Date.now();
                         restored.frozenRemainingMinutes = undefined;
                     }
                 }
             }
-        } else if (!hasAcceptedInHistory && restored.direction === "he_comes") {
+        } else if (!hasDepartedInHistory && restored.direction === "he_comes") {
             restored.status = "pending";
             restored.startTime = undefined;
         }

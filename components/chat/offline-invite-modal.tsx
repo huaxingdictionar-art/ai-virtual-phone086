@@ -354,7 +354,7 @@ export function OfflineInviteCapsule({
                     })()
                     : isHeComes
                     ? (isAlertTheme ? `${charName} 执意来见你（待赴约）` : `${charName} 提议来见你（待赴约）`)
-                    : (isAlertTheme ? `${charName} “邀请你”赴约` : `${charName} 正在等候你赴约`)}
+                    : (isAlertTheme ? `${charName} 要求你前来赴约` : `${charName} 正在等候你赴约`)}
             </span>
             {onAccept && (isArrived || !isHeComes) ? (
                 <button
