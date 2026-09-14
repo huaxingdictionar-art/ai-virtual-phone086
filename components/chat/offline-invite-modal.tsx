@@ -107,10 +107,10 @@ function EyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; s
                     repeatCount="indefinite"
                 />
             </circle>
-            {/* 三根生动翘起的眼睫毛：根部顺应外沿外表面，内壁 100% 纯净无侵入 */}
-            <path d="M12 6.5V2.5" />
-            <path d="M5.5 7.5L3.5 4.0" />
-            <path d="M18.5 7.5L20.5 4.0" />
+            {/* 三根生动翘起的眼睫毛：根部顺应外沿，无丝毫内渗 */}
+            <path d="M12 6.6V2.6" />
+            <path d="M6.5 8.2L4.2 4.4" />
+            <path d="M17.5 8.2L19.8 4.4" />
         </svg>
     );
 }
@@ -135,6 +135,52 @@ function ClosedEyelashEyeIcon({ className = "", size = 16.5 }: { className?: str
             <path d="M12 16.5V21" />
             <path d="M7 14.8L4.5 18.8" />
             <path d="M17 14.8L19.5 18.8" />
+        </svg>
+    );
+}
+
+/** 🌸 华特调的律动心电波形图标：波形真实起伏变换 + 同步双音节心跳鼓动 */
+function HeartbeatWaveIcon({ className = "", size = 16 }: { className?: string; size?: number }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2.3"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={className}
+            style={{ overflow: "visible" }}
+        >
+            <g style={{ transformOrigin: "12px 12px" }}>
+                {/* 伴随波形爆发的 Lub-Dub 双拍心悸鼓动 */}
+                <animateTransform
+                    attributeName="transform"
+                    type="scale"
+                    values="1; 1.25; 0.96; 1.16; 1; 1"
+                    keyTimes="0; 0.12; 0.22; 0.34; 0.46; 1"
+                    dur="1.8s"
+                    repeatCount="indefinite"
+                />
+                {/* 动态波形变轨：舒张微波 ➔ QRS 心动尖峰剧烈拔起 ➔ 传导消散 ➔ 抚平 */}
+                <path d="M2 12H6L7.5 11.5L9 12.5L10.5 12L12 12L13.5 12L15 12L16.5 12L18 12H22">
+                    <animate
+                        attributeName="d"
+                        values="
+                            M2 12H6L7.5 11.5L9 12.5L10.5 12L12 12L13.5 12L15 12L16.5 12L18 12H22;
+                            M2 12H5L6.8 9.5L8.5 17L11 3.5L13.5 19.5L15.2 8.5L16.5 13.5L18 12H22;
+                            M2 12H6L7.5 13L9.5 10L11.5 15.5L13.5 8L15.5 14L17 11.5L18.5 12H22;
+                            M2 12H6L8 12L10 11.5L12 12.5L14 11.8L16 12.2L18 12H22;
+                            M2 12H6L7.5 11.5L9 12.5L10.5 12L12 12L13.5 12L15 12L16.5 12L18 12H22
+                        "
+                        keyTimes="0; 0.14; 0.32; 0.55; 1"
+                        dur="1.8s"
+                        repeatCount="indefinite"
+                    />
+                </path>
+            </g>
         </svg>
     );
 }
@@ -231,7 +277,13 @@ export function OfflineInviteModal({
                                     {isOnTheWay ? (
                                         <Navigation size={12} className="animate-pulse" />
                                     ) : isArrived ? (
-                                        <Sparkles size={12} />
+                                        invite.theme === "forced" ? (
+                                            <EyelashEyeIcon size={12} />
+                                        ) : isAlertTheme ? (
+                                            <HeartbeatWaveIcon size={12} />
+                                        ) : (
+                                            <Sparkles size={12} />
+                                        )
                                     ) : (
                                         <MapPin size={13} />
                                     )}
@@ -243,6 +295,8 @@ export function OfflineInviteModal({
                                 <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${tagStyle}`}>
                                     {invite.theme === "forced" ? (
                                         <EyelashEyeIcon size={16.5} className="shrink-0" />
+                                    ) : isAlertTheme ? (
+                                        <HeartbeatWaveIcon size={16} className="shrink-0" />
                                     ) : (
                                         <Sparkles size={11} className="shrink-0" />
                                     )}
