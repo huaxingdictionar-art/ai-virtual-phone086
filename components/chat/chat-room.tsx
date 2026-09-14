@@ -3520,7 +3520,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     const rawReason = incoming.reason || "";
                     // 华提出的黄金细节：正文是用户肉眼所见的第一依据！若角色的对话台词中亲口说了具体时间（如“等我十几分钟”、“大概半小时”），
                     // 倒计时必须以正文亲口许诺的时间为最高优先，坚决杜绝正文说十几分钟倒计时却跳出30/40分钟的割裂出戏！
-                    const cleanSpeechText = (rawResponseText || "").replace(/\[(?:线下邀约|提醒赴约|更改地点|强行动身|强行赴约|霸道奔赴)[^\]]*\]/g, "");
+                    const cleanSpeechText = (rawResponseText || "").replace(/\[(?:线下邀约|提醒赴约|更改地点|强行动身|强行赴约|霸道奔赴|执意赶来|执意奔赴)[^\]]*\]/g, "");
                     const speechMins = extractDurationMinutes(cleanSpeechText, 0);
                     const tagMins = extractDurationMinutes(rawTimeStr, 0);
                     const reasonMins = extractDurationMinutes(rawReason, 0);
@@ -3583,8 +3583,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             noticeContent = `${charName} 已直接动身赶往${placeStr}`;
                         } else if (inviteTheme === "alert") {
                             noticeContent = inviteData.direction === "he_comes"
-                                ? `${charName} 要求前往${placeStr === "你身边" ? "你身边" : placeStr}找你碰面`
-                                : `${charName} 勒令你前往${placeStr}当面质对`;
+                                ? `${charName} 执意前往${placeStr === "你身边" ? "你身边" : placeStr}找你碰面`
+                                : `${charName} “请求”你前往${placeStr}当面质对`;
                         } else {
                             noticeContent = `${charName} 向你发起了前往${placeStr === "你身边" ? "你身边的" : `${placeStr}的`}线下赴约提议`;
                         }

@@ -181,12 +181,12 @@ export function OfflineInviteModal({
                                     <Sparkles size={11} />
                                     <span>
                                         {isOnTheWay
-                                            ? (invite.theme === "forced" ? "强行动身赶来中" : "在途赶来中")
+                                            ? (invite.theme === "forced" ? "强行赶来中" : "在途赶来中")
                                             : isArrived
                                             ? (invite.isEarlyArrived ? "已提前到达" : "已经到达")
                                             : isHeComes
-                                            ? (isAlertTheme ? "急迫奔赴" : "奔赴提议")
-                                            : (isAlertTheme ? "严肃碰面" : "线下邀约")}
+                                            ? (isAlertTheme ? "执意奔赴" : "奔赴提议")
+                                            : (isAlertTheme ? "紧急碰面" : "线下邀约")}
                                     </span>
                                 </div>
                                 {(() => {
@@ -201,8 +201,8 @@ export function OfflineInviteModal({
                                                 : isArrived
                                                 ? `${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`
                                                 : isHeComes
-                                                ? (isAlertTheme ? `${charName} 要求来找你` : `${charName} 提议来找你`)
-                                                : (isAlertTheme ? `${charName} 勒令你赴约` : `${charName} 邀请你赴约`)}
+                                                ? (isAlertTheme ? `${charName} 执意来找你` : `${charName} 提议来找你`)
+                                                : (isAlertTheme ? `${charName} “请求”你赴约` : `${charName} 邀请你赴约`)}
                                         </h3>
                                     );
                                 })()}
@@ -353,8 +353,8 @@ export function OfflineInviteCapsule({
                         return `✨ ${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`;
                     })()
                     : isHeComes
-                    ? (isAlertTheme ? `${charName} 要求来见你（待赴约）` : `${charName} 提议来见你（待赴约）`)
-                    : (isAlertTheme ? `${charName} 勒令你赴约` : `${charName} 正在等候你赴约`)}
+                    ? (isAlertTheme ? `${charName} 执意来见你（待赴约）` : `${charName} 提议来见你（待赴约）`)
+                    : (isAlertTheme ? `${charName} “请求”你赴约` : `${charName} 正在等候你赴约`)}
             </span>
             {onAccept && (isArrived || !isHeComes) ? (
                 <button
