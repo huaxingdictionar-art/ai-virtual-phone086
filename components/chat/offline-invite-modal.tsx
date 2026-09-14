@@ -233,10 +233,8 @@ export function OfflineInviteModal({
                             {/* 标题与情境标签 */}
                             <div className="flex flex-col items-center gap-1">
                                 <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${tagStyle}`}>
-                                    {isOnTheWay && invite.theme === "forced" ? (
+                                    {invite.theme === "forced" ? (
                                         <EyelashEyeIcon size={16.5} className="animate-pulse shrink-0" />
-                                    ) : isArrived && invite.theme === "forced" ? (
-                                        <ClosedEyelashEyeIcon size={16.5} className="shrink-0" />
                                     ) : (
                                         <Sparkles size={11} className="shrink-0" />
                                     )}
@@ -244,7 +242,7 @@ export function OfflineInviteModal({
                                         {isOnTheWay
                                             ? (invite.theme === "forced" ? "你已无法阻拦" : "在途赶来中")
                                             : isArrived
-                                            ? (invite.theme === "forced" ? "自求多福吧……" : (invite.isEarlyArrived ? "已提前到达" : "已经到达"))
+                                            ? (invite.theme === "forced" ? "Ta来了……" : (invite.isEarlyArrived ? "已提前到达" : "已经到达"))
                                             : isHeComes
                                             ? (isAlertTheme ? "紧急赶来" : "奔赴提议")
                                             : (isAlertTheme ? "紧急邀约" : "线下邀约")}
