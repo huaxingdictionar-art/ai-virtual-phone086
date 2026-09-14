@@ -3973,10 +3973,11 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         // 在此做强力智能语义双保险兜底：一旦检测到确凿的现场到达意图，自动推进为提前到达！
         const hasExplicitEarlyArrive = parts.some(p => p.mediaType === "offline_invite_early_arrive");
         const curEarlyInviteAuto = activeOfflineInviteRef.current;
-        if (!hasExplicitEarlyArrive && session.enableOfflineInvite && !session.isGroup && curEarlyInviteAuto && curEarlyInviteAuto.status === "on_the_way") {
+        if (!hasExplicitEarlyArrive && session.enableOfflineInvite && !session.isGroup && curEarlyInviteAuto && curEarlyInviteAuto.status === "on_the_way" && curEarlyInviteAuto.direction === "he_comes") {
             const speech = (rawResponseText || "").replace(/\[[^\]]+\]/g, "");
             const isStillMovingOrErrand = /(?:去便利店|顺便去|顺路去|顺路在|顺便在|去买|在路上|路上有点|这就出门|快到了|还要一会儿|还要几分钟|等我片刻|等我|耐心等|在赶去|赶过去|准备出门|刚出门|在打车|开着车|堵车|红绿灯|on my way|stop by|buying)/i.test(speech);
-            const isExplicitlyArrivedSpeech = /(?:我(?:已经?)?到(?:门外|楼下|门口|你家|你身边|了|[0-9a-zA-Z一二三四五六七八九十]+室?门外)|在门外[了，。！\s]|到门外[了，。！\s]|在楼下[了，。！\s]|到楼下[了，。！\s]|听见敲门声|出来开门|把门打?开|站在门外|我已经在[门楼]|到地方了)/.test(speech);
+            // 🌸 华指出的关键细节：必须是角色亲自宣布自己到达（第一人称或无主语确凿现场语境），绝不可误判“你到了吗”、“你到门外了吗”等针对用户的询问！
+            const isExplicitlyArrivedSpeech = /(?:我(?:已经?)?到(?:门外|楼下|门口|你家|你身边|了|[0-9a-zA-Z一二三四五六七八九十]+室?门外)(?![吗么?？])|(?<!你)(?:在门外[了！\s]|到门外[了！\s]|在楼下[了！\s]|到楼下[了！\s]|已经在[门楼]|站在门外|到地方了)(?![吗么?？])|听见敲门声|出来开门|把门打?开)/.test(speech);
 
             if (isExplicitlyArrivedSpeech && !isStillMovingOrErrand) {
                 const remainingMins = getRemainingMinutes(curEarlyInviteAuto.startTime, curEarlyInviteAuto.durationMinutes || 15);
