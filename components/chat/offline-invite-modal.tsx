@@ -107,6 +107,30 @@ function EyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; s
     );
 }
 
+/** 🌸 华特调的灵动三睫毛闭目眼眸图标：微弯闭目、非礼勿视、三根垂睫 */
+function ClosedEyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; size?: number }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={className}
+        >
+            {/* 优雅微弯的闭目眼睑弧线 */}
+            <path d="M2 11.5C2 11.5 5.5 16.5 12 16.5C18.5 16.5 22 11.5 22 11.5" />
+            {/* 三根生动垂下的眼睫毛 */}
+            <path d="M12 16.5V21" />
+            <path d="M7 14.8L4.5 18.8" />
+            <path d="M17 14.8L19.5 18.8" />
+        </svg>
+    );
+}
+
 interface OfflineInviteModalProps {
     invite: OfflineInviteData;
     character?: Character | null;
@@ -211,6 +235,8 @@ export function OfflineInviteModal({
                                 <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${tagStyle}`}>
                                     {isOnTheWay && invite.theme === "forced" ? (
                                         <EyelashEyeIcon size={16.5} className="animate-pulse shrink-0" />
+                                    ) : isArrived && invite.theme === "forced" ? (
+                                        <ClosedEyelashEyeIcon size={16.5} className="shrink-0" />
                                     ) : (
                                         <Sparkles size={11} className="shrink-0" />
                                     )}
@@ -218,7 +244,7 @@ export function OfflineInviteModal({
                                         {isOnTheWay
                                             ? (invite.theme === "forced" ? "你已无法阻拦" : "在途赶来中")
                                             : isArrived
-                                            ? (invite.isEarlyArrived ? "已提前到达" : "已经到达")
+                                            ? (invite.theme === "forced" ? "自求多福吧……" : (invite.isEarlyArrived ? "已提前到达" : "已经到达"))
                                             : isHeComes
                                             ? (isAlertTheme ? "紧急赶来" : "奔赴提议")
                                             : (isAlertTheme ? "紧急邀约" : "线下邀约")}
