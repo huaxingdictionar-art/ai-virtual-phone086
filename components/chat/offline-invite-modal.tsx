@@ -139,7 +139,7 @@ function ClosedEyelashEyeIcon({ className = "", size = 16.5 }: { className?: str
     );
 }
 
-/** 🌸 华特调的律动心电波形图标：波形真实起伏变换 + 同步双音节心跳鼓动 */
+/** 🌸 华特调的律动心电波形图标：0.6秒波形起伏爆发 + 0.8秒舒张平静待机（1.4秒黄金心率） */
 function HeartbeatWaveIcon({ className = "", size = 16 }: { className?: string; size?: number }) {
     return (
         <svg
@@ -155,16 +155,16 @@ function HeartbeatWaveIcon({ className = "", size = 16 }: { className?: string; 
             style={{ overflow: "visible" }}
         >
             <g style={{ transformOrigin: "12px 12px" }}>
-                {/* 伴随波形爆发的 Lub-Dub 双拍心悸鼓动 */}
+                {/* 伴随波形爆发的 Lub-Dub 双拍心悸鼓动（前 0.6 秒完成跳动，后 0.8 秒舒张） */}
                 <animateTransform
                     attributeName="transform"
                     type="scale"
                     values="1; 1.25; 0.96; 1.16; 1; 1"
-                    keyTimes="0; 0.12; 0.22; 0.34; 0.46; 1"
-                    dur="1.8s"
+                    keyTimes="0; 0.11; 0.18; 0.27; 0.43; 1"
+                    dur="1.4s"
                     repeatCount="indefinite"
                 />
-                {/* 动态波形变轨：舒张微波 ➔ QRS 心动尖峰剧烈拔起 ➔ 传导消散 ➔ 抚平 */}
+                {/* 动态波形变轨：前 0.6 秒爆发 QRS 冲顶与抚平，后 0.8 秒保持平稳呼吸基线 */}
                 <path d="M2 12H6L7.5 11.5L9 12.5L10.5 12L12 12L13.5 12L15 12L16.5 12L18 12H22">
                     <animate
                         attributeName="d"
@@ -175,8 +175,8 @@ function HeartbeatWaveIcon({ className = "", size = 16 }: { className?: string; 
                             M2 12H6L8 12L10 11.5L12 12.5L14 11.8L16 12.2L18 12H22;
                             M2 12H6L7.5 11.5L9 12.5L10.5 12L12 12L13.5 12L15 12L16.5 12L18 12H22
                         "
-                        keyTimes="0; 0.14; 0.32; 0.55; 1"
-                        dur="1.8s"
+                        keyTimes="0; 0.13; 0.27; 0.43; 1"
+                        dur="1.4s"
                         repeatCount="indefinite"
                     />
                 </path>
