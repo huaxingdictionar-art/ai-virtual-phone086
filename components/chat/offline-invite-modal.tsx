@@ -81,7 +81,7 @@ function getModalDescription(invite: OfflineInviteData): string {
         : "对方正在约定的地方等候你的到来。";
 }
 
-/** 🌸 华特调的灵动三睫毛眼眸图标：思路 A（心跳式眼眶猛然睁大 + 瞳孔精准稳健收缩至 2.1 防发虚） */
+/** 🌸 华特调的灵动三睫毛眼眸图标：凝神定格（单次蓦然睁大 + 维持定格 0.65秒 + 缓缓舒展归平） */
 function EyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; size?: number }) {
     return (
         <svg
@@ -97,13 +97,13 @@ function EyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; s
             style={{ overflow: "visible" }}
         >
             <g style={{ transformOrigin: "12px 13.5px" }}>
-                {/* 华确立的思路 A：眼眶与睫毛随心跳瞬间蓦然睁大，眼白面积倍增 */}
+                {/* 华确立的灵魂体验：只缩放一次！瞬间睁大 ➔ 牢牢维持定格 0.65秒 ➔ 缓缓舒展归平 */}
                 <animateTransform
                     attributeName="transform"
                     type="scale"
-                    values="1; 1.22; 0.97; 1.14; 1; 1"
-                    keyTimes="0; 0.13; 0.23; 0.35; 0.48; 1"
-                    dur="2.2s"
+                    values="1; 1.22; 1.22; 1; 1"
+                    keyTimes="0; 0.05; 0.25; 0.41; 1"
+                    dur="3.2s"
                     repeatCount="indefinite"
                 />
                 {/* 杏仁眼型轮廓 */}
@@ -113,20 +113,20 @@ function EyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; s
                 <path d="M6.5 8.2L4.2 4.4" />
                 <path d="M17.5 8.2L19.8 4.4" />
 
-                {/* 灵动眼球/瞳孔：定睛凝视 ➔ 警觉微探，且在眼眶睁大瞬间由 2.8 稳健收束至 2.1（绝不发虚模糊） */}
+                {/* 灵动瞳孔：瞬间收敛至 2.1 ➔ 死死定格锁定 0.65秒 ➔ 缓缓舒展回 2.8 ➔ 待机巡视 */}
                 <circle cx="12" cy="13.5" r="2.8">
                     <animate
                         attributeName="r"
-                        values="2.8; 2.1; 2.9; 2.3; 2.8; 2.8"
-                        keyTimes="0; 0.13; 0.23; 0.35; 0.48; 1"
-                        dur="2.2s"
+                        values="2.8; 2.1; 2.1; 2.8; 2.8"
+                        keyTimes="0; 0.05; 0.25; 0.41; 1"
+                        dur="3.2s"
                         repeatCount="indefinite"
                     />
                     <animate
                         attributeName="cx"
-                        values="12; 12; 11.0; 11.0; 13.0; 13.0; 12; 12"
-                        keyTimes="0; 0.48; 0.58; 0.72; 0.82; 0.94; 0.98; 1"
-                        dur="4.4s"
+                        values="12; 12; 12; 11.2; 11.2; 12.8; 12.8; 12"
+                        keyTimes="0; 0.25; 0.45; 0.58; 0.70; 0.82; 0.94; 1"
+                        dur="3.2s"
                         repeatCount="indefinite"
                     />
                 </circle>
