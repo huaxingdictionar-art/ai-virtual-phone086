@@ -1560,7 +1560,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         if (msg.role !== "system") return false;
         if (msg.mediaType === "offline_invite_system_notice") return true;
         const text = msg.content || "";
-        return /(?:向你发起了.*线下赴约提议|你已同意赴约|赴约地点已更改为|赴约提议地点已更改为|已得知新地点，正在重新赶往|已如约到达|已提前到达|已在.*就位等候|你婉拒了.*线下赴约提议|本次线下赴约已结束，双方已返回线上)/.test(text);
+        return /(?:向你发起了.*线下赴约提议|你已同意赴约|赴约地点已更改为|赴约地点已变更为|赴约提议地点已更改为|赴约提议已变更为|碰头方式已变更为|已得知新地点，正在重新赶往|已如约到达|已提前到达|已在.*就位等候|你婉拒了.*线下赴约提议|本次线下赴约已结束，双方已返回线上)/.test(text);
     }, []);
 
     const getInviteDeleteConfirmMessage = useCallback((_msg?: ChatMessage): string => {
@@ -3508,63 +3508,16 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 }
                 continue;
             }
-            if (p.mediaType === "offline_invite") {
+            if (p.mediaType === "offline_invite" || p.mediaType === "offline_invite_change_place") {
                 if (session.enableOfflineInvite && !session.isGroup && p.mediaData?.offlineInvite) {
                     if (offlineMode) {
                         continue;
                     }
 
                     const curInvite = activeOfflineInviteRef.current;
-                    if (curInvite) {
-                        if (curInvite.status === "arrived") {
-                            continue;
-                        }
-                        if (curInvite.status === "on_the_way") {
-                            // 华提出的外卖中途改地址黄金体验：若在途阶段用户更换了碰头地点，平滑更新地点，倒计时不中断！
-                            const newPlace = p.mediaData.offlineInvite.place?.trim();
-                            if (newPlace && newPlace !== curInvite.place) {
-                                const newTimeStr = p.mediaData.offlineInvite.timeStr || "";
-                                const newParsedMins = extractDurationMinutes(newTimeStr, 0);
-                                // 华指出的铁律：地点变更时，旧地点的一切心语与呼唤台词全部作废报废，重新生成契合新地点的台词！
-                                const newTransitCardMessage = p.mediaData.offlineInvite.transitCardMessage?.trim()
-                                    || (newPlace === "你身边" ? "正重新赶去你身边，稍等我片刻，马上就到。" : `正重新赶往${newPlace}的途中，稍候片刻。`);
-                                const newArrivedMessage = p.mediaData.offlineInvite.arrivedMessage?.trim()
-                                    || (newPlace === "你身边" ? "我到了，在附近等你，不用着急慢慢走。" : `我已经到${newPlace}了，在附近等你，不用着急慢慢走。`);
-                                const newArrivalCardMessage = p.mediaData.offlineInvite.arrivalCardMessage?.trim()
-                                    || (newPlace === "你身边" ? "已经在你身边了，安静等候碰面的那一刻。" : `已经赶到${newPlace}了，在安静等候你，慢慢走别急。`);
-                                const updatedInvite: OfflineInviteData = {
-                                    ...curInvite,
-                                    place: newPlace,
-                                    transitCardMessage: newTransitCardMessage,
-                                    arrivedMessage: newArrivedMessage,
-                                    arrivalCardMessage: newArrivalCardMessage,
-                                    ...(newParsedMins > 0 ? { durationMinutes: newParsedMins, startTime: Date.now() } : {}),
-                                };
-                                updateActiveOfflineInvite(updatedInvite);
-                                const placeStr = newPlace === "你身边" ? "你身边" : `「${newPlace}」`;
-                                const sysMsg = pushChatMessage({
-                                    sessionId: session.id,
-                                    role: "system",
-                                    content: `赴约地点已更改为${placeStr}`,
-                                    mediaType: "offline_invite_system_notice",
-                                });
-                                setMessages(prev => [...prev, sysMsg]);
-
-                                // 华提出的核心铁律：每一次新卡片都要在3秒后弹窗！
-                                if (remindExpandTimerRef.current) {
-                                    clearTimeout(remindExpandTimerRef.current);
-                                }
-                                remindExpandTimerRef.current = setTimeout(() => {
-                                    setIsOfflineInviteMinimized(false);
-                                    remindExpandTimerRef.current = null;
-                                }, 3000);
-                            }
-                            continue;
-                        }
-                    }
-
-                    const rawTimeStr = p.mediaData.offlineInvite.timeStr || "";
-                    const rawReason = p.mediaData.offlineInvite.reason || "";
+                    const incoming = p.mediaData.offlineInvite;
+                    const rawTimeStr = incoming.timeStr || "";
+                    const rawReason = incoming.reason || "";
                     // 华提出的黄金细节：正文是用户肉眼所见的第一依据！若角色的对话台词中亲口说了具体时间（如“等我十几分钟”、“大概半小时”），
                     // 倒计时必须以正文亲口许诺的时间为最高优先，坚决杜绝正文说十几分钟倒计时却跳出30/40分钟的割裂出戏！
                     const cleanSpeechText = (rawResponseText || "").replace(/\[(?:线下邀约|提醒赴约|更改地点)[^\]]*\]/g, "");
@@ -3572,40 +3525,17 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     const tagMins = extractDurationMinutes(rawTimeStr, 0);
                     const reasonMins = extractDurationMinutes(rawReason, 0);
                     const parsedMins = speechMins > 0 ? speechMins : (tagMins > 0 ? tagMins : (reasonMins > 0 ? reasonMins : 15));
-                    const curLatest = activeOfflineInviteRef.current;
-                    const inviteData: OfflineInviteData = {
-                        direction: p.mediaData.offlineInvite.direction || curLatest?.direction || "he_comes",
-                        place: p.mediaData.offlineInvite.place,
-                        reason: p.mediaData.offlineInvite.reason,
-                        onTheWayMessage: sanitizeTransitMessage(
-                            p.mediaData.offlineInvite.onTheWayMessage,
-                            p.mediaData.offlineInvite.direction || curLatest?.direction || "he_comes",
-                            p.mediaData.offlineInvite.place
-                        ),
-                        transitCardMessage: p.mediaData.offlineInvite.transitCardMessage,
-                        arrivedMessage: p.mediaData.offlineInvite.arrivedMessage,
-                        arrivalCardMessage: p.mediaData.offlineInvite.arrivalCardMessage,
-                        status: "pending",
-                        durationMinutes: parsedMins,
-                        initialBatchId: curLatest ? (curLatest.initialBatchId || curLatest.sourceBatchId || responseBatchId) : responseBatchId,
-                        sourceBatchId: curLatest?.sourceBatchId || responseBatchId,
-                        relatedBatchIds: Array.from(new Set([
-                            ...(curLatest?.relatedBatchIds || []),
-                            curLatest?.initialBatchId,
-                            curLatest?.sourceBatchId,
-                            responseBatchId,
-                        ].filter(Boolean) as string[])),
-                    };
 
-                    // 华提出的至尊黄金体验：初次触发时，胶囊提示语和弹窗一起晚 3 秒出现！
-                    // 这 3 秒钟屏幕干干净净，供用户从容读完角色发出的第一条邀约消息；3 秒后胶囊与弹窗平滑展开！
-                    // 之后若收起，胶囊常驻在顶部；后续触发也只是弹窗平滑展开。
-                    if (!curLatest) {
+                    if (!curInvite) {
+                        if (p.mediaType === "offline_invite_change_place") {
+                            continue;
+                        }
+
                         // 华敏锐指出的核心生活常理：地点是申请的前提，对方答应是出发的前提！
                         // 若大模型在未知地点、正文还在发问“你在哪 / 在哪见 / 发个定位”时，抢跑发起了“你身边”或未定地点的提议：
                         // 且用户前置消息并非危机/脆弱求助，属于大模型自嗨违规抢跑！直接拦截该邀约，让角色老老实实纯文本向用户问清地点！
                         const asksForLocation = /(?:你在[哪哪儿里]|在[哪哪儿里]|去[哪哪儿里]|在哪个地方|发个?定位|你在家还是|在公司还是|到你身边找你好不好|去你身边找你好不好)/.test(cleanSpeechText);
-                        const isByYourSide = !inviteData.place || inviteData.place === "你身边";
+                        const isByYourSide = !incoming.place || incoming.place === "你身边";
                         const recentUserMessages = messages.filter(m => m.role === "user").slice(-3);
                         const isCrisisOrHelp = recentUserMessages.some(m =>
                             m.mediaType === "location" ||
@@ -3615,6 +3545,25 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                         if (asksForLocation && isByYourSide && !isCrisisOrHelp) {
                             continue;
                         }
+
+                        const inviteData: OfflineInviteData = {
+                            direction: incoming.direction || "he_comes",
+                            place: incoming.place,
+                            reason: incoming.reason,
+                            onTheWayMessage: sanitizeTransitMessage(
+                                incoming.onTheWayMessage,
+                                incoming.direction || "he_comes",
+                                incoming.place
+                            ),
+                            transitCardMessage: incoming.transitCardMessage,
+                            arrivedMessage: incoming.arrivedMessage,
+                            arrivalCardMessage: incoming.arrivalCardMessage,
+                            status: "pending",
+                            durationMinutes: parsedMins,
+                            initialBatchId: responseBatchId,
+                            sourceBatchId: responseBatchId,
+                            relatedBatchIds: [responseBatchId],
+                        };
 
                         if (remindExpandTimerRef.current) {
                             clearTimeout(remindExpandTimerRef.current);
@@ -3635,30 +3584,197 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             setMessages(prev => [...prev, sysMsg]);
                             remindExpandTimerRef.current = null;
                         }, 3000);
-                    } else {
-                        // 华敏锐发现：在申请待答应阶段，若用户要求改地址（如“不去我家，去606”），更新地点并在聊天流留下居中小灰字记录！
-                        const oldPlace = curLatest.place?.trim();
-                        const newPlace = inviteData.place?.trim();
-                        const isDirectionChanged = inviteData.direction !== curLatest.direction;
-                        const isPlaceChanged = Boolean(newPlace && oldPlace && newPlace !== oldPlace);
-                        const isStatusChanged = inviteData.status !== curLatest.status;
+                        continue;
+                    }
 
-                        if (isPlaceChanged) {
-                            const placeStr = newPlace === "你身边" ? "你身边" : `「${newPlace}」`;
+                    // ====== curInvite 已存在：无论大模型输出 [线下邀约] 还是 [更改地点]，统一处理赴约变动与方向转换 ======
+                    const oldPlace = curInvite.place?.trim() || "";
+                    const newPlace = incoming.place?.trim() || oldPlace;
+                    const oldDirection = curInvite.direction || "he_comes";
+                    const newDirection = incoming.direction || oldDirection;
+                    const isDirectionChanged = Boolean(incoming.direction && incoming.direction !== oldDirection);
+                    const isPlaceChanged = Boolean(newPlace && oldPlace && newPlace !== oldPlace);
+                    const wasOnTheWay = curInvite.status === "on_the_way";
+                    const wasArrived = curInvite.status === "arrived";
+                    const wasPending = curInvite.status === "pending";
+
+                    const charName = character?.name || "对方";
+                    const placeStr = newPlace === "你身边" ? "你身边" : `「${newPlace}」`;
+                    const newBatchIds = Array.from(new Set([
+                        ...(curInvite.relatedBatchIds || []),
+                        curInvite.initialBatchId,
+                        curInvite.sourceBatchId,
+                        responseBatchId,
+                    ].filter(Boolean) as string[]));
+
+                    if (newDirection === "i_go") {
+                        // 切换为 / 保持【我去】：角色处于现场等候，旧的【他来】所有在途报备、在途心语、到达呼唤、到达心语全部彻底作废！
+                        const newReason = incoming.reason?.trim() || (wasPending ? curInvite.reason : "");
+                        const updatedInvite: OfflineInviteData = {
+                            direction: "i_go",
+                            place: newPlace,
+                            reason: newReason,
+                            status: "pending",
+                            initialBatchId: curInvite.initialBatchId || curInvite.sourceBatchId || responseBatchId,
+                            sourceBatchId: curInvite.sourceBatchId || responseBatchId,
+                            relatedBatchIds: newBatchIds,
+                        };
+                        updateActiveOfflineInvite(updatedInvite);
+                        setIsOfflineInviteMinimized(true);
+
+                        if (isDirectionChanged || isPlaceChanged) {
+                            let noticeContent = "";
+                            if (isDirectionChanged) {
+                                if (wasOnTheWay) {
+                                    noticeContent = isPlaceChanged
+                                        ? `赴约地点已更改为${placeStr}，对方正在现场等候你碰面`
+                                        : `碰头方式已变更为对方在${placeStr}等候你碰面`;
+                                } else if (wasArrived) {
+                                    noticeContent = `碰头方式已变更为对方在${placeStr}等候你碰面`;
+                                } else {
+                                    noticeContent = isPlaceChanged
+                                        ? `赴约地点已更改为${placeStr}，对方正在现场等候你碰面`
+                                        : `赴约提议已变更为你在${placeStr}与对方碰面`;
+                                }
+                            } else {
+                                noticeContent = `赴约提议地点已更改为${placeStr}`;
+                            }
+
                             const sysMsg = pushChatMessage({
                                 sessionId: session.id,
                                 role: "system",
-                                content: `赴约提议地点已更改为${placeStr}`,
+                                content: noticeContent,
                                 mediaType: "offline_invite_system_notice",
-                                mediaData: { offlineInvite: inviteData },
+                                mediaData: { offlineInvite: updatedInvite },
                             });
                             setMessages(prev => [...prev, sysMsg]);
-                        }
-                        updateActiveOfflineInvite(inviteData);
 
-                        // 华提出的核心铁律：每一次新卡片都要在3秒后弹窗！
-                        // 包括方向切换（我去 <-> 他来）、状态切换、以及地点变更产生的全新提议卡片！
-                        if (isDirectionChanged || isPlaceChanged || isStatusChanged) {
+                            // 华提出的核心铁律：每一次新卡片都要在3秒后弹窗！
+                            if (remindExpandTimerRef.current) {
+                                clearTimeout(remindExpandTimerRef.current);
+                            }
+                            remindExpandTimerRef.current = setTimeout(() => {
+                                setIsOfflineInviteMinimized(false);
+                                remindExpandTimerRef.current = null;
+                            }, 3000);
+                        }
+                    } else {
+                        // 切换为 / 保持【他来】
+                        if (wasArrived && isPlaceChanged) {
+                            // 角色到达后用户告知改地点：重新在途赶路！
+                            const durationMins = parsedMins > 0 ? parsedMins : 5;
+                            const newTransitCardMessage = incoming.transitCardMessage?.trim()
+                                || (newPlace === "你身边" ? "正重新赶去你身边，稍等我片刻，马上就到。" : `正重新赶往${newPlace}的途中，稍候片刻。`);
+                            const newArrivedMessage = incoming.arrivedMessage?.trim()
+                                || (newPlace === "你身边" ? "我到了，在附近等你，不用着急慢慢走。" : `我已经到${newPlace}了，在附近等你，不用着急慢慢走。`);
+                            const newArrivalCardMessage = incoming.arrivalCardMessage?.trim()
+                                || (newPlace === "你身边" ? "已经在你身边了，安静等候碰面的那一刻。" : `已经赶到${newPlace}了，在安静等候你，慢慢走别急。`);
+
+                            const updatedInvite: OfflineInviteData = {
+                                direction: "he_comes",
+                                place: newPlace,
+                                reason: incoming.reason?.trim() || curInvite.reason,
+                                status: "on_the_way",
+                                durationMinutes: durationMins,
+                                startTime: Date.now(),
+                                transitCardMessage: newTransitCardMessage,
+                                arrivedMessage: newArrivedMessage,
+                                arrivalCardMessage: newArrivalCardMessage,
+                                initialBatchId: curInvite.initialBatchId || curInvite.sourceBatchId || responseBatchId,
+                                sourceBatchId: curInvite.sourceBatchId || responseBatchId,
+                                relatedBatchIds: newBatchIds,
+                            };
+                            updateActiveOfflineInvite(updatedInvite);
+
+                            const sysMsg = pushChatMessage({
+                                sessionId: session.id,
+                                role: "system",
+                                content: `${charName} 已得知新地点，正在重新赶往${placeStr}`,
+                                mediaType: "offline_invite_system_notice",
+                                mediaData: { offlineInvite: updatedInvite },
+                            });
+                            setMessages(prev => [...prev, sysMsg]);
+
+                            if (remindExpandTimerRef.current) {
+                                clearTimeout(remindExpandTimerRef.current);
+                            }
+                            remindExpandTimerRef.current = setTimeout(() => {
+                                setIsOfflineInviteMinimized(false);
+                                remindExpandTimerRef.current = null;
+                            }, 3000);
+                        } else if (wasOnTheWay && isPlaceChanged) {
+                            // 在途中改地点（外卖中途改地址）：平滑更新地点，不打断倒计时（除非特别指定了新用时）
+                            const newTransitCardMessage = incoming.transitCardMessage?.trim()
+                                || (newPlace === "你身边" ? "正重新赶去你身边，稍等我片刻，马上就到。" : `正重新赶往${newPlace}的途中，稍候片刻。`);
+                            const newArrivedMessage = incoming.arrivedMessage?.trim()
+                                || (newPlace === "你身边" ? "我到了，在附近等你，不用着急慢慢走。" : `我已经到${newPlace}了，在附近等你，不用着急慢慢走。`);
+                            const newArrivalCardMessage = incoming.arrivalCardMessage?.trim()
+                                || (newPlace === "你身边" ? "已经在你身边了，安静等候碰面的那一刻。" : `已经赶到${newPlace}了，在安静等候你，慢慢走别急。`);
+
+                            const updatedInvite: OfflineInviteData = {
+                                ...curInvite,
+                                direction: "he_comes",
+                                place: newPlace,
+                                transitCardMessage: newTransitCardMessage,
+                                arrivedMessage: newArrivedMessage,
+                                arrivalCardMessage: newArrivalCardMessage,
+                                ...(parsedMins > 0 && parsedMins !== curInvite.durationMinutes ? { durationMinutes: parsedMins, startTime: Date.now() } : {}),
+                                sourceBatchId: curInvite.sourceBatchId || responseBatchId,
+                                relatedBatchIds: newBatchIds,
+                            };
+                            updateActiveOfflineInvite(updatedInvite);
+
+                            const sysMsg = pushChatMessage({
+                                sessionId: session.id,
+                                role: "system",
+                                content: `赴约地点已更改为${placeStr}`,
+                                mediaType: "offline_invite_system_notice",
+                                mediaData: { offlineInvite: updatedInvite },
+                            });
+                            setMessages(prev => [...prev, sysMsg]);
+
+                            if (remindExpandTimerRef.current) {
+                                clearTimeout(remindExpandTimerRef.current);
+                            }
+                            remindExpandTimerRef.current = setTimeout(() => {
+                                setIsOfflineInviteMinimized(false);
+                                remindExpandTimerRef.current = null;
+                            }, 3000);
+                        } else if (wasPending && (isDirectionChanged || isPlaceChanged)) {
+                            // 待答应阶段改地点，或从【我去】转为【他来】（如用户希望对方来接）
+                            const sanitizedOnTheWay = incoming.onTheWayMessage?.trim()
+                                ? sanitizeTransitMessage(incoming.onTheWayMessage, "he_comes", newPlace)
+                                : sanitizeTransitMessage(undefined, "he_comes", newPlace);
+
+                            const updatedInvite: OfflineInviteData = {
+                                direction: "he_comes",
+                                place: newPlace,
+                                reason: incoming.reason?.trim() || curInvite.reason,
+                                onTheWayMessage: sanitizedOnTheWay,
+                                transitCardMessage: incoming.transitCardMessage,
+                                arrivedMessage: incoming.arrivedMessage,
+                                arrivalCardMessage: incoming.arrivalCardMessage,
+                                status: "pending",
+                                durationMinutes: parsedMins,
+                                initialBatchId: curInvite.initialBatchId || curInvite.sourceBatchId || responseBatchId,
+                                sourceBatchId: curInvite.sourceBatchId || responseBatchId,
+                                relatedBatchIds: newBatchIds,
+                            };
+                            updateActiveOfflineInvite(updatedInvite);
+
+                            const noticeContent = isDirectionChanged
+                                ? "赴约提议已变更为由对方前来接你"
+                                : `赴约提议地点已更改为${placeStr}`;
+
+                            const sysMsg = pushChatMessage({
+                                sessionId: session.id,
+                                role: "system",
+                                content: noticeContent,
+                                mediaType: "offline_invite_system_notice",
+                                mediaData: { offlineInvite: updatedInvite },
+                            });
+                            setMessages(prev => [...prev, sysMsg]);
+
                             if (remindExpandTimerRef.current) {
                                 clearTimeout(remindExpandTimerRef.current);
                             }
@@ -3668,115 +3784,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             }, 3000);
                         }
                     }
+                    continue;
                 }
-                continue;
-            }
-            if (p.mediaType === "offline_invite_change_place") {
-                const curChangeInvite = activeOfflineInviteRef.current;
-                if (session.enableOfflineInvite && !session.isGroup && curChangeInvite && p.mediaData?.offlineInvite?.place) {
-                    const newPlace = p.mediaData.offlineInvite.place?.trim() || curChangeInvite.place || "";
-                    const newDirection = p.mediaData.offlineInvite.direction || curChangeInvite.direction;
-                    const isPlaceChanged = newPlace !== curChangeInvite.place;
-                    const isDirectionChanged = newDirection !== curChangeInvite.direction;
-
-                    if (isPlaceChanged || isDirectionChanged) {
-                        const newTimeStr = p.mediaData.offlineInvite.timeStr || "";
-                        const newParsedMins = extractDurationMinutes(newTimeStr, 0);
-                        const wasArrived = curChangeInvite.status === "arrived";
-                        const wasOnTheWay = curChangeInvite.status === "on_the_way";
-                        const durationMins = newParsedMins > 0 ? newParsedMins : (wasArrived ? 5 : (curChangeInvite.durationMinutes || 10));
-
-                        // 华敏锐提出的绝妙情境：若角色已到达目的地（如用户家楼下），用户却告知走错了/在别处（如肯德基门口）
-                        // 自动将到达状态切换回在途状态，重新启动赶路倒计时并生成针对新地点的到达文案！
-                        const isPending = curChangeInvite.status === "pending";
-                        const nextStatus = (wasArrived || wasOnTheWay) ? "on_the_way" : curChangeInvite.status;
-                        const newTransitCardMessage = p.mediaData.offlineInvite.transitCardMessage?.trim()
-                            || (newPlace === "你身边" ? "正重新赶去你身边，稍等我片刻，马上就到。" : `正重新赶往${newPlace}的途中，稍候片刻。`);
-                        const newArrivedMessage = p.mediaData.offlineInvite.arrivedMessage?.trim()
-                            || (newPlace === "你身边" ? "我到了，在附近等你，不用着急慢慢走。" : `我已经到${newPlace}了，在附近等你，不用着急慢慢走。`);
-                        const newArrivalCardMessage = p.mediaData.offlineInvite.arrivalCardMessage?.trim()
-                            || (newPlace === "你身边" ? "已经在你身边了，安静等候碰面的那一刻。" : `已经赶到${newPlace}了，在安静等候你，慢慢走别急。`);
-                        const newReason = p.mediaData.offlineInvite.reason?.trim()
-                            || (isPending ? (newPlace === "你身边" ? "想去你身边找你碰面" : `想改去${newPlace}找你碰面`) : curChangeInvite.reason);
-
-                        // 华指出的老句子彻底报废铁律：
-                        let updatedInvite: OfflineInviteData;
-                        if (newDirection === "i_go") {
-                            // 切换为/保持【我去】：角色处于现场等候，旧的【他来】所有在途报备、在途心语、到达呼唤、到达心语全部彻底作废！
-                            updatedInvite = {
-                                direction: "i_go",
-                                place: newPlace,
-                                reason: newReason,
-                                status: "pending",
-                                initialBatchId: curChangeInvite.initialBatchId || curChangeInvite.sourceBatchId || responseBatchId,
-                                sourceBatchId: curChangeInvite.sourceBatchId || responseBatchId,
-                                relatedBatchIds: Array.from(new Set([
-                                    ...(curChangeInvite.relatedBatchIds || []),
-                                    curChangeInvite.initialBatchId,
-                                    curChangeInvite.sourceBatchId,
-                                    responseBatchId,
-                                ].filter(Boolean) as string[])),
-                            };
-                            updateActiveOfflineInvite(updatedInvite);
-                            setIsOfflineInviteMinimized(true);
-                        } else {
-                            // 保持/切换为【他来】：旧句全部作废，必须使用契合新地点的全新句子！
-                            const sanitizedOnTheWay = p.mediaData.offlineInvite.onTheWayMessage?.trim()
-                                ? sanitizeTransitMessage(p.mediaData.offlineInvite.onTheWayMessage, "he_comes", newPlace)
-                                : sanitizeTransitMessage(undefined, "he_comes", newPlace);
-
-                            updatedInvite = {
-                                direction: "he_comes",
-                                place: newPlace,
-                                reason: newReason,
-                                onTheWayMessage: sanitizedOnTheWay,
-                                status: nextStatus,
-                                durationMinutes: durationMins,
-                                transitCardMessage: newTransitCardMessage,
-                                arrivedMessage: newArrivedMessage,
-                                arrivalCardMessage: newArrivalCardMessage,
-                                initialBatchId: curChangeInvite.initialBatchId || curChangeInvite.sourceBatchId || responseBatchId,
-                                sourceBatchId: curChangeInvite.sourceBatchId || responseBatchId,
-                                relatedBatchIds: Array.from(new Set([
-                                    ...(curChangeInvite.relatedBatchIds || []),
-                                    curChangeInvite.initialBatchId,
-                                    curChangeInvite.sourceBatchId,
-                                    responseBatchId,
-                                ].filter(Boolean) as string[])),
-                                ...((wasArrived || wasOnTheWay) ? { startTime: Date.now() } : {}),
-                            };
-                            updateActiveOfflineInvite(updatedInvite);
-                        }
-
-                        const charName = character?.name || "对方";
-                        const placeStr = newPlace === "你身边" ? "你身边" : `「${newPlace}」`;
-                        const noticeText = wasArrived
-                            ? `${charName} 已得知新地点，正在重新赶往${placeStr}`
-                            : (wasOnTheWay
-                                ? `赴约地点已更改为${placeStr}`
-                                : `赴约提议地点已更改为${placeStr}`);
-
-                        const sysMsg = pushChatMessage({
-                            sessionId: session.id,
-                            role: "system",
-                            content: noticeText,
-                            mediaType: "offline_invite_system_notice",
-                            mediaData: { offlineInvite: updatedInvite },
-                        });
-                        setMessages(prev => [...prev, sysMsg]);
-
-                        // 华提出的核心铁律：每一次新卡片都要在3秒后弹窗！
-                        // 包括方向切换（我去 <-> 他来）、地点变更导致的状态切换（如 arrived -> on_the_way 重新在途）、新地点新卡片等！
-                        if (remindExpandTimerRef.current) {
-                            clearTimeout(remindExpandTimerRef.current);
-                        }
-                        remindExpandTimerRef.current = setTimeout(() => {
-                            setIsOfflineInviteMinimized(false);
-                            remindExpandTimerRef.current = null;
-                        }, 3000);
-                    }
-                }
-                continue;
             }
             if (p.mediaType === "offline_invite_early_arrive") {
                 const curEarlyInvite = activeOfflineInviteRef.current;
