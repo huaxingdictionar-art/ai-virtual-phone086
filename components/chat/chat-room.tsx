@@ -406,6 +406,7 @@ function restoreOfflineInviteFromMessages(
             arrivedMessage: data.arrivedMessage,
             arrivalCardMessage: data.arrivalCardMessage,
             durationMinutes: data.durationMinutes || 15,
+            initialPlace: data.initialPlace || data.place || "你身边",
             sourceBatchId: rootMsg.responseBatchId || data.sourceBatchId || rootMsg.id,
             initialBatchId: rootMsg.responseBatchId || data.sourceBatchId || rootMsg.id,
         };
@@ -1650,8 +1651,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
 
                 // 华提出的黄金体验节点③【行程到达】：倒计时结束到达时，在聊天流中留下到达事实系统记录
                 const charName = character?.name || "对方";
+                const isOriginByYourSide = activeOfflineInvite.initialPlace === "你身边" || (!activeOfflineInvite.initialPlace && activeOfflineInvite.place === "你身边");
                 const rawPlace = activeOfflineInvite.place?.trim();
-                const placeStr = rawPlace ? (rawPlace === "你身边" ? "你身边" : `「${rawPlace}」`) : "约定地点";
+                const placeStr = isOriginByYourSide ? "你身边" : (rawPlace ? (rawPlace === "你身边" ? "你身边" : `「${rawPlace}」`) : "约定地点");
                 const sysArriveMsg = pushChatMessage({
                     sessionId: session.id,
                     role: "system",
@@ -3554,6 +3556,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             arrivalCardMessage: incoming.arrivalCardMessage,
                             status: "pending",
                             durationMinutes: parsedMins,
+                            initialPlace: incoming.place?.trim() || "你身边",
                             initialBatchId: responseBatchId,
                             sourceBatchId: responseBatchId,
                             relatedBatchIds: [responseBatchId],
@@ -3607,6 +3610,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             place: newPlace,
                             reason: newReason,
                             status: "pending",
+                            initialPlace: curInvite.initialPlace || curInvite.place || "你身边",
                             initialBatchId: curInvite.initialBatchId || curInvite.sourceBatchId || responseBatchId,
                             sourceBatchId: curInvite.sourceBatchId || responseBatchId,
                             relatedBatchIds: newBatchIds,
@@ -3668,6 +3672,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                 transitCardMessage: newTransitCardMessage,
                                 arrivedMessage: newArrivedMessage,
                                 arrivalCardMessage: newArrivalCardMessage,
+                                initialPlace: curInvite.initialPlace || curInvite.place || "你身边",
                                 initialBatchId: curInvite.initialBatchId || curInvite.sourceBatchId || responseBatchId,
                                 sourceBatchId: curInvite.sourceBatchId || responseBatchId,
                                 relatedBatchIds: newBatchIds,
@@ -3701,6 +3706,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                 transitCardMessage: newTransitCardMessage,
                                 arrivedMessage: newArrivedMessage,
                                 arrivalCardMessage: newArrivalCardMessage,
+                                initialPlace: curInvite.initialPlace || curInvite.place || "你身边",
                                 ...(parsedMins > 0 && parsedMins !== curInvite.durationMinutes ? { durationMinutes: parsedMins, startTime: Date.now() } : {}),
                                 sourceBatchId: curInvite.sourceBatchId || responseBatchId,
                                 relatedBatchIds: newBatchIds,
@@ -3735,6 +3741,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                 arrivalCardMessage: incoming.arrivalCardMessage || curInvite.arrivalCardMessage,
                                 status: "pending",
                                 durationMinutes: parsedMins > 0 ? parsedMins : curInvite.durationMinutes,
+                                initialPlace: curInvite.initialPlace || curInvite.place || "你身边",
                                 initialBatchId: curInvite.initialBatchId || curInvite.sourceBatchId || responseBatchId,
                                 sourceBatchId: curInvite.sourceBatchId || responseBatchId,
                                 relatedBatchIds: newBatchIds,
@@ -3797,8 +3804,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
 
                     // 华提出的黄金体验：提前到达时，在聊天流中留下到达事实记录
                     const charName = character?.name || "对方";
+                    const isOriginByYourSide = curEarlyInvite.initialPlace === "你身边" || (!curEarlyInvite.initialPlace && curEarlyInvite.place === "你身边");
                     const rawPlace = curEarlyInvite.place?.trim();
-                    const placeStr = rawPlace ? (rawPlace === "你身边" ? "你身边" : `「${rawPlace}」`) : "约定地点";
+                    const placeStr = isOriginByYourSide ? "你身边" : (rawPlace ? (rawPlace === "你身边" ? "你身边" : `「${rawPlace}」`) : "约定地点");
                     const sysMsg = pushChatMessage({
                         sessionId: session.id,
                         role: "system",
@@ -5645,8 +5653,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
 
         // 华提出的黄金体验节点③【行程到达】：提前到达时，在聊天流中留下提前到达事实系统记录
         const charName = character?.name || "对方";
+        const isOriginByYourSide = activeOfflineInvite.initialPlace === "你身边" || (!activeOfflineInvite.initialPlace && activeOfflineInvite.place === "你身边");
         const rawPlace = activeOfflineInvite.place?.trim();
-        const placeStr = rawPlace ? (rawPlace === "你身边" ? "你身边" : `「${rawPlace}」`) : "约定地点";
+        const placeStr = isOriginByYourSide ? "你身边" : (rawPlace ? (rawPlace === "你身边" ? "你身边" : `「${rawPlace}」`) : "约定地点");
         const sysArriveMsg = pushChatMessage({
             sessionId: session.id,
             role: "system",

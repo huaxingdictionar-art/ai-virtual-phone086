@@ -19,6 +19,8 @@ export type OfflineInviteData = {
     startTime?: number;
     durationMinutes?: number;
     sourceBatchId?: string;
+    /** 初次发起邀约时的地点（如“你身边”；若最初是身边，即使中途改了坐标，到达时标题依然保持“已到达你身边”的情感浪漫） */
+    initialPlace?: string;
     /** 初次发起邀约的批次ID（全场唯一生命之根，永不覆盖） */
     initialBatchId?: string;
     /** 该赴约生命周期中涉及的所有批次ID（包含发起、改地点、在途、到达等） */
@@ -173,15 +175,23 @@ export function OfflineInviteModal({
                                 : "线下邀约"}
                         </span>
                     </div>
-                    <h3 className="text-[16px] font-bold text-[var(--c-text-title,#111827)] mt-1">
-                        {isOnTheWay
-                            ? `${charName} 正在赶来的路上`
-                            : isArrived
-                            ? `${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${invite.place ? (invite.place === "你身边" ? "「你身边」" : `「${invite.place}」`) : ""}`
-                            : isHeComes
-                            ? `${charName} 提议来找你`
-                            : `${charName} 邀请你赴约`}
-                    </h3>
+                    {(() => {
+                        const isOriginByYourSide = invite.initialPlace === "你身边" || (!invite.initialPlace && invite.place === "你身边");
+                        const arrivedPlaceText = isOriginByYourSide
+                            ? "你身边"
+                            : (invite.place ? `「${invite.place}」` : "");
+                        return (
+                            <h3 className="text-[16px] font-bold text-[var(--c-text-title,#111827)] mt-1">
+                                {isOnTheWay
+                                    ? `${charName} 正在赶来的路上`
+                                    : isArrived
+                                    ? `${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`
+                                    : isHeComes
+                                    ? `${charName} 提议来找你`
+                                    : `${charName} 邀请你赴约`}
+                            </h3>
+                        );
+                    })()}
                     <div className="inline-flex items-center justify-center gap-1 text-[11px] text-[var(--c-text,#9ca3af)] mt-0.5">
                         <span>按右上角</span>
                         <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-[var(--c-input,rgba(0,0,0,0.06))] text-[var(--c-text,#6b7280)]">
@@ -312,7 +322,13 @@ export function OfflineInviteCapsule({
                 {isOnTheWay
                     ? `${charName}正在赶来，约剩${remainingMins > 0 ? remainingMins : 1}分钟后到达`
                     : isArrived
-                    ? `✨ ${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${invite.place ? (invite.place === "你身边" ? "「你身边」" : `「${invite.place}」`) : ""}`
+                    ? (() => {
+                        const isOriginByYourSide = invite.initialPlace === "你身边" || (!invite.initialPlace && invite.place === "你身边");
+                        const arrivedPlaceText = isOriginByYourSide
+                            ? "你身边"
+                            : (invite.place ? (invite.place === "你身边" ? "你身边" : `「${invite.place}」`) : "");
+                        return `✨ ${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`;
+                    })()
                     : isHeComes
                     ? `${charName} 提议来见你（待赴约）`
                     : `${charName} 正在等候你赴约`}

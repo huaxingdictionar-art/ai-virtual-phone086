@@ -251,6 +251,7 @@ export type ChatMessage = {
             status?: "pending" | "accepted" | "declined" | "on_the_way" | "arrived";
             sourceBatchId?: string;
             initialBatchId?: string;
+            initialPlace?: string;
             isEarlyArrived?: boolean;
             frozenRemainingMinutes?: number;
             durationMinutes?: number;
