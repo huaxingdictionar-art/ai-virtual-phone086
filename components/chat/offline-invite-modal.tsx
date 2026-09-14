@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import type { Character } from "@/lib/character-types";
-import { User, MapPin, Sparkles, Navigation, Clock, Undo2 } from "lucide-react";
+import { User, MapPin, Sparkles, Navigation, Clock, Undo2, Eye } from "lucide-react";
 
 export type OfflineInviteData = {
     direction: "he_comes" | "i_go";
@@ -178,10 +178,14 @@ export function OfflineInviteModal({
                             {/* 标题与情境标签 */}
                             <div className="flex flex-col items-center gap-1">
                                 <div className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${tagStyle}`}>
-                                    <Sparkles size={11} />
+                                    {isOnTheWay && invite.theme === "forced" ? (
+                                        <Eye size={12} className="animate-pulse" />
+                                    ) : (
+                                        <Sparkles size={11} />
+                                    )}
                                     <span>
                                         {isOnTheWay
-                                            ? (invite.theme === "forced" ? "强行赶来中" : "在途赶来中")
+                                            ? (invite.theme === "forced" ? "你已无法阻拦" : "在途赶来中")
                                             : isArrived
                                             ? (invite.isEarlyArrived ? "已提前到达" : "已经到达")
                                             : isHeComes
@@ -197,7 +201,7 @@ export function OfflineInviteModal({
                                     return (
                                         <h3 className="text-[16px] font-bold text-[var(--c-text-title,#111827)] mt-1">
                                             {isOnTheWay
-                                                ? `${charName} 正在赶来的路上`
+                                                ? (invite.theme === "forced" ? `${charName} 正直奔你而来` : `${charName} 正在赶来的路上`)
                                                 : isArrived
                                                 ? `${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`
                                                 : isHeComes
