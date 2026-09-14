@@ -81,7 +81,7 @@ function getModalDescription(invite: OfflineInviteData): string {
         : "对方正在约定的地方等候你的到来。";
 }
 
-/** 🌸 华特调的灵动三睫毛眼眸图标：神采醒目、线条克制雅致、瞳孔带警觉探查微动 */
+/** 🌸 华特调的灵动三睫毛眼眸图标：思路 A（心跳式眼眶猛然睁大 + 瞳孔精准稳健收缩至 2.1 防发虚） */
 function EyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; size?: number }) {
     return (
         <svg
@@ -94,23 +94,43 @@ function EyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; s
             strokeLinecap="round"
             strokeLinejoin="round"
             className={className}
+            style={{ overflow: "visible" }}
         >
-            {/* 杏仁眼型轮廓 */}
-            <path d="M2 13.5C2 13.5 5.5 7.5 12 7.5C18.5 7.5 22 13.5 22 13.5C22 13.5 18.5 19.5 12 19.5C5.5 19.5 2 13.5 2 13.5Z" />
-            {/* 灵动眼球/瞳孔：定睛凝视 ➔ 警觉微探 ➔ 瞬间回锁正中 */}
-            <circle cx="12" cy="13.5" r="2.8">
-                <animate
-                    attributeName="cx"
-                    values="12; 12; 10.6; 10.6; 13.4; 13.4; 12; 12"
-                    keyTimes="0; 0.45; 0.53; 0.65; 0.73; 0.85; 0.92; 1"
-                    dur="4s"
+            <g style={{ transformOrigin: "12px 13.5px" }}>
+                {/* 华确立的思路 A：眼眶与睫毛随心跳瞬间蓦然睁大，眼白面积倍增 */}
+                <animateTransform
+                    attributeName="transform"
+                    type="scale"
+                    values="1; 1.22; 0.97; 1.14; 1; 1"
+                    keyTimes="0; 0.13; 0.23; 0.35; 0.48; 1"
+                    dur="2.2s"
                     repeatCount="indefinite"
                 />
-            </circle>
-            {/* 三根生动翘起的眼睫毛：根部顺应外沿，无丝毫内渗 */}
-            <path d="M12 6.6V2.6" />
-            <path d="M6.5 8.2L4.2 4.4" />
-            <path d="M17.5 8.2L19.8 4.4" />
+                {/* 杏仁眼型轮廓 */}
+                <path d="M2 13.5C2 13.5 5.5 7.5 12 7.5C18.5 7.5 22 13.5 22 13.5C22 13.5 18.5 19.5 12 19.5C5.5 19.5 2 13.5 2 13.5Z" />
+                {/* 三根生动翘起的眼睫毛：根部顺应外沿，无丝毫内渗 */}
+                <path d="M12 6.6V2.6" />
+                <path d="M6.5 8.2L4.2 4.4" />
+                <path d="M17.5 8.2L19.8 4.4" />
+
+                {/* 灵动眼球/瞳孔：定睛凝视 ➔ 警觉微探，且在眼眶睁大瞬间由 2.8 稳健收束至 2.1（绝不发虚模糊） */}
+                <circle cx="12" cy="13.5" r="2.8">
+                    <animate
+                        attributeName="r"
+                        values="2.8; 2.1; 2.9; 2.3; 2.8; 2.8"
+                        keyTimes="0; 0.13; 0.23; 0.35; 0.48; 1"
+                        dur="2.2s"
+                        repeatCount="indefinite"
+                    />
+                    <animate
+                        attributeName="cx"
+                        values="12; 12; 11.0; 11.0; 13.0; 13.0; 12; 12"
+                        keyTimes="0; 0.48; 0.58; 0.72; 0.82; 0.94; 0.98; 1"
+                        dur="4.4s"
+                        repeatCount="indefinite"
+                    />
+                </circle>
+            </g>
         </svg>
     );
 }
