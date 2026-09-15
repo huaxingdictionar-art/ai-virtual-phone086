@@ -533,7 +533,9 @@ export function OfflineInviteModal({
                 <button
                     type="button"
                     onClick={onMinimize}
-                    className={`absolute top-3.5 right-3.5 w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-90 shadow-sm z-20 ${
+                    className={`absolute top-3.5 right-3.5 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer active:scale-90 shadow-sm z-20 ${
+                        isHugging ? "opacity-0 pointer-events-none scale-90" : "opacity-100 scale-100"
+                    } ${
                         isForcedTheme
                             ? "bg-white/10 border border-white/10 text-gray-300 hover:bg-white/20 hover:text-white"
                             : "bg-[var(--c-input,rgba(0,0,0,0.05))] hover:bg-[var(--c-input-border,rgba(0,0,0,0.1))] text-[var(--c-icon,#9ca3af)] hover:text-[var(--c-text-title,#111827)]"
@@ -604,6 +606,8 @@ export function OfflineInviteModal({
                                     )}
                                 </div>
                                 <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full ${badgeBg} text-white flex items-center justify-center transition-all duration-300 z-20 ${
+                                    isHugging ? "opacity-0 pointer-events-none scale-75" : "opacity-100 scale-100"
+                                } ${
                                     isForcedTheme ? "shadow-[0_2px_10px_rgba(255,59,48,0.7)] border border-white/20" : "shadow"
                                 }`}>
                                     {isOnTheWay ? (
