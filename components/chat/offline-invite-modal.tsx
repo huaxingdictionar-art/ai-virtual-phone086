@@ -239,7 +239,7 @@ function HeartbeatWaveIcon({ className = "", size = 16 }: { className?: string; 
     );
 }
 
-/** 🌸 华专属特调：长按头像温存拥抱粒子与向外荡漾光环系统（向四周散开的爱心、四芒星光屑、柔粉光尘 + 同心扩散波纹） */
+/** 🌸 华专属特调：长按头像温存拥抱微粒子系统（轻量飘散爱心、四芒星光屑与豆沙粉光尘，Retina 高清渲染，极低内存消耗） */
 function AvatarHugParticles({ active }: { active: boolean }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -266,98 +266,61 @@ function AvatarHugParticles({ active }: { active: boolean }) {
             vRot: number;
         }> = [];
 
-        // 🌸 向外散开的温存光环（Ripples）
-        const ripples: Array<{
-            r: number;
-            maxR: number;
-            alpha: number;
-        }> = [];
-
         let lastSpawn = 0;
-        let lastRipple = 0;
 
         const resize = () => {
             if (canvas.parentElement) {
-                canvas.width = canvas.parentElement.offsetWidth;
-                canvas.height = canvas.parentElement.offsetHeight;
+                const dpr = typeof window !== "undefined" ? (window.devicePixelRatio || 1) : 1;
+                const width = canvas.parentElement.offsetWidth;
+                const height = canvas.parentElement.offsetHeight;
+                canvas.width = width * dpr;
+                canvas.height = height * dpr;
+                canvas.style.width = `${width}px`;
+                canvas.style.height = `${height}px`;
+                ctx.setTransform(1, 0, 0, 1, 0, 0);
+                ctx.scale(dpr, dpr);
             }
         };
         resize();
 
         const spawnParticles = () => {
-            const centerX = canvas.width / 2;
+            const width = canvas.parentElement ? canvas.parentElement.offsetWidth : 315;
+            const centerX = width / 2;
             const centerY = 62; // 头像中心垂直坐标
             const types: ("heart" | "star" | "dot")[] = ["heart", "star", "dot", "dot"];
             const colors = ["244, 114, 182", "232, 122, 144", "251, 191, 36", "253, 207, 224"];
 
-            // 每次生成 2 颗向四周 360° 四散漂浮的粒子（绝不往上窜，而是向四周自然绽放散开）
-            for (let i = 0; i < 2; i++) {
-                const angle = Math.random() * Math.PI * 2;
-                const dist = 30 + Math.random() * 6; // 从头像轮廓起跑
-                const speed = 0.5 + Math.random() * 0.9; // 温和向四周扩散的速度
-                particles.push({
-                    x: centerX + Math.cos(angle) * dist,
-                    y: centerY + Math.sin(angle) * dist,
-                    vx: Math.cos(angle) * speed,
-                    vy: Math.sin(angle) * speed,
-                    size: 4 + Math.random() * 6,
-                    alpha: 0.95,
-                    decay: 0.01 + Math.random() * 0.008,
-                    color: colors[Math.floor(Math.random() * colors.length)],
-                    type: types[Math.floor(Math.random() * types.length)],
-                    rotation: Math.random() * Math.PI * 2,
-                    vRot: (Math.random() - 0.5) * 0.06,
-                });
-            }
-        };
-
-        const spawnRipple = () => {
-            ripples.push({
-                r: 32, // 从头像边缘起跑
-                maxR: 85, // 向外荡漾扩散到周围
-                alpha: 0.75,
+            // 每次仅生成 1 颗温和向四周漫溢的光尘（极低功耗，轻柔飘逸）
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 32 + Math.random() * 6; // 从头像轮廓起跑
+            const speed = 0.4 + Math.random() * 0.7; // 温和向四周扩散
+            particles.push({
+                x: centerX + Math.cos(angle) * dist,
+                y: centerY + Math.sin(angle) * dist,
+                vx: Math.cos(angle) * speed,
+                vy: Math.sin(angle) * speed,
+                size: 3.5 + Math.random() * 4,
+                alpha: 0.85,
+                decay: 0.012 + Math.random() * 0.008,
+                color: colors[Math.floor(Math.random() * colors.length)],
+                type: types[Math.floor(Math.random() * types.length)],
+                rotation: Math.random() * Math.PI * 2,
+                vRot: (Math.random() - 0.5) * 0.05,
             });
         };
 
         const render = (time: number) => {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            const centerX = canvas.width / 2;
-            const centerY = 62;
+            const width = canvas.parentElement ? canvas.parentElement.offsetWidth : 315;
+            const height = canvas.parentElement ? canvas.parentElement.offsetHeight : 500;
+            ctx.clearRect(0, 0, width, height);
 
-            // 激活期间定期发射粒子与向外荡漾的光环
-            if (active) {
-                if (time - lastSpawn > 90) {
-                    spawnParticles();
-                    lastSpawn = time;
-                }
-                if (time - lastRipple > 750) {
-                    spawnRipple();
-                    lastRipple = time;
-                }
+            // 激活期间定期发射粒子
+            if (active && time - lastSpawn > 140) {
+                spawnParticles();
+                lastSpawn = time;
             }
 
-            // 1. 绘制向周围散开的光环（波纹）
-            for (let i = ripples.length - 1; i >= 0; i--) {
-                const rp = ripples[i];
-                rp.r += 0.75; // 平缓外扩
-                const progress = (rp.r - 32) / (rp.maxR - 32);
-                rp.alpha = 0.75 * (1 - progress);
-
-                if (rp.r >= rp.maxR || rp.alpha <= 0) {
-                    ripples.splice(i, 1);
-                    continue;
-                }
-
-                ctx.save();
-                ctx.beginPath();
-                ctx.arc(centerX, centerY, rp.r, 0, Math.PI * 2);
-                ctx.strokeStyle = `rgba(244, 114, 182, ${rp.alpha})`;
-                ctx.lineWidth = Math.max(0.8, 1.8 * (1 - progress));
-                ctx.stroke();
-                ctx.restore();
-            }
-
-            // 2. 绘制向周围散开的粒子
+            // 绘制向四周漫溢散开的微粒子
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
                 p.x += p.vx;
@@ -400,7 +363,7 @@ function AvatarHugParticles({ active }: { active: boolean }) {
                 ctx.restore();
             }
 
-            if (active || particles.length > 0 || ripples.length > 0) {
+            if (active || particles.length > 0) {
                 animationFrameId = requestAnimationFrame(render);
             }
         };
@@ -612,13 +575,20 @@ export function OfflineInviteModal({
 
                     return (
                         <>
-                            <div className="relative mt-2">
+                            <div className="relative mt-2 w-16 h-16">
+                                {/* 🌸 华专属特调：长按时向四周荡漾的超纤细柔粉光环线（纯 CSS GPU 硬件加速，一条真正的纯净细线，极低功耗零占内存） */}
+                                {isHugging && (
+                                    <div className="pointer-events-none absolute inset-0">
+                                        <span className="offline-invite-hug-ring" />
+                                        <span className="offline-invite-hug-ring offline-invite-hug-ring-2" />
+                                    </div>
+                                )}
                                 <div
                                     onPointerDown={handleAvatarPointerDown}
                                     onPointerUp={handleAvatarPointerUp}
                                     onPointerCancel={handleAvatarPointerUp}
                                     onPointerLeave={handleAvatarPointerUp}
-                                    className={`w-16 h-16 rounded-full overflow-hidden flex items-center justify-center cursor-pointer select-none touch-none transition-all duration-300 ${
+                                    className={`w-full h-full rounded-full overflow-hidden flex items-center justify-center cursor-pointer select-none touch-none transition-all duration-300 relative z-10 ${
                                         isForcedTheme
                                             ? "border-2 border-[var(--c-danger,#FF3B30)]/60 shadow-[0_0_18px_rgba(255,59,48,0.45)] bg-[#25202a]"
                                             : isHugging
@@ -633,7 +603,7 @@ export function OfflineInviteModal({
                                         <User size={30} className="text-[var(--c-text,#9ca3af)] pointer-events-none" />
                                     )}
                                 </div>
-                                <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full ${badgeBg} text-white flex items-center justify-center transition-all duration-300 ${
+                                <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full ${badgeBg} text-white flex items-center justify-center transition-all duration-300 z-20 ${
                                     isForcedTheme ? "shadow-[0_2px_10px_rgba(255,59,48,0.7)] border border-white/20" : "shadow"
                                 }`}>
                                     {isOnTheWay ? (
