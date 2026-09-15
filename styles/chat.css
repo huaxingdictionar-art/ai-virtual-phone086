@@ -227,19 +227,30 @@
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18), 0 0 8px rgba(255, 59, 48, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.18) !important;
 }
 
-/* 🌸 华专属特调：长按头像温存拥抱（蓝白 ➔ 豆沙淡粉光晕过渡，100%实底彻底杜绝透视聊天黑字） */
+/* 🌸 华专属特调：长按卡片/头像温存拥抱（蓝白 ➔ 豆沙淡粉光晕过渡，100%实底彻底杜绝透视聊天黑字） */
+.offline-invite-dialog-base {
+  background: var(--c-panel, #ffffff);
+  border: 1px solid var(--c-panel-border, rgba(0, 0, 0, 0.08));
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  transition: all 0.5s cubic-bezier(0.2, 0.8, 0.25, 1) !important;
+}
+
 .offline-invite-dialog-hug {
   background: #ffffff !important;
-  background: radial-gradient(circle at 50% 28%, #fff0f4 0%, #fff7f9 45%, #ffffff 100%) !important;
   border-color: rgba(244, 114, 182, 0.35) !important;
   box-shadow: 0 18px 40px rgba(244, 114, 182, 0.18), 0 4px 16px rgba(0, 0, 0, 0.06) !important;
-  transition: all 0.55s cubic-bezier(0.2, 0.8, 0.25, 1) !important;
+  transition: all 0.5s cubic-bezier(0.2, 0.8, 0.25, 1) !important;
 }
 
 .offline-invite-avatar-hug {
   transform: scale(0.96);
   border-color: rgba(244, 114, 182, 0.45) !important;
   box-shadow: 0 0 16px rgba(244, 114, 182, 0.25), inset 0 0 8px rgba(244, 114, 182, 0.1) !important;
+  transition: all 0.5s cubic-bezier(0.2, 0.8, 0.25, 1) !important;
+}
+
+.offline-invite-avatar-base {
+  transition: all 0.5s cubic-bezier(0.2, 0.8, 0.25, 1) !important;
 }
 
 /* 🌸 华专属特调：长按头像向外荡漾的超纤细柔粉光环线（纯 CSS GPU 硬件加速，极低功耗，一条真正的纯净细线，极淡不突兀） */

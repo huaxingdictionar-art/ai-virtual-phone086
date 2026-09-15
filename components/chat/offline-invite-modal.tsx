@@ -487,11 +487,16 @@ export function OfflineInviteModal({
         };
     }, [isPureAlertTheme]);
 
-    // 🌸 华专属特调：长按头像温存拥抱（蓝白 ➔ 豆沙淡粉光晕与微粒子过渡）
+    // 🌸 华专属特调：长按头像或卡片空白处皆可温存拥抱（蓝白 ➔ 豆沙淡粉光晕过渡，丝滑双向切换）
     const [isHugging, setIsHugging] = useState(false);
 
-    const handleAvatarPointerDown = (e: React.PointerEvent) => {
+    const handlePointerDown = (e: React.PointerEvent) => {
         if (isForcedTheme || isPureAlertTheme) return;
+        // 隔离按钮与交互链接：点按功能按钮时走正常点击，不触发长按拥抱
+        const target = e.target as HTMLElement | null;
+        if (target && target.closest("button, a")) {
+            return;
+        }
         setIsHugging(true);
         try {
             if (typeof window !== "undefined" && "vibrate" in navigator) {
@@ -500,7 +505,7 @@ export function OfflineInviteModal({
         } catch {}
     };
 
-    const handleAvatarPointerUp = () => {
+    const handlePointerUp = () => {
         if (isHugging) {
             setIsHugging(false);
         }
@@ -514,18 +519,32 @@ export function OfflineInviteModal({
         >
             <div
                 ref={dialogRef}
-                className={`relative w-full max-w-[315px] rounded-2xl p-5 flex flex-col items-center gap-4 text-center select-none ${
+                className={`relative w-full max-w-[315px] rounded-2xl p-5 flex flex-col items-center gap-4 text-center select-none cursor-pointer touch-none transition-all duration-500 ease-out animate-in zoom-in-95 duration-200 overflow-hidden ${
                     isForcedTheme
                         ? "offline-invite-dialog-forced"
                         : isHugging
                         ? "offline-invite-dialog-hug"
-                        : "bg-[var(--c-panel,#ffffff)] border border-[var(--c-panel-border,rgba(0,0,0,0.08))] shadow-2xl animate-in zoom-in-95 duration-200"
+                        : "offline-invite-dialog-base"
                 }`}
                 data-ui="offline-invite-dialog"
                 onClick={(e) => e.stopPropagation()}
-                onPointerUp={handleAvatarPointerUp}
-                onPointerCancel={handleAvatarPointerUp}
+                onPointerDown={handlePointerDown}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={handlePointerUp}
+                onPointerLeave={handlePointerUp}
             >
+                {/* 🌸 华专属特调：长按温存拥抱豆沙粉光晕过渡层（纯 GPU Opacity 渐变，无论进入还是退回都如丝般顺滑，零抖动零突变） */}
+                {!isForcedTheme && (
+                    <div
+                        className={`pointer-events-none absolute inset-0 rounded-2xl transition-opacity duration-500 ease-out z-0 ${
+                            isHugging ? "opacity-100" : "opacity-0"
+                        }`}
+                        style={{
+                            background: "radial-gradient(circle at 50% 28%, #fff0f4 0%, #fff7f9 45%, #ffffff 100%)",
+                        }}
+                    />
+                )}
+
                 {/* 🌸 长按温存拥抱粒子层 */}
                 <AvatarHugParticles active={isHugging} />
 
@@ -533,7 +552,7 @@ export function OfflineInviteModal({
                 <button
                     type="button"
                     onClick={onMinimize}
-                    className={`absolute top-3.5 right-3.5 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 cursor-pointer active:scale-90 shadow-sm z-20 ${
+                    className={`absolute top-3.5 right-3.5 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-500 ease-out cursor-pointer active:scale-90 shadow-sm z-20 ${
                         isHugging ? "opacity-0 pointer-events-none scale-90" : "opacity-100 scale-100"
                     } ${
                         isForcedTheme
@@ -586,18 +605,14 @@ export function OfflineInviteModal({
                                     </div>
                                 )}
                                 <div
-                                    onPointerDown={handleAvatarPointerDown}
-                                    onPointerUp={handleAvatarPointerUp}
-                                    onPointerCancel={handleAvatarPointerUp}
-                                    onPointerLeave={handleAvatarPointerUp}
-                                    className={`w-full h-full rounded-full overflow-hidden flex items-center justify-center cursor-pointer select-none touch-none transition-all duration-300 relative z-10 ${
+                                    className={`w-full h-full rounded-full overflow-hidden flex items-center justify-center select-none touch-none transition-all duration-500 ease-out relative z-10 ${
                                         isForcedTheme
                                             ? "border-2 border-[var(--c-danger,#FF3B30)]/60 shadow-[0_0_18px_rgba(255,59,48,0.45)] bg-[#25202a]"
                                             : isHugging
                                             ? "offline-invite-avatar-hug bg-[#fff5f7]"
-                                            : `border-2 ${badgeBorder} shadow-md bg-[var(--c-input,#f3f4f6)]`
+                                            : `border-2 ${badgeBorder} shadow-md bg-[var(--c-input,#f3f4f6)] offline-invite-avatar-base`
                                     }`}
-                                    title="长按头像感受心跳温存"
+                                    title="长按头像或空白处感受心跳温存"
                                 >
                                     {character?.avatar ? (
                                         <img src={character.avatar} alt={charName} className="w-full h-full object-cover pointer-events-none" />
@@ -605,7 +620,7 @@ export function OfflineInviteModal({
                                         <User size={30} className="text-[var(--c-text,#9ca3af)] pointer-events-none" />
                                     )}
                                 </div>
-                                <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full ${badgeBg} text-white flex items-center justify-center transition-all duration-300 z-20 ${
+                                <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full ${badgeBg} text-white flex items-center justify-center transition-all duration-500 ease-out z-20 ${
                                     isHugging ? "opacity-0 pointer-events-none scale-75" : "opacity-100 scale-100"
                                 } ${
                                     isForcedTheme ? "shadow-[0_2px_10px_rgba(255,59,48,0.7)] border border-white/20" : "shadow"
@@ -621,8 +636,8 @@ export function OfflineInviteModal({
                             </div>
 
                             {/* 标题与情境标签 */}
-                            <div className="flex flex-col items-center gap-1">
-                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium transition-all duration-300 ${tagStyle}`}>
+                            <div className="flex flex-col items-center gap-1 relative z-10">
+                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium transition-all duration-500 ease-out ${tagStyle}`}>
                                     {invite.theme === "forced" ? (
                                         isOnTheWay ? (
                                             <SearchingEyeIcon size={16.5} className="shrink-0" />
@@ -650,7 +665,7 @@ export function OfflineInviteModal({
                                         ? "你身边"
                                         : (invite.place ? `「${invite.place}」` : "");
                                     return (
-                                        <h3 className={`${isForcedTheme ? "text-white text-[17px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]" : "text-[var(--c-text-title,#111827)] text-[16px]"} font-bold mt-1`}>
+                                        <h3 className={`${isForcedTheme ? "text-white text-[17px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]" : "text-[var(--c-text-title,#111827)] text-[16px]"} font-bold mt-1 transition-colors duration-500 ease-out`}>
                                             {isOnTheWay
                                                 ? (invite.theme === "forced" ? `${charName} 正直奔你而来` : `${charName} 正在赶来的路上`)
                                                 : isArrived
@@ -661,23 +676,23 @@ export function OfflineInviteModal({
                                         </h3>
                                     );
                                 })()}
-                                <div className={`inline-flex items-center justify-center gap-1 text-[11px] ${isForcedTheme ? "text-gray-400" : isHugging ? "text-[#e87994] font-medium" : "text-[var(--c-text,#9ca3af)]"} mt-0.5 transition-all duration-300`}>
+                                <div className={`inline-flex items-center justify-center gap-1 text-[11px] ${isForcedTheme ? "text-gray-400" : isHugging ? "text-[#e87994] font-medium" : "text-[var(--c-text,#9ca3af)]"} mt-0.5 transition-all duration-500 ease-out`}>
                                     {isHugging ? (
                                         <span>光芒正在把温度裹紧……</span>
                                     ) : (
                                         <>
                                             <span>按右上角</span>
-                                            <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-full ${isForcedTheme ? "bg-white/10 text-gray-300" : "bg-[var(--c-input,rgba(0,0,0,0.06))] text-[var(--c-text,#6b7280)]"}`}>
+                                            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-[var(--c-input,#f3f4f6)] text-[var(--c-icon,#9ca3af)] scale-90">
                                                 <Undo2 size={9.5} />
                                             </span>
-                                            <span>{isOnTheWay ? "可收起状态" : isArrived ? "可收起通知" : "可稍后处理"}</span>
+                                            <span>{isOnTheWay ? "可收起状态" : isArrived ? "可收起通知" : "可稍后处理"}，长按温存</span>
                                         </>
                                     )}
                                 </div>
                             </div>
 
                             {/* 说明卡片与在途倒计时 */}
-                            <div className={`w-full rounded-xl p-3 text-left flex flex-col gap-1.5 transition-all duration-300 ${
+                            <div className={`w-full rounded-xl p-3 text-left flex flex-col gap-1.5 transition-all duration-500 ease-out relative z-10 ${
                                 isForcedTheme
                                     ? "bg-white/[0.06] border border-[var(--c-danger,#FF3B30)]/25 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]"
                                     : isHugging
@@ -704,20 +719,20 @@ export function OfflineInviteModal({
                             </div>
 
                             {/* 操作按钮组 */}
-                            <div className="flex items-center gap-2.5 w-full mt-1">
+                            <div className="flex items-center gap-2.5 w-full mt-1 relative z-10">
                                 {isPending ? (
                                     <>
                                         <button
                                             type="button"
                                             onClick={onDecline}
-                                            className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-medium active:scale-95 transition-all cursor-pointer ${secondaryBtn}`}
+                                            className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-medium active:scale-95 transition-all duration-500 ease-out cursor-pointer ${secondaryBtn}`}
                                         >
                                             拒绝Ta
                                         </button>
                                         <button
                                             type="button"
                                             onClick={onAccept}
-                                            className={`flex-1 py-2.5 px-3 rounded-xl ${primaryBtn} text-xs font-semibold active:scale-95 transition-all cursor-pointer`}
+                                            className={`flex-1 py-2.5 px-3 rounded-xl ${primaryBtn} text-xs font-semibold active:scale-95 transition-all duration-500 ease-out cursor-pointer`}
                                         >
                                             {isHeComes ? "答应Ta" : "去见Ta"}
                                         </button>
@@ -727,14 +742,14 @@ export function OfflineInviteModal({
                                         <button
                                             type="button"
                                             onClick={onMinimize}
-                                            className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-medium active:scale-95 transition-all cursor-pointer ${secondaryBtn}`}
+                                            className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-medium active:scale-95 transition-all duration-500 ease-out cursor-pointer ${secondaryBtn}`}
                                         >
                                             线上继续聊
                                         </button>
                                         <button
                                             type="button"
                                             onClick={onEarlyArrive || onAccept}
-                                            className={`flex-1 py-2.5 px-3 rounded-xl ${primaryBtn} text-xs font-semibold active:scale-95 transition-all cursor-pointer`}
+                                            className={`flex-1 py-2.5 px-3 rounded-xl ${primaryBtn} text-xs font-semibold active:scale-95 transition-all duration-500 ease-out cursor-pointer`}
                                         >
                                             已经到了/去见Ta
                                         </button>
@@ -744,7 +759,7 @@ export function OfflineInviteModal({
                                     <button
                                         type="button"
                                         onClick={onAccept}
-                                        className={`w-full py-2.5 px-4 rounded-xl ${primaryBtn} text-xs font-semibold active:scale-95 transition-all cursor-pointer`}
+                                        className={`w-full py-2.5 px-4 rounded-xl ${primaryBtn} text-xs font-semibold active:scale-95 transition-all duration-500 ease-out cursor-pointer`}
                                     >
                                         去见Ta
                                     </button>
