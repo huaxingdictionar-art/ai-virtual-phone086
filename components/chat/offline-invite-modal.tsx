@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import type { Character } from "@/lib/character-types";
 import { User, MapPin, Sparkles, Navigation, Clock, Undo2 } from "lucide-react";
 
@@ -280,24 +280,32 @@ export function OfflineInviteModal({
     }, [isOnTheWay, invite.startTime, invite.durationMinutes]);
 
     const isForcedTheme = invite.theme === "forced";
+    const dialogRef = useRef<HTMLDivElement>(null);
 
-    // 🌸 华专属特调：强制来真机物理震动（看似不规律实则暗藏 1-2-2-1 心律紧迫心跳骤跳的真实生理微震，弹窗开启时循环）
+    // 🌸 华专属特调：1-2 视触踩点微颤（物理震 1 下 ➔ 窗口抖 1 下 ➔ 停顿 ➔ 物理震 2 下 ➔ 窗口抖 2 下）
     useEffect(() => {
         if (!isForcedTheme) return;
-        const triggerPattern = () => {
+        const trigger12Resonance = () => {
+            // 1. 触发手机物理马达（120ms沉单震 ➔ 停 180ms ➔ 70ms轻脆震 ➔ 停 60ms ➔ 70ms轻脆震）
             try {
                 if (typeof window !== "undefined" && "vibrate" in navigator) {
-                    // 1 单震 (100ms) ➔ 停 120ms ➔ 2 急促连震 (70ms+70ms) ➔ 停 160ms ➔ 2 急促连震 (70ms+70ms) ➔ 停 140ms ➔ 1 沉尾震 (120ms)
-                    navigator.vibrate([100, 120, 70, 60, 70, 160, 70, 60, 70, 140, 120]);
+                    navigator.vibrate([120, 180, 70, 60, 70]);
                 }
             } catch {}
+
+            // 2. 视效同步：精准启动 1-2 窗口踩点颤动动画（0.52s 与震感严格对齐）
+            if (dialogRef.current) {
+                dialogRef.current.classList.remove("offline-invite-12-pulse");
+                void dialogRef.current.offsetWidth;
+                dialogRef.current.classList.add("offline-invite-12-pulse");
+            }
         };
 
         // 弹窗开启瞬间立即触发
-        triggerPattern();
+        trigger12Resonance();
 
-        // 弹窗保持打开期间，每隔 4.5 秒循环一次 1-2-2-1 心悸脉冲
-        const interval = setInterval(triggerPattern, 4500);
+        // 弹窗保持打开期间，每隔 3.8 秒循环一次 1-2 呼吸感律动（0.5s 踩点 + 3.3s 静止留白）
+        const interval = setInterval(trigger12Resonance, 3800);
 
         return () => {
             clearInterval(interval);
@@ -316,6 +324,7 @@ export function OfflineInviteModal({
             onClick={onMinimize}
         >
             <div
+                ref={dialogRef}
                 className={`relative w-full max-w-[315px] rounded-2xl p-5 flex flex-col items-center gap-4 text-center select-none ${
                     isForcedTheme
                         ? "offline-invite-dialog-forced"
