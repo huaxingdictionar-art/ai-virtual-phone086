@@ -88,6 +88,98 @@
   pointer-events: auto;
 }
 
+/* 🌸 华专属特调：强制来黑红质感弹窗 + 心跳微震 + 边缘故障感 */
+@keyframes offline-invite-forced-tremor {
+  0% {
+    opacity: 0;
+    transform: scale(0.93) translate(0, 6px);
+  }
+  25% {
+    opacity: 1;
+    transform: scale(1.025) translate(-2.5px, -1.5px);
+  }
+  45% {
+    transform: scale(0.99) translate(2.5px, 1.5px);
+  }
+  65% {
+    transform: scale(1.01) translate(-1.5px, 0.8px);
+  }
+  82% {
+    transform: scale(0.998) translate(0.8px, -0.6px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translate(0, 0);
+  }
+}
+
+@keyframes offline-invite-glitch-border {
+  0%, 100% {
+    opacity: 0.2;
+    box-shadow: 0 0 12px rgba(255, 59, 48, 0.3);
+    clip-path: inset(0 0 0 0);
+    transform: translate(0, 0);
+  }
+  1.5% {
+    opacity: 0.9;
+    box-shadow: -3px 0 12px rgba(255, 59, 48, 0.9), 3px 0 12px rgba(0, 240, 255, 0.6);
+    clip-path: inset(18% 0 52% 0);
+    transform: translate(-1.5px, 0);
+  }
+  3% {
+    opacity: 0.3;
+    box-shadow: 0 0 8px rgba(255, 59, 48, 0.4);
+    clip-path: inset(0 0 0 0);
+    transform: translate(0, 0);
+  }
+  5% {
+    opacity: 0.85;
+    box-shadow: 3px -1px 14px rgba(255, 59, 48, 0.95), -2px 1px 12px rgba(0, 240, 255, 0.5);
+    clip-path: inset(62% 0 12% 0);
+    transform: translate(1.5px, 0);
+  }
+  7% {
+    opacity: 0.2;
+    box-shadow: 0 0 12px rgba(255, 59, 48, 0.3);
+    clip-path: inset(0 0 0 0);
+    transform: translate(0, 0);
+  }
+  48% {
+    opacity: 0.2;
+    box-shadow: 0 0 12px rgba(255, 59, 48, 0.3);
+  }
+  50% {
+    opacity: 0.65;
+    box-shadow: -2px 0 10px rgba(255, 59, 48, 0.7), 2px 0 10px rgba(0, 240, 255, 0.45);
+    clip-path: inset(8% 0 78% 0);
+  }
+  52% {
+    opacity: 0.2;
+    box-shadow: 0 0 12px rgba(255, 59, 48, 0.3);
+    clip-path: inset(0 0 0 0);
+  }
+}
+
+.offline-invite-dialog-forced {
+  background: linear-gradient(175deg, rgba(26, 21, 28, 0.96) 0%, rgba(15, 12, 18, 0.98) 100%) !important;
+  border: 1px solid rgba(255, 59, 48, 0.45) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.8), 0 0 24px rgba(255, 59, 48, 0.25), inset 0 1px 1px rgba(255, 255, 255, 0.2) !important;
+  animation: offline-invite-forced-tremor 0.38s cubic-bezier(0.22, 1, 0.36, 1) forwards !important;
+  overflow: hidden;
+}
+
+.offline-invite-dialog-forced::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: 1rem;
+  background: transparent;
+  border: 1px solid rgba(255, 59, 48, 0.7);
+  pointer-events: none;
+  z-index: 10;
+  animation: offline-invite-glitch-border 3s ease-out infinite;
+}
+
 /* 插件自绘设置区（settings.section 坑位）在插件管理卡片内的内边距 */
 .chat-plugin-settings-section {
   padding: 12px 16px 4px;

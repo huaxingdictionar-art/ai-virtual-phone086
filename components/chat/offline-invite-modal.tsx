@@ -279,14 +279,20 @@ export function OfflineInviteModal({
         return () => clearInterval(timer);
     }, [isOnTheWay, invite.startTime, invite.durationMinutes]);
 
+    const isForcedTheme = invite.theme === "forced";
+
     return (
         <div
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/45 backdrop-blur-sm animate-in fade-in duration-200"
+            className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isForcedTheme ? "bg-black/65 backdrop-blur-md" : "bg-black/45 backdrop-blur-sm"} animate-in fade-in duration-200`}
             data-ui="offline-invite-overlay"
             onClick={onMinimize}
         >
             <div
-                className="relative w-full max-w-[310px] rounded-2xl bg-[var(--c-panel,#ffffff)] border border-[var(--c-panel-border,rgba(0,0,0,0.08))] shadow-2xl p-5 flex flex-col items-center gap-4 text-center select-none animate-in zoom-in-95 duration-200"
+                className={`relative w-full max-w-[315px] rounded-2xl p-5 flex flex-col items-center gap-4 text-center select-none ${
+                    isForcedTheme
+                        ? "offline-invite-dialog-forced"
+                        : "bg-[var(--c-panel,#ffffff)] border border-[var(--c-panel-border,rgba(0,0,0,0.08))] shadow-2xl animate-in zoom-in-95 duration-200"
+                }`}
                 data-ui="offline-invite-dialog"
                 onClick={(e) => e.stopPropagation()}
             >
@@ -294,7 +300,11 @@ export function OfflineInviteModal({
                 <button
                     type="button"
                     onClick={onMinimize}
-                    className="absolute top-3.5 right-3.5 w-8 h-8 rounded-full flex items-center justify-center bg-[var(--c-input,rgba(0,0,0,0.05))] hover:bg-[var(--c-input-border,rgba(0,0,0,0.1))] text-[var(--c-icon,#9ca3af)] hover:text-[var(--c-text-title,#111827)] transition-all cursor-pointer active:scale-90 shadow-sm"
+                    className={`absolute top-3.5 right-3.5 w-8 h-8 rounded-full flex items-center justify-center transition-all cursor-pointer active:scale-90 shadow-sm z-20 ${
+                        isForcedTheme
+                            ? "bg-white/10 border border-white/10 text-gray-300 hover:bg-white/20 hover:text-white"
+                            : "bg-[var(--c-input,rgba(0,0,0,0.05))] hover:bg-[var(--c-input-border,rgba(0,0,0,0.1))] text-[var(--c-icon,#9ca3af)] hover:text-[var(--c-text-title,#111827)]"
+                    }`}
                     aria-label={isOnTheWay ? "收起状态" : "稍后处理"}
                     title={isOnTheWay ? "收起状态" : "稍后处理"}
                 >
@@ -303,31 +313,44 @@ export function OfflineInviteModal({
 
                 {/* 角色头像与状态光晕徽章 */}
                 {(() => {
-                    const isAlertTheme = invite.theme === "alert" || invite.theme === "forced";
+                    const isAlertTheme = invite.theme === "alert" || isForcedTheme;
                     // 🌸 华专属审美升级：采用纯正鲜艳的 Apple Danger 红（#FF3B30），并注入非常柔和浅漫的红光外溢光晕！
                     const badgeBg = isAlertTheme
                         ? "bg-[var(--c-danger,#FF3B30)] shadow-[0_2px_8px_rgba(255,59,48,0.4)]"
                         : "bg-[var(--c-primary,#2563eb)] shadow-[0_2px_8px_rgba(37,99,235,0.35)]";
                     const badgeBorder = isAlertTheme ? "border-[var(--c-danger,#FF3B30)]/30" : "border-[var(--c-primary,#2563eb)]/30";
-                    const tagStyle = isAlertTheme
+                    const tagStyle = isForcedTheme
+                        ? "bg-[var(--c-danger,#FF3B30)]/18 text-[#ff5449] border border-[var(--c-danger,#FF3B30)]/45 shadow-[0_0_14px_rgba(255,59,48,0.25)]"
+                        : isAlertTheme
                         ? "bg-[var(--c-danger,#FF3B30)]/10 text-[var(--c-danger,#FF3B30)] border border-[var(--c-danger,#FF3B30)]/20"
                         : "bg-[var(--c-primary,#2563eb)]/10 text-[var(--c-primary,#2563eb)] border border-[var(--c-primary,#2563eb)]/20";
                     const accentText = isAlertTheme ? "text-[var(--c-danger,#FF3B30)]" : "text-[var(--c-primary,#2563eb)]";
-                    const primaryBtn = isAlertTheme
+                    const primaryBtn = isForcedTheme
+                        ? "bg-[var(--c-danger,#FF3B30)] text-white shadow-[0_4px_18px_rgba(255,59,48,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] hover:opacity-95"
+                        : isAlertTheme
                         ? "bg-[var(--c-danger,#FF3B30)] text-white shadow-[0_4px_16px_rgba(255,59,48,0.38),inset_0_1px_1px_rgba(255,255,255,0.2)] hover:opacity-95"
                         : "bg-[var(--c-primary,#2563eb)] text-white shadow-[0_4px_16px_rgba(37,99,235,0.35),inset_0_1px_1px_rgba(255,255,255,0.2)] hover:opacity-95";
+                    const secondaryBtn = isForcedTheme
+                        ? "border border-white/15 bg-white/[0.08] text-gray-200 hover:bg-white/15 hover:text-white"
+                        : "border border-[var(--c-border,#d1d5db)] text-[var(--c-text,#4b5563)] hover:bg-[var(--c-input,#f3f4f6)]";
 
                     return (
                         <>
                             <div className="relative mt-2">
-                                <div className={`w-16 h-16 rounded-full overflow-hidden border-2 ${badgeBorder} shadow-md flex items-center justify-center bg-[var(--c-input,#f3f4f6)]`}>
+                                <div className={`w-16 h-16 rounded-full overflow-hidden flex items-center justify-center ${
+                                    isForcedTheme
+                                        ? "border-2 border-[var(--c-danger,#FF3B30)]/60 shadow-[0_0_18px_rgba(255,59,48,0.45)] bg-[#25202a]"
+                                        : `border-2 ${badgeBorder} shadow-md bg-[var(--c-input,#f3f4f6)]`
+                                }`}>
                                     {character?.avatar ? (
                                         <img src={character.avatar} alt={charName} className="w-full h-full object-cover" />
                                     ) : (
                                         <User size={30} className="text-[var(--c-text,#9ca3af)]" />
                                     )}
                                 </div>
-                                <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full ${badgeBg} text-white flex items-center justify-center shadow`}>
+                                <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full ${badgeBg} text-white flex items-center justify-center ${
+                                    isForcedTheme ? "shadow-[0_2px_10px_rgba(255,59,48,0.7)] border border-white/20" : "shadow"
+                                }`}>
                                     {isOnTheWay ? (
                                         <Navigation size={12} className="animate-pulse" />
                                     ) : isArrived ? (
@@ -368,7 +391,7 @@ export function OfflineInviteModal({
                                         ? "你身边"
                                         : (invite.place ? `「${invite.place}」` : "");
                                     return (
-                                        <h3 className="text-[16px] font-bold text-[var(--c-text-title,#111827)] mt-1">
+                                        <h3 className={`${isForcedTheme ? "text-white text-[17px] drop-shadow-[0_1px_3px_rgba(0,0,0,0.6)]" : "text-[var(--c-text-title,#111827)] text-[16px]"} font-bold mt-1`}>
                                             {isOnTheWay
                                                 ? (invite.theme === "forced" ? `${charName} 正直奔你而来` : `${charName} 正在赶来的路上`)
                                                 : isArrived
@@ -379,9 +402,9 @@ export function OfflineInviteModal({
                                         </h3>
                                     );
                                 })()}
-                                <div className="inline-flex items-center justify-center gap-1 text-[11px] text-[var(--c-text,#9ca3af)] mt-0.5">
+                                <div className={`inline-flex items-center justify-center gap-1 text-[11px] ${isForcedTheme ? "text-gray-400" : "text-[var(--c-text,#9ca3af)]"} mt-0.5`}>
                                     <span>按右上角</span>
-                                    <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-[var(--c-input,rgba(0,0,0,0.06))] text-[var(--c-text,#6b7280)]">
+                                    <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-full ${isForcedTheme ? "bg-white/10 text-gray-300" : "bg-[var(--c-input,rgba(0,0,0,0.06))] text-[var(--c-text,#6b7280)]"}`}>
                                         <Undo2 size={9.5} />
                                     </span>
                                     <span>{isOnTheWay ? "可收起状态" : isArrived ? "可收起通知" : "可稍后处理"}</span>
@@ -389,22 +412,26 @@ export function OfflineInviteModal({
                             </div>
 
                             {/* 说明卡片与在途倒计时 */}
-                            <div className="w-full rounded-xl bg-[var(--c-input,#f3f4f6)]/70 p-3 text-left flex flex-col gap-1.5 border border-[var(--c-input-border,rgba(0,0,0,0.04))]">
+                            <div className={`w-full rounded-xl p-3 text-left flex flex-col gap-1.5 ${
+                                isForcedTheme
+                                    ? "bg-white/[0.06] border border-[var(--c-danger,#FF3B30)]/25 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]"
+                                    : "bg-[var(--c-input,#f3f4f6)]/70 border border-[var(--c-input-border,rgba(0,0,0,0.04))]"
+                            }`}>
                                 {isOnTheWay ? (
-                                    <div className={`flex items-center gap-2 text-xs font-semibold ${accentText}`}>
+                                    <div className={`flex items-center gap-2 text-xs font-semibold ${isForcedTheme ? "text-[#ff5449]" : accentText}`}>
                                         <Clock size={14} className="shrink-0" />
                                         <span>预计约 {remainingMins > 0 ? remainingMins : 1} 分钟后到达</span>
                                     </div>
                                 ) : null}
 
                                 {invite.place && (
-                                    <div className="text-xs text-[var(--c-text-title,#111827)] font-medium flex items-center gap-1">
-                                        <MapPin size={12} className={`${accentText} shrink-0`} />
+                                    <div className={`text-xs font-medium flex items-center gap-1 ${isForcedTheme ? "text-gray-100" : "text-[var(--c-text-title,#111827)]"}`}>
+                                        <MapPin size={12} className={`${isForcedTheme ? "text-[#ff5449]" : accentText} shrink-0`} />
                                         <span>奔赴地点：{invite.place}</span>
                                     </div>
                                 )}
 
-                                <div className="text-xs text-[var(--c-text,#4b5563)] leading-relaxed italic line-clamp-3">
+                                <div className={`text-xs leading-relaxed italic line-clamp-3 ${isForcedTheme ? "text-gray-300" : "text-[var(--c-text,#4b5563)]"}`}>
                                     {getModalDescription(invite)}
                                 </div>
                             </div>
@@ -416,7 +443,7 @@ export function OfflineInviteModal({
                                         <button
                                             type="button"
                                             onClick={onDecline}
-                                            className="flex-1 py-2.5 px-3 rounded-xl border border-[var(--c-border,#d1d5db)] text-xs font-medium text-[var(--c-text,#4b5563)] hover:bg-[var(--c-input,#f3f4f6)] active:scale-95 transition-all cursor-pointer"
+                                            className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-medium active:scale-95 transition-all cursor-pointer ${secondaryBtn}`}
                                         >
                                             拒绝Ta
                                         </button>
@@ -433,7 +460,7 @@ export function OfflineInviteModal({
                                         <button
                                             type="button"
                                             onClick={onMinimize}
-                                            className="flex-1 py-2.5 px-3 rounded-xl border border-[var(--c-border,#d1d5db)] text-xs font-medium text-[var(--c-text,#4b5563)] hover:bg-[var(--c-input,#f3f4f6)] active:scale-95 transition-all cursor-pointer"
+                                            className={`flex-1 py-2.5 px-3 rounded-xl border text-xs font-medium active:scale-95 transition-all cursor-pointer ${secondaryBtn}`}
                                         >
                                             线上继续聊
                                         </button>
