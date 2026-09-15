@@ -490,6 +490,35 @@ export function OfflineInviteModal({
     // 🌸 华专属特调：长按头像或卡片空白处皆可温存拥抱（蓝白 ➔ 豆沙淡粉光晕过渡，丝滑双向切换）
     const [isHugging, setIsHugging] = useState(false);
 
+    // 🌸 华专属特调：长按温存心跳循环震动（严丝合缝咬准 1.1s 柔粉光环同心荡漾拍子）
+    useEffect(() => {
+        if (!isHugging) return;
+
+        const triggerHugHeartbeat = () => {
+            try {
+                if (typeof window !== "undefined" && "vibrate" in navigator) {
+                    // 温润自然的拟真心跳节奏（38ms 主峰 ➔ 停 70ms ➔ 28ms 回响次峰，如轻倚在胸口的心跳脉动）
+                    navigator.vibrate([38, 70, 28]);
+                }
+            } catch {}
+        };
+
+        // 按下的刹那第一圈光环漾出，立刻踩响第一记心跳
+        triggerHugHeartbeat();
+
+        // 严丝合缝咬合光环 1.1s（1100ms）荡漾周期，光环与手心脉搏完全同频共振
+        const pulseInterval = setInterval(triggerHugHeartbeat, 1100);
+
+        return () => {
+            clearInterval(pulseInterval);
+            try {
+                if (typeof window !== "undefined" && "vibrate" in navigator) {
+                    navigator.vibrate(0);
+                }
+            } catch {}
+        };
+    }, [isHugging]);
+
     const handlePointerDown = (e: React.PointerEvent) => {
         if (isForcedTheme || isPureAlertTheme) return;
         // 隔离按钮与交互链接：点按功能按钮时走正常点击，不触发长按拥抱
@@ -498,11 +527,6 @@ export function OfflineInviteModal({
             return;
         }
         setIsHugging(true);
-        try {
-            if (typeof window !== "undefined" && "vibrate" in navigator) {
-                navigator.vibrate(40);
-            }
-        } catch {}
     };
 
     const handlePointerUp = () => {
@@ -678,7 +702,7 @@ export function OfflineInviteModal({
                                 })()}
                                 <div className={`inline-flex items-center justify-center gap-1 text-[11px] ${isForcedTheme ? "text-gray-400" : isHugging ? "text-[#e87994] font-medium" : "text-[var(--c-text,#9ca3af)]"} mt-0.5 transition-all duration-500 ease-out`}>
                                     {isHugging ? (
-                                        <span>光芒正在把温度裹紧……</span>
+                                        <span>指尖触碰，心跳正在同步……</span>
                                     ) : (
                                         <>
                                             <span>按右上角</span>
