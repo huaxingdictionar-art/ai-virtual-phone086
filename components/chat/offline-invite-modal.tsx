@@ -317,6 +317,36 @@ export function OfflineInviteModal({
         };
     }, [isForcedTheme]);
 
+    const isPureAlertTheme = invite.theme === "alert";
+
+    // 🌸 华专属特调：紧急赴约（白红非强制）1-1 心跳物理微震（踩准 HeartbeatWaveIcon 1.4秒周期的 Lub-Dub 双拍，窗口不抖动）
+    useEffect(() => {
+        if (!isPureAlertTheme) return;
+        const triggerHeartbeatPulse = () => {
+            try {
+                if (typeof window !== "undefined" && "vibrate" in navigator) {
+                    // 踩点心跳波形 Lub-Dub 双拍冲顶（70ms 轻震 ➔ 90ms 短隙 ➔ 70ms 稳震）
+                    navigator.vibrate([70, 90, 70]);
+                }
+            } catch {}
+        };
+
+        // 弹窗开启瞬间立即触发
+        triggerHeartbeatPulse();
+
+        // 严丝合缝对齐心跳波形（1.4s * 3 = 4.2s，波形跳第 3 轮时手心恰好同步感受心悸脉搏）
+        const interval = setInterval(triggerHeartbeatPulse, 4200);
+
+        return () => {
+            clearInterval(interval);
+            try {
+                if (typeof window !== "undefined" && "vibrate" in navigator) {
+                    navigator.vibrate(0);
+                }
+            } catch {}
+        };
+    }, [isPureAlertTheme]);
+
     return (
         <div
             className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isForcedTheme ? "bg-black/65 backdrop-blur-md" : "bg-black/45 backdrop-blur-sm"} animate-in fade-in duration-200`}
