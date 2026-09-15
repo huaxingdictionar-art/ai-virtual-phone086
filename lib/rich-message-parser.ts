@@ -521,6 +521,29 @@ const RICH_PATTERNS: {
             mediaType: "offline_invite_remind" as const,
         }),
     },
+    {
+        // [封禁线下:次数:台词(可选)] — 角色封禁线下入口，需要用户敲门 N 次才触发角色主动回应
+        regex: new RegExp(`\\[封禁线下(?:${C}(\\d+))?(?:${C}([^\\]]+))?\\]`),
+        build: (m) => ({
+            content: "",
+            mediaType: "offline_lock" as const,
+            mediaData: {
+                offlineLock: {
+                    requiredKnocks: Math.max(1, Math.min(7, parseInt(m[1] || "3", 10))),
+                    lockMessage: m[2]?.trim() || "",
+                },
+                label: "封禁线下",
+            },
+        }),
+    },
+    {
+        // [解除封禁] — 角色主动解除线下封禁
+        regex: /\[解除封禁\]/,
+        build: () => ({
+            content: "",
+            mediaType: "offline_unlock" as const,
+        }),
+    },
     // 群聊带主语宾语的格式（优先匹配）
     {
         regex: /\[([^\]]+)领取了([^\]]+)的红包\]/,
@@ -880,15 +903,61 @@ export function parseAIResponse(rawText: string, previousState: StateValue[]): P
     };
 
     // 1. Parse state values
-    const parsedSV = parseStateValues(protected_);
-    const stateValues = mergeStateValues(previousState, parsedSV.stateValues);
+    // 保护线下邀约/封禁/解除封禁相关指令，防止被 parseStateValues 误匹配为角色状态值属性（如 [封禁线下:2]）
+    const offlineDirectivePlaceholders: { placeholder: string; original: string }[] = [];
+    const protectedForSV = protected_.replace(/\[(?:封禁线下|解除封禁|线下邀约|更改地点|修改地点|变更地点|提前到达|我已到达|到达现场|提前抵达|强行动身|强行赴约|霸道奔赴|执意赶来|执意奔赴|提醒赴约|再次邀约|重新邀约)(?:[:：][^\]]+)?\]/g, (match) => {
+        const placeholder = `\x00OFFLINE_DIR_${offlineDirectivePlaceholders.length}\x00`;
+        offlineDirectivePlaceholders.push({ placeholder, original: match });
+        return placeholder;
+    });
+
+    const parsedSV = parseStateValues(protectedForSV);
+
+    // 恢复 cleanText 中的线下指令占位符，供后续 parseSegment 与指令提取正常处理
+    let svCleanText = parsedSV.cleanText;
+    for (const { placeholder, original } of offlineDirectivePlaceholders) {
+        svCleanText = svCleanText.split(placeholder).join(original);
+    }
+
+    // 彻底过滤掉名为“封禁线下”的状态值（防御历史继承与偶发异常）
+    const cleanPreviousState = (previousState || []).filter(sv => sv.name !== "封禁线下");
+    const cleanFreshSV = parsedSV.stateValues.filter(sv => sv.name !== "封禁线下");
+    const stateValues = mergeStateValues(cleanPreviousState, cleanFreshSV);
 
     // 1.5. Strip AI hallucination XML/bracket action shells
-    const actionCleaned = stripActionShells(parsedSV.cleanText);
+    const actionCleaned = stripActionShells(svCleanText);
 
     // 2. Extract display-only status panel, then inner monologue
     const status = extractBracketBlock(actionCleaned, "状态栏");
     const mono = extractBracketBlock(status.cleaned, "内心");
+
+    // 过滤内心独白中可能夹带的封禁线下指令，避免在外显便利贴中暴露
+    let monoCleanedContent = mono.content;
+    let lockFromMono: ParsedMessagePart | null = null;
+    const lockMatchInMono = monoCleanedContent.match(/\[封禁线下(?:[:：](\d+))?(?:[:：]([^\]]+))?\]/);
+    if (lockMatchInMono) {
+        lockFromMono = {
+            content: "",
+            mediaType: "offline_lock" as const,
+            mediaData: {
+                offlineLock: {
+                    requiredKnocks: Math.max(1, Math.min(7, parseInt(lockMatchInMono[1] || "3", 10))),
+                    lockMessage: lockMatchInMono[2]?.trim() || "",
+                },
+                label: "封禁线下",
+            },
+        };
+        monoCleanedContent = monoCleanedContent.replace(/\[封禁线下(?:[:：][^\]]+)?\]/g, "").trim();
+    }
+    if (/\[解除封禁\]/.test(monoCleanedContent)) {
+        if (!lockFromMono) {
+            lockFromMono = {
+                content: "",
+                mediaType: "offline_unlock" as const,
+            };
+        }
+        monoCleanedContent = monoCleanedContent.replace(/\[解除封禁\]/g, "").trim();
+    }
 
     // 2.1. Collapse residual blank lines left by tag extraction
     const postCleaned = mono.cleaned.replace(/\n{3,}/g, "\n\n").trim();
@@ -909,6 +978,9 @@ export function parseAIResponse(rawText: string, previousState: StateValue[]): P
     for (const seg of segments) {
         parseSegment(seg, parts);
     }
+    if (lockFromMono && !parts.some(p => p.mediaType === "offline_lock" || p.mediaType === "offline_unlock")) {
+        parts.push(lockFromMono);
+    }
 
     // 5. Restore HTML block placeholders and keep unknown bracket protocols as plain text.
     //    Strip tool directives (获取指令/执行动作) from display content too: a
@@ -925,8 +997,8 @@ export function parseAIResponse(rawText: string, previousState: StateValue[]): P
     return {
         parts: cleaned,
         stateValues,
-        freshStateValues: parsedSV.stateValues,
+        freshStateValues: cleanFreshSV,
         statusPanel: restore(status.content),
-        innerMonologue: restore(mono.content),
+        innerMonologue: restore(monoCleanedContent),
     };
 }

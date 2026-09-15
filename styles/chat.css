@@ -7344,3 +7344,201 @@
   background: currentColor;
   animation: chat-stream-cursor-blink 1s steps(2, start) infinite;
 }
+
+/* ── 线下封禁弹窗（精致实底 SVG UI 双按钮特调） ─────────────── */
+.offline-lock-dialog.modal-dialog {
+  background: var(--c-panel);
+  border: 1px solid var(--c-panel-border, rgba(0, 0, 0, 0.08));
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+  padding: 24px 20px 20px;
+  width: min(86%, 320px);
+  max-width: 320px;
+  gap: 14px;
+  animation: modalSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.offline-lock-icon-group {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  gap: 4px;
+  margin-bottom: -2px;
+}
+
+.offline-lock-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--c-text-title);
+  background: color-mix(in srgb, var(--c-text-title) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-text-title) 10%, transparent);
+  margin-bottom: 0;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── 轻敲锁显现心防小圆点 ── */
+.offline-lock-dots-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 6px;
+  margin: 0;
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1), transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.offline-lock-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  transition: all 0.25s ease;
+}
+
+.offline-lock-dot.filled {
+  background: var(--c-text-title);
+  box-shadow: 0 0 5px color-mix(in srgb, var(--c-text-title) 35%, transparent);
+}
+
+.offline-lock-dot.empty {
+  background: transparent;
+  border: 1.2px solid color-mix(in srgb, var(--c-text-title) 30%, transparent);
+}
+
+.offline-lock-dialog .modal-header {
+  padding: 0;
+  margin: 0;
+  border-bottom: none;
+}
+
+.offline-lock-dialog .modal-title {
+  font-size: calc(15.5px * var(--app-text-scale, 1));
+  font-weight: 600;
+  color: var(--c-text-title);
+  letter-spacing: 0.01em;
+  margin: 0;
+  text-align: center;
+}
+
+.offline-lock-dialog .modal-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px 6px;
+  width: 100%;
+}
+
+.offline-lock-dialog-desc {
+  font-size: calc(13.6px * var(--app-text-scale, 1)) !important;
+  color: var(--c-text) !important;
+  line-height: 1.62 !important;
+  margin: 0 !important;
+  text-align: center;
+}
+
+.offline-lock-dialog-footer {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 0;
+}
+
+.offline-lock-dialog-footer .ui-btn {
+  flex: 1;
+  min-height: 42px;
+  border-radius: 12px;
+  font-weight: 500;
+  font-size: calc(14px * var(--app-text-scale, 1));
+  transition: all 0.2s ease;
+}
+
+.offline-lock-btn-reapply:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+/* ── 独立“申请中…”沉浸加载弹窗 ──────────────────── */
+.offline-applying-dialog.modal-dialog {
+  background: var(--c-panel);
+  border: 1px solid var(--c-panel-border, rgba(0, 0, 0, 0.08));
+  border-radius: 18px;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.24);
+  padding: 26px 20px;
+  width: min(80%, 260px);
+  max-width: 260px;
+  gap: 14px;
+  animation: modalSlideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.offline-applying-pulse {
+  animation: lockPulseAnim 1s ease-in-out infinite;
+}
+
+@keyframes lockPulseAnim {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.88;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+.offline-applying-dialog .modal-header {
+  padding: 0;
+  margin: 0;
+  border-bottom: none;
+}
+
+.offline-applying-title {
+  font-size: calc(14.5px * var(--app-text-scale, 1));
+  font-weight: 600;
+  color: var(--c-text-title);
+  letter-spacing: 0.01em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.offline-applying-dots span {
+  display: inline-block;
+  opacity: 0;
+  animation: dotFadeAnim 1.2s infinite;
+}
+
+.offline-applying-dots span:nth-child(1) {
+  animation-delay: 0s;
+}
+
+.offline-applying-dots span:nth-child(2) {
+  animation-delay: 0.25s;
+}
+
+.offline-applying-dots span:nth-child(3) {
+  animation-delay: 0.5s;
+}
+
+@keyframes dotFadeAnim {
+  0%, 20% {
+    opacity: 0;
+  }
+  40%, 80% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+

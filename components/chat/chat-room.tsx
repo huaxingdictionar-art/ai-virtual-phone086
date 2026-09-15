@@ -53,7 +53,7 @@ import { cancelBailoutKey } from "@/lib/push-bailout-client";
 import { PENDING_REPLY_PREFIX } from "@/lib/friend-request-engine";
 import { OfflineInviteModal, OfflineInviteCapsule, getRemainingMinutes, type OfflineInviteData } from "./offline-invite-modal";
 import type { UserIdentity } from "@/components/settings/user-identity";
-import { AlertCircle, Blocks, Check, Trash2, User, ChevronLeft, ChevronRight, Clapperboard, Clock, Gift, Languages, Loader2, MoreHorizontal, X } from "lucide-react";
+import { AlertCircle, Blocks, Check, Trash2, User, ChevronLeft, ChevronRight, Clapperboard, Clock, Gift, Languages, Loader2, Lock, MoreHorizontal, X } from "lucide-react";
 import { setDebugChatState } from "@/lib/debug-store";
 import { SessionCustomCSS } from "@/components/ui/session-custom-css";
 import { downloadFile } from "@/lib/download-utils";
@@ -314,6 +314,17 @@ type AssistantMessageDraft = Omit<ChatMessage, "id" | "createdAt" | "status"> & 
 const PENDING_OFFLINE_INVITE_DECLINE_PREFIX = "chat_offline_invite_declined_";
 const ACTIVE_OFFLINE_INVITE_PREFIX = "chat_active_offline_invite_";
 const OFFLINE_INVITE_ACTIVE_SESSION_PREFIX = "chat_offline_invite_active_session_";
+const OFFLINE_LOCK_PREFIX = "chat_offline_lock_";
+
+type OfflineLockData = {
+    isLocked: boolean;
+    knockCount: number;         // 当前轮次用户已敲门次数
+    requiredKnocks: number;     // 当前需要敲几次才触发角色主动回应（1~7次）
+    stageKnocks?: number;       // 本阶段（当前事件）累计敲门次数
+    lockMessage: string;        // 弹窗显示的固定台词
+    sourceBatchId?: string;     // 发起封禁的那一整轮回复批次号，供整轮撤回/删除时溯源解除
+    relatedBatchIds?: string[]; // 演变过程中的回复批次号集合
+};
 
 function extractDurationMinutes(text: string, fallback: number = 15): number {
     if (!text) return fallback;
@@ -703,6 +714,7 @@ type ManagedGenerationOptions = {
     onDecline?: () => void | Promise<void>;
     offlineInviteDeclined?: boolean;
     returnedFromOffline?: boolean;
+    offlineInitiativePrompt?: string;
 };
 
 const activeGenerationRuns = new Map<string, ActiveGenerationRun>();
@@ -1557,6 +1569,31 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         return false;
     });
     const [showConfirmExitOfflineInvite, setShowConfirmExitOfflineInvite] = useState(false);
+    // 线下封禁状态：角色封死了线下入口，用户敲门 N 次才触发角色主动回应
+    const [offlineLockData, setOfflineLockData] = useState<OfflineLockData | null>(() => {
+        if (typeof window === "undefined") return null;
+        try {
+            const raw = kvGet(OFFLINE_LOCK_PREFIX + session.id);
+            if (!raw) return null;
+            const parsed = JSON.parse(raw) as OfflineLockData;
+            return parsed.isLocked ? parsed : null;
+        } catch { return null; }
+    });
+    const offlineLockDataRef = useRef<OfflineLockData | null>(offlineLockData);
+    useEffect(() => {
+        offlineLockDataRef.current = offlineLockData;
+    }, [offlineLockData]);
+    // 线下封禁弹窗显示状态
+    const [showOfflineLockPopup, setShowOfflineLockPopup] = useState(false);
+    // 敲门达到阈值标记：在用户关闭弹窗后再触发角色主动回应，保证弹窗期间不抢跑
+    const pendingKnockTriggerRef = useRef(false);
+    // 再次申请线下按钮的防连点节流冷却
+    const [isReapplyingLock, setIsReapplyingLock] = useState(false);
+    // 独立申请中弹窗状态（持续 1500ms）
+    const [showOfflineApplyingPopup, setShowOfflineApplyingPopup] = useState(false);
+    // 轻敲锁显现小圆点状态（持续 2000ms 后自动隐藏）
+    const [showLockDotsHint, setShowLockDotsHint] = useState(false);
+    const lockDotsTimerRef = useRef<NodeJS.Timeout | null>(null);
     // 华提出的黄金体验：删除邀约/赴约消息前弹窗确认，提示将同时取消相关赴约状态
     const [pendingInviteDeleteConfirm, setPendingInviteDeleteConfirm] = useState<{
         title: string;
@@ -2079,6 +2116,25 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 if (restored && restored.status !== currentInvite.status) {
                     updateActiveOfflineInvite(restored);
                 }
+            }
+        }
+
+        // 华确立的整轮事实法则（皮之不存，毛将焉附）：
+        // 若当前处于线下封禁状态，检查历史消息中是否还存在发起/维持该封禁的那一整轮（Batch）回复；
+        // 只有当那一整轮话被彻底删除（或用户清空了聊天记录），封禁才自动解除；
+        // 单纯删除这一轮里的某一个无关气泡（如表情包），封禁依然稳稳保持。
+        const currentLock = offlineLockDataRef.current;
+        if (currentLock && currentLock.isLocked && currentLock.sourceBatchId) {
+            const allBatchIds = new Set([
+                currentLock.sourceBatchId,
+                ...(currentLock.relatedBatchIds || []),
+            ]);
+            const stillHasBatch = stored.some(m => m.responseBatchId && allBatchIds.has(m.responseBatchId));
+            if (!stillHasBatch) {
+                kvRemove(OFFLINE_LOCK_PREFIX + session.id);
+                setOfflineLockData(null);
+                offlineLockDataRef.current = null;
+                showChatToast("相关封禁消息已删除，线下入口已恢复畅通");
             }
         }
     }, [applyStoredMessageWindow, session.id, updateActiveOfflineInvite, showChatToast]);
@@ -3532,6 +3588,49 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             throwIfGenerationStopped(options);
             if (p.mediaType === "voice_call") { triggerCall = "voice"; continue; }
             if (p.mediaType === "video_call") { triggerCall = "video"; continue; }
+            if (p.mediaType === "offline_lock") {
+                // 角色封禁线下入口：仅在 enableOfflineLock 私聊下生效
+                if (session.enableOfflineLock && !session.isGroup && p.mediaData?.offlineLock) {
+                    const { requiredKnocks, lockMessage } = p.mediaData.offlineLock;
+                    let prevKnockCount = 0;
+                    let prevStageKnocks = 0;
+                    let prevSourceBatchId = responseBatchId;
+                    let prevRelatedBatchIds: string[] = [];
+                    try {
+                        const existingRaw = kvGet(OFFLINE_LOCK_PREFIX + session.id);
+                        if (existingRaw) {
+                            const parsed = JSON.parse(existingRaw) as OfflineLockData;
+                            prevKnockCount = parsed.knockCount || 0;
+                            prevStageKnocks = parsed.stageKnocks || 0;
+                            prevSourceBatchId = parsed.sourceBatchId || responseBatchId;
+                            prevRelatedBatchIds = parsed.relatedBatchIds || [];
+                        }
+                    } catch {}
+                    const newLock: OfflineLockData = {
+                        isLocked: true,
+                        // 保留此前尝试敲门的累计次数
+                        knockCount: prevKnockCount,
+                        requiredKnocks: Math.max(1, Math.min(7, requiredKnocks || 3)),
+                        stageKnocks: prevStageKnocks,
+                        lockMessage: lockMessage || "",
+                        sourceBatchId: prevSourceBatchId,
+                        relatedBatchIds: Array.from(new Set([...prevRelatedBatchIds, responseBatchId])),
+                    };
+                    kvSet(OFFLINE_LOCK_PREFIX + session.id, JSON.stringify(newLock));
+                    setOfflineLockData(newLock);
+                    offlineLockDataRef.current = newLock;
+                }
+                continue;
+            }
+            if (p.mediaType === "offline_unlock") {
+                // 角色解除封禁：静悄悄地恢复线下入口，当前大事件翻篇
+                if (session.enableOfflineLock && !session.isGroup) {
+                    kvRemove(OFFLINE_LOCK_PREFIX + session.id);
+                    setOfflineLockData(null);
+                    offlineLockDataRef.current = null;
+                }
+                continue;
+            }
             if (p.mediaType === "offline_invite_remind") {
                 // 仅对“他来”（角色动身找用户）且处于 pending 状态时响应，重新唤醒弹窗
                 const curInvite = activeOfflineInviteRef.current;
@@ -3554,6 +3653,12 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 if (session.enableOfflineInvite && !session.isGroup && p.mediaData?.offlineInvite) {
                     if (offlineMode) {
                         continue;
+                    }
+
+                    // 若角色主动发起了线下邀约，自然解除此前的线下封禁
+                    if (kvGet(OFFLINE_LOCK_PREFIX + session.id)) {
+                        kvRemove(OFFLINE_LOCK_PREFIX + session.id);
+                        setOfflineLockData(null);
                     }
 
                     const curInvite = activeOfflineInviteRef.current;
@@ -4408,6 +4513,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         onDecline,
         offlineInviteDeclined,
         returnedFromOffline,
+        offlineInitiativePrompt,
     }: ManagedGenerationOptions) => {
         if (isGeneratingRef.current) {
             if (activeGenerationRuns.has(session.id)) return;
@@ -4481,6 +4587,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                         signal: generationRun.controller.signal,
                         offlineInviteDeclined,
                         returnedFromOffline,
+                        offlineInitiativePrompt,
                     },
                     {
                         onReasoning: (t) => { capturedReasoning = t; },
@@ -5677,6 +5784,104 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         });
     };
 
+    const handleCloseOfflineLockPopup = () => {
+        setShowOfflineLockPopup(false);
+        setIsReapplyingLock(false);
+        if (lockDotsTimerRef.current) {
+            clearTimeout(lockDotsTimerRef.current);
+            lockDotsTimerRef.current = null;
+        }
+        setShowLockDotsHint(false);
+        if (pendingKnockTriggerRef.current) {
+            pendingKnockTriggerRef.current = false;
+            // 弹窗关闭后延迟 500ms 触发角色发信
+            window.setTimeout(() => {
+                const charName = character?.name || "对方";
+                const knockPrompt = `【剧情事件·对方连续请求线下相见】你此前因情绪抗拒拒绝与对方见面并关闭了线下入口。系统检测到对方此前在界面上接连发起了多次线下见面申请，坚持要来见你！你清清楚楚感知到了对方不肯放弃的执着与真心付出。请根据你的人设性格与当前心境主动发一条微信消息回应对方（你可以是傲娇质问为什么这么执着、可以是语气动摇心软、也可以是顺坡下驴借机缓和；若你决定彻底打开心扉允许对方过来，可在回复末尾附带 [解除封禁]）。`;
+                void runManagedGeneration({
+                    history: loadChatMessages(session.id),
+                    offlineInitiativePrompt: knockPrompt,
+                });
+            }, 500);
+        }
+    };
+
+    // 点击锁图标显现心防小圆点（持续2秒后自动隐藏）
+    const handleTapLockIcon = () => {
+        if (typeof window !== "undefined" && "vibrate" in navigator) {
+            try {
+                navigator.vibrate(25);
+            } catch {}
+        }
+        if (lockDotsTimerRef.current) {
+            clearTimeout(lockDotsTimerRef.current);
+        }
+        setShowLockDotsHint(true);
+        lockDotsTimerRef.current = setTimeout(() => {
+            setShowLockDotsHint(false);
+            lockDotsTimerRef.current = null;
+        }, 2000);
+    };
+
+    const handleReapplyOfflineLock = () => {
+        if (isReapplyingLock || !offlineLockData) return;
+        setIsReapplyingLock(true);
+
+        // 切换至独立申请中弹层
+        setShowOfflineLockPopup(false);
+        setShowOfflineApplyingPopup(true);
+
+        // 缓慢厚重的两下震动（60ms 叩击 ➔ 140ms 沉寂 ➔ 70ms 次叩）
+        if (typeof window !== "undefined" && "vibrate" in navigator) {
+            try {
+                navigator.vibrate([60, 140, 70]);
+            } catch {}
+        }
+
+        // 申请中展示 1500ms
+        window.setTimeout(() => {
+            setShowOfflineApplyingPopup(false);
+            setIsReapplyingLock(false);
+
+            const newCount = (offlineLockData.knockCount || 0) + 1;
+            const newStageKnocks = (offlineLockData.stageKnocks || 0) + 1;
+
+            if (newCount >= offlineLockData.requiredKnocks) {
+                // 达到心墙阈值：重置当前轮次计次，保留本阶段累计总数，并触发角色主动发信
+                const reset: OfflineLockData = {
+                    ...offlineLockData,
+                    knockCount: 0,
+                    stageKnocks: newStageKnocks,
+                };
+                kvSet(OFFLINE_LOCK_PREFIX + session.id, JSON.stringify(reset));
+                setOfflineLockData(reset);
+                offlineLockDataRef.current = reset;
+
+                window.setTimeout(() => {
+                    const effortDetail = newStageKnocks > newCount
+                        ? `系统检测到对方刚刚不顾被拒绝，连续按下了整整 ${newCount} 次线下见面申请（在此次被你拒绝见面的拉扯中，对方前后已经累计为你按下了整整 ${newStageKnocks} 次申请）！`
+                        : `系统检测到对方刚刚不顾被拒绝，在界面上连续按下了整整 ${newCount} 次线下见面申请，坚持要来见你！`;
+                    const knockPrompt = `【剧情事件·对方连续请求线下相见】你此前因情绪抗拒拒绝与对方见面并关闭了线下入口（你原本要求至少申请 ${offlineLockData.requiredKnocks} 次）。${effortDetail}你清清楚楚感知到了对方不肯放弃的执着叩击与实际付出。请根据你的人设性格与当前心境主动发一条微信消息回应对方（你可以是傲娇质问为什么这么执着按了这么多次、可以是语气动摇被触动、也可以是顺坡下驴借机缓和；若你决定彻底打开心扉愿意见面，可在回复末尾附带 [解除封禁]）。`;
+                    void runManagedGeneration({
+                        history: loadChatMessages(session.id),
+                        offlineInitiativePrompt: knockPrompt,
+                    });
+                }, 500);
+            } else {
+                // 尚未达到阈值：累加次数并持久化，优雅切回拒绝弹窗
+                const updated: OfflineLockData = {
+                    ...offlineLockData,
+                    knockCount: newCount,
+                    stageKnocks: newStageKnocks,
+                };
+                kvSet(OFFLINE_LOCK_PREFIX + session.id, JSON.stringify(updated));
+                setOfflineLockData(updated);
+                offlineLockDataRef.current = updated;
+                setShowOfflineLockPopup(true);
+            }
+        }, 1500);
+    };
+
     const toggleOfflineMode = () => {
         if (!offlineMode && isGenerating) {
             showChatToast("请先等待对方回复");
@@ -5684,6 +5889,57 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         }
         if (offlineMode && isOfflineGenerating) {
             showChatToast("线下回复生成中");
+            return;
+        }
+        // 线下封禁拦截：仅在尝试进入线下时（!offlineMode）且处于封禁状态时拦截
+        if (!offlineMode && offlineLockData?.isLocked && session.enableOfflineLock && !session.isGroup) {
+            // 震动两下叩门反馈
+            if (typeof window !== "undefined" && "vibrate" in navigator) {
+                try {
+                    navigator.vibrate([60, 140, 70]);
+                } catch {}
+            }
+            const newCount = (offlineLockData.knockCount || 0) + 1;
+            const newStageKnocks = (offlineLockData.stageKnocks || 0) + 1;
+
+            if (newCount >= offlineLockData.requiredKnocks) {
+                // 达到阈值：直接进入 1.5 秒申请中过渡，完成后触发角色主动发信
+                setShowOfflineApplyingPopup(true);
+                window.setTimeout(() => {
+                    setShowOfflineApplyingPopup(false);
+                    const reset: OfflineLockData = {
+                        ...offlineLockData,
+                        knockCount: 0,
+                        stageKnocks: newStageKnocks,
+                    };
+                    kvSet(OFFLINE_LOCK_PREFIX + session.id, JSON.stringify(reset));
+                    setOfflineLockData(reset);
+                    offlineLockDataRef.current = reset;
+
+                    window.setTimeout(() => {
+                        const effortDetail = newStageKnocks > newCount
+                            ? `系统检测到对方刚刚不顾被拒绝，连续按下了整整 ${newCount} 次线下见面申请（在此次被你拒绝见面的拉扯中，对方前后已经累计为你按下了整整 ${newStageKnocks} 次申请）！`
+                            : `系统检测到对方刚刚不顾被拒绝，在界面上连续按下了整整 ${newCount} 次线下见面申请，坚持要来见你！`;
+                        const knockPrompt = `【剧情事件·对方连续请求线下相见】你此前因情绪抗拒拒绝与对方见面并关闭了线下入口（你原本要求至少申请 ${offlineLockData.requiredKnocks} 次）。${effortDetail}你清清楚楚感知到了对方不肯放弃的执着叩击与实际付出。请根据你的人设性格与当前心境主动发一条微信消息回应对方（你可以是傲娇质问为什么这么执着按了这么多次、可以是语气动摇被触动、也可以是顺坡下驴借机缓和；若你决定彻底打开心扉愿意见面，可在回复末尾附带 [解除封禁]）。`;
+                        void runManagedGeneration({
+                            history: loadChatMessages(session.id),
+                            offlineInitiativePrompt: knockPrompt,
+                        });
+                    }, 500);
+                }, 1500);
+                return;
+            }
+
+            // 尚未达到阈值：累加次数并持久化，弹出拒绝弹窗
+            const updated: OfflineLockData = {
+                ...offlineLockData,
+                knockCount: newCount,
+                stageKnocks: newStageKnocks,
+            };
+            kvSet(OFFLINE_LOCK_PREFIX + session.id, JSON.stringify(updated));
+            setOfflineLockData(updated);
+            offlineLockDataRef.current = updated;
+            setShowOfflineLockPopup(true);
             return;
         }
         // 如果当前在线下模式，且当前会话属于“角色主动发起见面的线下赴约”：弹出确认弹窗
@@ -6174,6 +6430,12 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             // Cancel any pending follow-up for this session
             cancelFollowUp(session.id);
 
+            // 若重试截断了发起线下封禁的消息，顺带清除封禁状态
+            if (offlineLockData?.sourceBatchId && truncatedMessages.some(m => m.responseBatchId === offlineLockData.sourceBatchId)) {
+                kvRemove(OFFLINE_LOCK_PREFIX + session.id);
+                setOfflineLockData(null);
+            }
+
             // 华提出的“皮之不存，毛将焉附”与“重试智能保全”原则：
             if (currentInvite && currentInvite.sourceBatchId !== "mock_offline_invite") {
                 if (truncatesInitialRoot) {
@@ -6316,6 +6578,11 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
     };
 
     const handleRetractMessage = (msgId: string) => {
+        const targetMsg = messages.find(m => m.id === msgId) || loadChatMessages(session.id).find(m => m.id === msgId);
+        if (targetMsg?.responseBatchId && targetMsg.responseBatchId === offlineLockData?.sourceBatchId) {
+            kvRemove(OFFLINE_LOCK_PREFIX + session.id);
+            setOfflineLockData(null);
+        }
         retractChatMessage(msgId);
         setMessages(prev => prev.map(m => m.id === msgId ? { ...m, isRetracted: true } : m));
         setActiveMessageId(null);
@@ -7861,8 +8128,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     const isVisualMedia = isChatVisualMedia(renderMsg);
                     const hiddenEmpty = isHiddenChatFlowMessage(renderMsg, bubbleDisplayContent);
                     const hasFoldedPanel = !!(renderMsg.statusPanel || renderMsg.innerMonologue);
-                    // 内心卡片只展示本轮实际输出的状态值；旧数据没有 freshStateValues 时回退到合并快照
-                    const cardStateValues = msg.freshStateValues ?? msg.stateValues;
+                    // 内心卡片只展示本轮实际输出的状态值；旧数据没有 freshStateValues 时回退到合并快照，且彻底剔除“封禁线下”
+                    const rawCardStateValues = msg.freshStateValues ?? msg.stateValues;
+                    const cardStateValues = rawCardStateValues?.filter(sv => sv.name !== "封禁线下");
                     const isSilentThought = !visibleContent && !renderMsg.mediaType && hasFoldedPanel && msg.role !== "user";
                     const isStandaloneHtmlPreview = !renderMsg.mediaType && isStandaloneHtmlPreviewContent(bubbleDisplayContent);
                     const isMediaBubble = (renderMsg.mediaType && CHAT_MEDIA_BUBBLE_TYPES.has(renderMsg.mediaType)) || isStandaloneHtmlPreview;
@@ -8960,6 +9228,97 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     onMinimize={handleMinimizeOfflineInvite}
                     onEarlyArrive={handleEarlyArriveOfflineInvite}
                 />
+            )}
+
+            {/* 线下封禁弹窗：角色拒绝线下见面时弹出（双按钮系统级弹窗） */}
+            {showOfflineLockPopup && offlineLockData && (
+                <div
+                    className="modal-overlay"
+                    data-ui="modal"
+                    onClick={handleCloseOfflineLockPopup}
+                >
+                    <div
+                        className="modal-dialog offline-lock-dialog"
+                        data-ui="modal-dialog"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="offline-lock-icon-group">
+                            <div
+                                className="offline-lock-icon-wrap cursor-pointer active:scale-95 transition-transform"
+                                onClick={handleTapLockIcon}
+                                title="轻敲锁扣"
+                                aria-label="轻敲锁扣"
+                            >
+                                <Lock size={22} strokeWidth={1.8} />
+                            </div>
+                            {/* 轻敲锁显现小圆点托底（持续2秒后隐藏） */}
+                            <div
+                                className={`offline-lock-dots-container ${showLockDotsHint ? "opacity-100 scale-100" : "opacity-0 scale-95 pointer-events-none"}`}
+                                aria-hidden="true"
+                            >
+                                {Array.from({ length: Math.min(7, Math.max(1, offlineLockData.requiredKnocks || 3)) }).map((_, idx) => {
+                                    const isFilled = idx < (offlineLockData.knockCount || 0);
+                                    return (
+                                        <span
+                                            key={idx}
+                                            className={`offline-lock-dot ${isFilled ? "filled" : "empty"}`}
+                                        />
+                                    );
+                                })}
+                            </div>
+                        </div>
+                        <div className="modal-header" data-ui="modal-header">
+                            <h3 className="modal-title">
+                                {character?.name || "对方"}拒绝与你线下见面
+                            </h3>
+                        </div>
+                        <div className="modal-body text-center" data-ui="modal-body">
+                            <p className="offline-lock-dialog-desc leading-relaxed">
+                                对方因情绪抗拒，暂时关闭了线下入口。你可以继续在线上沟通化解，或再次发起线下申请。
+                            </p>
+                        </div>
+                        <div className="modal-footer offline-lock-dialog-footer" data-ui="modal-footer">
+                            <button
+                                type="button"
+                                className="ui-btn offline-lock-btn-cancel"
+                                onClick={handleCloseOfflineLockPopup}
+                            >
+                                我知道了
+                            </button>
+                            <button
+                                type="button"
+                                className="ui-btn ui-btn-primary offline-lock-btn-reapply"
+                                disabled={isReapplyingLock}
+                                onClick={handleReapplyOfflineLock}
+                            >
+                                再次申请
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* 独立申请中弹窗（持续1500ms） */}
+            {showOfflineApplyingPopup && (
+                <div
+                    className="modal-overlay"
+                    data-ui="modal"
+                >
+                    <div
+                        className="modal-dialog offline-applying-dialog"
+                        data-ui="modal-dialog"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <div className="offline-lock-icon-wrap offline-applying-pulse" aria-hidden="true">
+                            <Lock size={22} strokeWidth={1.8} />
+                        </div>
+                        <div className="modal-header" data-ui="modal-header">
+                            <h3 className="modal-title offline-applying-title">
+                                正在发起线下申请<span className="offline-applying-dots"><span>.</span><span>.</span><span>.</span></span>
+                            </h3>
+                        </div>
+                    </div>
+                </div>
             )}
 
             {/* Chat toast notification (overlay, does not affect layout) */}

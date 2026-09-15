@@ -68,6 +68,8 @@ export type ChatSession = {
     offlineSummaryRetry?: boolean;
     /** 角色自主线下邀约：开启后角色可根据情境主动提议线下见面，并在从线下回线上时主动回复（仅私聊生效，默认关） */
     enableOfflineInvite?: boolean;
+    /** 角色自主线下封禁：开启后角色在吵架或拒绝见面时可封锁线下入口（仅私聊生效，默认关） */
+    enableOfflineLock?: boolean;
     // Group chat fields
     isGroup?: boolean;
     groupName?: string;
@@ -127,6 +129,8 @@ export type ChatMessage = {
         | "offline_invite_early_arrive"
         | "offline_invite_arrive_notice"
         | "offline_invite_system_notice"
+        | "offline_lock"
+        | "offline_unlock"
         | `plugin:${string}`; // 聊天插件自定义消息类型（由注册该 kind 的插件渲染气泡）
     origin?: "chat" | "reading_discuss" | "custom_app" | "custom_app_background";
     mediaUrl?: string;
@@ -258,6 +262,10 @@ export type ChatMessage = {
             durationMinutes?: number;
             startTime?: number;
             relatedBatchIds?: string[];
+        };
+        offlineLock?: {
+            requiredKnocks: number;
+            lockMessage: string;
         };
         /** 🌸 华确立的黄金体验：在途阶段每轮 AI 回复定格的实时剩余倒计时（用于回溯时毫秒级精准断点续存） */
         inTransitRemainingSeconds?: number;
@@ -2200,7 +2208,7 @@ export function getLatestStateValues(sessionId: string): StateValue[] {
     const msgs = loadChatMessages(sessionId);
     for (let i = msgs.length - 1; i >= 0; i--) {
         if (msgs[i].stateValues && msgs[i].stateValues!.length > 0) {
-            return msgs[i].stateValues!;
+            return (msgs[i].stateValues || []).filter(sv => sv.name !== "封禁线下");
         }
     }
     return [];
@@ -2247,5 +2255,6 @@ export function getLatestCharacterStateValues(
             return b.id.localeCompare(a.id);
         });
 
-    return candidates[0]?.stateValues || [];
+    const raw = candidates[0]?.stateValues || [];
+    return raw.filter(sv => sv.name !== "封禁线下");
 }

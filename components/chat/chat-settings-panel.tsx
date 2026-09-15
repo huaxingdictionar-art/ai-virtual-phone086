@@ -44,7 +44,7 @@ import { downloadFile } from "@/lib/download-utils";
 import { getSchemes, saveScheme, deleteScheme, type CSSScheme } from "@/lib/css-scheme-storage";
 import { CustomStatusFrame } from "@/components/chat/custom-status-frame";
 import { KeyboardAutoSendDebounceItem } from "@/components/chat/keyboard-auto-send-debounce-item";
-import { ChevronRight, Image as ImageIcon, Video, Mic, UserMinus, UserPlus, Users, Pin, MessageSquare, Search, AlertCircle, Code, Laptop, Trash2, Smile, Sparkles, X, Play, Upload, Download, Save, FolderOpen, type LucideIcon } from "lucide-react";
+import { ChevronRight, Image as ImageIcon, Video, Mic, UserMinus, UserPlus, Users, Pin, MessageSquare, Search, AlertCircle, Code, Laptop, Trash2, Smile, Sparkles, Lock, X, Play, Upload, Download, Save, FolderOpen, type LucideIcon } from "lucide-react";
 import { BINDING_ACCENTS, CONTENT_APP_ACCENTS } from "@/lib/ui-accent-colors";
 import CSSSchemeBar from "@/components/ui/css-scheme-picker";
 import { ConfirmDialog } from "@/components/ui/modal";
@@ -399,6 +399,7 @@ export function ChatSettingsPanel({
     const [streamOnline, setStreamOnline] = useState(session.streamOnline === true);
     const [streamOffline, setStreamOffline] = useState(session.streamOffline === true);
     const [enableOfflineInvite, setEnableOfflineInvite] = useState(session.enableOfflineInvite === true);
+    const [enableOfflineLock, setEnableOfflineLock] = useState(session.enableOfflineLock === true);
     const defaultBilingualPrompt = session.isGroup ? DEFAULT_GROUP_CHAT_BILINGUAL_PROMPT : DEFAULT_CHAT_BILINGUAL_PROMPT;
     const defaultOfflineBilingualPrompt = session.isGroup ? DEFAULT_GROUP_OFFLINE_CHAT_BILINGUAL_PROMPT : DEFAULT_OFFLINE_CHAT_BILINGUAL_PROMPT;
     const [bilingualTranslationPrompt, setBilingualTranslationPrompt] = useState(session.bilingualTranslationPrompt || defaultBilingualPrompt);
@@ -1157,6 +1158,24 @@ export function ChatSettingsPanel({
                                         onChange={c => {
                                             setEnableOfflineInvite(c);
                                             updateSession({ enableOfflineInvite: c });
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                        {!session.isGroup && (
+                            <div className="menu-item">
+                                <ChatInfoIcon icon={Lock} color={BINDING_ACCENTS.preset} />
+                                <div className="menu-label-group">
+                                    <span className="menu-label">角色自主线下封禁</span>
+                                    <span className="menu-desc">仅当前私聊：角色在争吵、赌气或拒绝见面时可封锁线下入口；关闭则永远不封锁</span>
+                                </div>
+                                <div className="menu-right">
+                                    <Toggle
+                                        checked={enableOfflineLock}
+                                        onChange={c => {
+                                            setEnableOfflineLock(c);
+                                            updateSession({ enableOfflineLock: c });
                                         }}
                                     />
                                 </div>
