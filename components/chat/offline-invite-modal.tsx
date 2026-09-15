@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from "react";
 import type { Character } from "@/lib/character-types";
-import { User, MapPin, Sparkles, Navigation, Clock, Undo2 } from "lucide-react";
+import { User, MapPin, Navigation, Clock, Undo2 } from "lucide-react";
 
 export type OfflineInviteData = {
     direction: "he_comes" | "i_go";
@@ -239,6 +239,29 @@ function HeartbeatWaveIcon({ className = "", size = 16 }: { className?: string; 
     );
 }
 
+/** 🌸 华特调的温柔星芒图标（方案B）：静谧温存微旋折射 + 柔和呼吸微放大，专用于蓝白经典到达与邀约 */
+function GentleSparklesIcon({ className = "", size = 12 }: { className?: string; size?: number }) {
+    return (
+        <svg
+            width={size}
+            height={size}
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            className={`gentle-sparkles-icon shrink-0 ${className}`}
+            style={{ overflow: "visible" }}
+        >
+            <g style={{ transformOrigin: "12px 12px" }}>
+                <path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5L12 2Z" fill="currentColor" fillOpacity="0.15" />
+                <path d="M19 3L20 6L23 7L20 8L19 11L18 8L15 7L18 6L19 3Z" fill="currentColor" />
+            </g>
+        </svg>
+    );
+}
+
 interface OfflineInviteModalProps {
     invite: OfflineInviteData;
     character?: Character | null;
@@ -325,19 +348,20 @@ export function OfflineInviteModal({
         const triggerHeartbeatPulse = () => {
             try {
                 if (typeof window !== "undefined" && "vibrate" in navigator) {
-                    // 踩点心跳波形 Lub-Dub 双拍冲顶（70ms 轻震 ➔ 90ms 短隙 ➔ 70ms 稳震）
-                    navigator.vibrate([70, 90, 70]);
+                    // 严丝合缝对齐 HeartbeatWaveIcon 峰值：150ms 饱满主峰 ➔ 停 170ms ➔ 380ms 处爆发 140ms 第二峰（深沉扎实，绝不抢跑）
+                    navigator.vibrate([150, 170, 140]);
                 }
             } catch {}
         };
 
-        // 弹窗开启瞬间立即触发
-        triggerHeartbeatPulse();
+        // 弹窗开启稍作 50ms 缓冲让 SVG 动画起跑，第一记正好咬住 180ms 峰顶
+        const initialTimer = setTimeout(triggerHeartbeatPulse, 50);
 
         // 严丝合缝对齐心跳波形（1.4s * 3 = 4.2s，波形跳第 3 轮时手心恰好同步感受心悸脉搏）
         const interval = setInterval(triggerHeartbeatPulse, 4200);
 
         return () => {
+            clearTimeout(initialTimer);
             clearInterval(interval);
             try {
                 if (typeof window !== "undefined" && "vibrate" in navigator) {
@@ -421,7 +445,7 @@ export function OfflineInviteModal({
                                     {isOnTheWay ? (
                                         <Navigation size={12} className="animate-pulse" />
                                     ) : isArrived ? (
-                                        <Sparkles size={12} />
+                                        <GentleSparklesIcon size={12} />
                                     ) : (
                                         <MapPin size={13} />
                                     )}
@@ -440,7 +464,7 @@ export function OfflineInviteModal({
                                     ) : isAlertTheme ? (
                                         <HeartbeatWaveIcon size={16} className="shrink-0" />
                                     ) : (
-                                        <Sparkles size={11} className="shrink-0" />
+                                        <GentleSparklesIcon size={11} />
                                     )}
                                     <span>
                                         {isOnTheWay
