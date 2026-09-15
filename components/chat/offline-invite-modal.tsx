@@ -281,33 +281,30 @@ export function OfflineInviteModal({
 
     const isForcedTheme = invite.theme === "forced";
 
-    // 🌸 华专属特调：强制来触发手机心跳/故障律动震动（1-2-2-1 紧迫节奏）
+    // 🌸 华专属特调：强制来真机物理震动（看似不规律实则暗藏 1-2-2-1 心律紧迫心跳骤跳的真实生理微震，弹窗开启时循环）
     useEffect(() => {
         if (!isForcedTheme) return;
-        if (typeof window === "undefined" || !("vibrate" in navigator)) return;
-
-        // 华提出的黄金体验：看似不规律实则规律的 1-2-2-1 紧迫节奏
-        // 1(短震55ms) - 停120ms - 2(短震35ms,停60ms,短震35ms) - 停160ms - 2(短震35ms,停60ms,短震35ms) - 停120ms - 1(定心震65ms)
         const triggerPattern = () => {
             try {
-                navigator.vibrate([55, 120, 35, 60, 35, 160, 35, 60, 35, 120, 65]);
+                if (typeof window !== "undefined" && "vibrate" in navigator) {
+                    // 1 单震 (100ms) ➔ 停 120ms ➔ 2 急促连震 (70ms+70ms) ➔ 停 160ms ➔ 2 急促连震 (70ms+70ms) ➔ 停 140ms ➔ 1 沉尾震 (120ms)
+                    navigator.vibrate([100, 120, 70, 60, 70, 160, 70, 60, 70, 140, 120]);
+                }
             } catch {}
         };
 
-        // 弹窗弹出瞬间立即震动
+        // 弹窗开启瞬间立即触发
         triggerPattern();
 
-        // 弹窗保持打开期间，每隔 4.8 秒（与故障分色同步）触发一次轻微的 1-2 脉冲余震
-        const vibInterval = setInterval(() => {
-            try {
-                navigator.vibrate([35, 90, 30]);
-            } catch {}
-        }, 4800);
+        // 弹窗保持打开期间，每隔 4.5 秒循环一次 1-2-2-1 心悸脉冲
+        const interval = setInterval(triggerPattern, 4500);
 
         return () => {
-            clearInterval(vibInterval);
+            clearInterval(interval);
             try {
-                navigator.vibrate(0); // 弹窗收起或去见Ta时立即停止震动
+                if (typeof window !== "undefined" && "vibrate" in navigator) {
+                    navigator.vibrate(0);
+                }
             } catch {}
         };
     }, [isForcedTheme]);
