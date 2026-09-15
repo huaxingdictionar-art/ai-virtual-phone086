@@ -281,6 +281,37 @@ export function OfflineInviteModal({
 
     const isForcedTheme = invite.theme === "forced";
 
+    // 🌸 华专属特调：强制来触发手机心跳/故障律动震动（1-2-2-1 紧迫节奏）
+    useEffect(() => {
+        if (!isForcedTheme) return;
+        if (typeof window === "undefined" || !("vibrate" in navigator)) return;
+
+        // 华提出的黄金体验：看似不规律实则规律的 1-2-2-1 紧迫节奏
+        // 1(短震55ms) - 停120ms - 2(短震35ms,停60ms,短震35ms) - 停160ms - 2(短震35ms,停60ms,短震35ms) - 停120ms - 1(定心震65ms)
+        const triggerPattern = () => {
+            try {
+                navigator.vibrate([55, 120, 35, 60, 35, 160, 35, 60, 35, 120, 65]);
+            } catch {}
+        };
+
+        // 弹窗弹出瞬间立即震动
+        triggerPattern();
+
+        // 弹窗保持打开期间，每隔 4.8 秒（与故障分色同步）触发一次轻微的 1-2 脉冲余震
+        const vibInterval = setInterval(() => {
+            try {
+                navigator.vibrate([35, 90, 30]);
+            } catch {}
+        }, 4800);
+
+        return () => {
+            clearInterval(vibInterval);
+            try {
+                navigator.vibrate(0); // 弹窗收起或去见Ta时立即停止震动
+            } catch {}
+        };
+    }, [isForcedTheme]);
+
     return (
         <div
             className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isForcedTheme ? "bg-black/65 backdrop-blur-md" : "bg-black/45 backdrop-blur-sm"} animate-in fade-in duration-200`}

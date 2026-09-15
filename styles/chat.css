@@ -113,50 +113,126 @@
   }
 }
 
-@keyframes offline-invite-glitch-border {
+/* 🌸 华特调：深邃黑红 + 醒目红蓝双色故障错位颤动 (Chromatic Glitch Aberration) */
+@keyframes offline-invite-glitch-red {
   0%, 100% {
-    opacity: 0.2;
-    box-shadow: 0 0 12px rgba(255, 59, 48, 0.3);
+    opacity: 0.4;
+    border-color: #FF3B30;
+    box-shadow: 0 0 10px rgba(255, 59, 48, 0.4);
     clip-path: inset(0 0 0 0);
     transform: translate(0, 0);
   }
-  1.5% {
+  2% {
+    opacity: 1;
+    border-width: 2px;
+    box-shadow: -5px 0 18px rgba(255, 59, 48, 1);
+    clip-path: inset(8% 0 45% 0);
+    transform: translate(-4.5px, -1px);
+  }
+  4% {
+    opacity: 0.2;
+    clip-path: inset(0 0 0 0);
+    transform: translate(1px, 0);
+  }
+  6% {
+    opacity: 1;
+    border-width: 2px;
+    box-shadow: -6px -2px 20px rgba(255, 59, 48, 1);
+    clip-path: inset(52% 0 8% 0);
+    transform: translate(-5px, 1.5px);
+  }
+  9% {
+    opacity: 0.4;
+    clip-path: inset(0 0 0 0);
+    transform: translate(0, 0);
+  }
+  13% {
     opacity: 0.9;
-    box-shadow: -3px 0 12px rgba(255, 59, 48, 0.9), 3px 0 12px rgba(0, 240, 255, 0.6);
-    clip-path: inset(18% 0 52% 0);
-    transform: translate(-1.5px, 0);
+    box-shadow: -4px 0 15px rgba(255, 59, 48, 0.9);
+    clip-path: inset(25% 0 30% 0);
+    transform: translate(-3.5px, -0.5px);
   }
-  3% {
-    opacity: 0.3;
-    box-shadow: 0 0 8px rgba(255, 59, 48, 0.4);
+  15% {
+    opacity: 0.4;
     clip-path: inset(0 0 0 0);
     transform: translate(0, 0);
-  }
-  5% {
-    opacity: 0.85;
-    box-shadow: 3px -1px 14px rgba(255, 59, 48, 0.95), -2px 1px 12px rgba(0, 240, 255, 0.5);
-    clip-path: inset(62% 0 12% 0);
-    transform: translate(1.5px, 0);
-  }
-  7% {
-    opacity: 0.2;
-    box-shadow: 0 0 12px rgba(255, 59, 48, 0.3);
-    clip-path: inset(0 0 0 0);
-    transform: translate(0, 0);
-  }
-  48% {
-    opacity: 0.2;
-    box-shadow: 0 0 12px rgba(255, 59, 48, 0.3);
   }
   50% {
-    opacity: 0.65;
-    box-shadow: -2px 0 10px rgba(255, 59, 48, 0.7), 2px 0 10px rgba(0, 240, 255, 0.45);
-    clip-path: inset(8% 0 78% 0);
+    opacity: 0.4;
+    transform: translate(0, 0);
   }
   52% {
-    opacity: 0.2;
-    box-shadow: 0 0 12px rgba(255, 59, 48, 0.3);
+    opacity: 1;
+    border-width: 2px;
+    box-shadow: -5px 0 18px rgba(255, 59, 48, 0.95);
+    clip-path: inset(15% 0 65% 0);
+    transform: translate(-4px, 0.5px);
+  }
+  55% {
+    opacity: 0.4;
     clip-path: inset(0 0 0 0);
+    transform: translate(0, 0);
+  }
+}
+
+@keyframes offline-invite-glitch-blue {
+  0%, 100% {
+    opacity: 0.3;
+    border-color: #00F0FF;
+    box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+    clip-path: inset(0 0 0 0);
+    transform: translate(0, 0);
+  }
+  2% {
+    opacity: 1;
+    border-width: 2px;
+    box-shadow: 5px 0 18px rgba(0, 240, 255, 1);
+    clip-path: inset(38% 0 20% 0);
+    transform: translate(4.5px, 1px);
+  }
+  4% {
+    opacity: 0.15;
+    clip-path: inset(0 0 0 0);
+    transform: translate(-1px, 0);
+  }
+  6% {
+    opacity: 1;
+    border-width: 2px;
+    box-shadow: 6px 2px 20px rgba(0, 240, 255, 1);
+    clip-path: inset(68% 0 2% 0);
+    transform: translate(5px, -1.5px);
+  }
+  9% {
+    opacity: 0.3;
+    clip-path: inset(0 0 0 0);
+    transform: translate(0, 0);
+  }
+  13% {
+    opacity: 0.9;
+    box-shadow: 4px 0 15px rgba(0, 240, 255, 0.9);
+    clip-path: inset(10% 0 55% 0);
+    transform: translate(3.5px, 0.5px);
+  }
+  15% {
+    opacity: 0.3;
+    clip-path: inset(0 0 0 0);
+    transform: translate(0, 0);
+  }
+  50% {
+    opacity: 0.3;
+    transform: translate(0, 0);
+  }
+  52% {
+    opacity: 1;
+    border-width: 2px;
+    box-shadow: 5px 0 18px rgba(0, 240, 255, 0.95);
+    clip-path: inset(45% 0 25% 0);
+    transform: translate(4px, -0.5px);
+  }
+  55% {
+    opacity: 0.3;
+    clip-path: inset(0 0 0 0);
+    transform: translate(0, 0);
   }
 }
 
@@ -168,16 +244,30 @@
   overflow: hidden;
 }
 
+/* 红色故障切片层 */
 .offline-invite-dialog-forced::before {
   content: "";
   position: absolute;
-  inset: -1px;
+  inset: -1.5px;
   border-radius: 1rem;
   background: transparent;
-  border: 1px solid rgba(255, 59, 48, 0.7);
+  border: 1.5px solid #FF3B30;
   pointer-events: none;
   z-index: 10;
-  animation: offline-invite-glitch-border 3s ease-out infinite;
+  animation: offline-invite-glitch-red 2.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
+}
+
+/* 蓝色故障分色层 */
+.offline-invite-dialog-forced::after {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: 1rem;
+  background: transparent;
+  border: 1.5px solid #00F0FF;
+  pointer-events: none;
+  z-index: 11;
+  animation: offline-invite-glitch-blue 2.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) infinite;
 }
 
 /* 插件自绘设置区（settings.section 坑位）在插件管理卡片内的内边距 */
