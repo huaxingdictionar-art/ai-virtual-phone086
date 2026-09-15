@@ -239,7 +239,7 @@ function HeartbeatWaveIcon({ className = "", size = 16 }: { className?: string; 
     );
 }
 
-/** 🌸 华专属特调：长按头像温存拥抱粒子系统（爱心、四芒星光屑、柔粉豆沙光尘） */
+/** 🌸 华专属特调：长按头像温存拥抱粒子与向外荡漾光环系统（向四周散开的爱心、四芒星光屑、柔粉光尘 + 同心扩散波纹） */
 function AvatarHugParticles({ active }: { active: boolean }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -250,6 +250,8 @@ function AvatarHugParticles({ active }: { active: boolean }) {
         if (!ctx) return;
 
         let animationFrameId: number;
+
+        // 粒子池
         const particles: Array<{
             x: number;
             y: number;
@@ -264,7 +266,15 @@ function AvatarHugParticles({ active }: { active: boolean }) {
             vRot: number;
         }> = [];
 
+        // 🌸 向外散开的温存光环（Ripples）
+        const ripples: Array<{
+            r: number;
+            maxR: number;
+            alpha: number;
+        }> = [];
+
         let lastSpawn = 0;
+        let lastRipple = 0;
 
         const resize = () => {
             if (canvas.parentElement) {
@@ -274,39 +284,80 @@ function AvatarHugParticles({ active }: { active: boolean }) {
         };
         resize();
 
-        const spawn = () => {
+        const spawnParticles = () => {
             const centerX = canvas.width / 2;
-            const centerY = 62;
+            const centerY = 62; // 头像中心垂直坐标
             const types: ("heart" | "star" | "dot")[] = ["heart", "star", "dot", "dot"];
             const colors = ["244, 114, 182", "232, 122, 144", "251, 191, 36", "253, 207, 224"];
 
+            // 每次生成 2 颗向四周 360° 四散漂浮的粒子（绝不往上窜，而是向四周自然绽放散开）
             for (let i = 0; i < 2; i++) {
                 const angle = Math.random() * Math.PI * 2;
-                const dist = 28 + Math.random() * 8;
+                const dist = 30 + Math.random() * 6; // 从头像轮廓起跑
+                const speed = 0.5 + Math.random() * 0.9; // 温和向四周扩散的速度
                 particles.push({
                     x: centerX + Math.cos(angle) * dist,
                     y: centerY + Math.sin(angle) * dist,
-                    vx: (Math.random() - 0.5) * 0.9,
-                    vy: -(0.9 + Math.random() * 1.3),
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
                     size: 4 + Math.random() * 6,
                     alpha: 0.95,
-                    decay: 0.012 + Math.random() * 0.008,
+                    decay: 0.01 + Math.random() * 0.008,
                     color: colors[Math.floor(Math.random() * colors.length)],
                     type: types[Math.floor(Math.random() * types.length)],
                     rotation: Math.random() * Math.PI * 2,
-                    vRot: (Math.random() - 0.5) * 0.08,
+                    vRot: (Math.random() - 0.5) * 0.06,
                 });
             }
         };
 
+        const spawnRipple = () => {
+            ripples.push({
+                r: 32, // 从头像边缘起跑
+                maxR: 85, // 向外荡漾扩散到周围
+                alpha: 0.75,
+            });
+        };
+
         const render = (time: number) => {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const centerX = canvas.width / 2;
+            const centerY = 62;
 
-            if (active && time - lastSpawn > 80) {
-                spawn();
-                lastSpawn = time;
+            // 激活期间定期发射粒子与向外荡漾的光环
+            if (active) {
+                if (time - lastSpawn > 90) {
+                    spawnParticles();
+                    lastSpawn = time;
+                }
+                if (time - lastRipple > 750) {
+                    spawnRipple();
+                    lastRipple = time;
+                }
             }
 
+            // 1. 绘制向周围散开的光环（波纹）
+            for (let i = ripples.length - 1; i >= 0; i--) {
+                const rp = ripples[i];
+                rp.r += 0.75; // 平缓外扩
+                const progress = (rp.r - 32) / (rp.maxR - 32);
+                rp.alpha = 0.75 * (1 - progress);
+
+                if (rp.r >= rp.maxR || rp.alpha <= 0) {
+                    ripples.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, rp.r, 0, Math.PI * 2);
+                ctx.strokeStyle = `rgba(244, 114, 182, ${rp.alpha})`;
+                ctx.lineWidth = Math.max(0.8, 1.8 * (1 - progress));
+                ctx.stroke();
+                ctx.restore();
+            }
+
+            // 2. 绘制向周围散开的粒子
             for (let i = particles.length - 1; i >= 0; i--) {
                 const p = particles[i];
                 p.x += p.vx;
@@ -349,7 +400,7 @@ function AvatarHugParticles({ active }: { active: boolean }) {
                 ctx.restore();
             }
 
-            if (active || particles.length > 0) {
+            if (active || particles.length > 0 || ripples.length > 0) {
                 animationFrameId = requestAnimationFrame(render);
             }
         };
@@ -638,7 +689,7 @@ export function OfflineInviteModal({
                                 })()}
                                 <div className={`inline-flex items-center justify-center gap-1 text-[11px] ${isForcedTheme ? "text-gray-400" : isHugging ? "text-[#e87994] font-medium" : "text-[var(--c-text,#9ca3af)]"} mt-0.5 transition-all duration-300`}>
                                     {isHugging ? (
-                                        <span>光芒正在把温度裹紧…… ✨</span>
+                                        <span>光芒正在把温度裹紧……</span>
                                     ) : (
                                         <>
                                             <span>按右上角</span>
