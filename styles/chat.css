@@ -227,6 +227,41 @@
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18), 0 0 8px rgba(255, 59, 48, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.18) !important;
 }
 
+/* 🌸 华专属特调：长按头像温存拥抱（蓝白 ➔ 豆沙淡粉光晕过渡） */
+.offline-invite-dialog-hug {
+  background: radial-gradient(circle at 50% 28%, rgba(244, 114, 182, 0.18) 0%, rgba(254, 242, 245, 0.98) 60%, var(--c-panel, #ffffff) 100%) !important;
+  border-color: rgba(244, 114, 182, 0.35) !important;
+  box-shadow: 0 18px 40px rgba(244, 114, 182, 0.18), 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+  transition: all 0.55s cubic-bezier(0.2, 0.8, 0.25, 1) !important;
+}
+
+.offline-invite-avatar-hug {
+  transform: scale(0.95);
+  border-color: rgba(244, 114, 182, 0.8) !important;
+  box-shadow: 0 0 24px rgba(244, 114, 182, 0.6), inset 0 0 10px rgba(244, 114, 182, 0.2) !important;
+}
+
+.offline-invite-btn-hug {
+  background: linear-gradient(135deg, #f472b6 0%, #e87a90 100%) !important;
+  box-shadow: 0 4px 18px rgba(244, 114, 182, 0.45) !important;
+}
+
+.offline-invite-badge-hug {
+  background: #f472b6 !important;
+  box-shadow: 0 2px 10px rgba(244, 114, 182, 0.6) !important;
+}
+
+.offline-invite-tag-hug {
+  background: rgba(244, 114, 182, 0.15) !important;
+  color: #e87994 !important;
+  border-color: rgba(244, 114, 182, 0.35) !important;
+}
+
+.offline-invite-desc-hug {
+  background: rgba(254, 242, 245, 0.8) !important;
+  border-color: rgba(244, 114, 182, 0.2) !important;
+}
+
 
 /* 插件自绘设置区（settings.section 坑位）在插件管理卡片内的内边距 */
 .chat-plugin-settings-section {

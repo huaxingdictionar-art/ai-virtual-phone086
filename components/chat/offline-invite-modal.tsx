@@ -239,6 +239,131 @@ function HeartbeatWaveIcon({ className = "", size = 16 }: { className?: string; 
     );
 }
 
+/** 🌸 华专属特调：长按头像温存拥抱粒子系统（爱心、四芒星光屑、柔粉豆沙光尘） */
+function AvatarHugParticles({ active }: { active: boolean }) {
+    const canvasRef = useRef<HTMLCanvasElement>(null);
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return;
+
+        let animationFrameId: number;
+        const particles: Array<{
+            x: number;
+            y: number;
+            vx: number;
+            vy: number;
+            size: number;
+            alpha: number;
+            decay: number;
+            color: string;
+            type: "heart" | "star" | "dot";
+            rotation: number;
+            vRot: number;
+        }> = [];
+
+        let lastSpawn = 0;
+
+        const resize = () => {
+            if (canvas.parentElement) {
+                canvas.width = canvas.parentElement.offsetWidth;
+                canvas.height = canvas.parentElement.offsetHeight;
+            }
+        };
+        resize();
+
+        const spawn = () => {
+            const centerX = canvas.width / 2;
+            const centerY = 62;
+            const types: ("heart" | "star" | "dot")[] = ["heart", "star", "dot", "dot"];
+            const colors = ["244, 114, 182", "232, 122, 144", "251, 191, 36", "253, 207, 224"];
+
+            for (let i = 0; i < 2; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const dist = 28 + Math.random() * 8;
+                particles.push({
+                    x: centerX + Math.cos(angle) * dist,
+                    y: centerY + Math.sin(angle) * dist,
+                    vx: (Math.random() - 0.5) * 0.9,
+                    vy: -(0.9 + Math.random() * 1.3),
+                    size: 4 + Math.random() * 6,
+                    alpha: 0.95,
+                    decay: 0.012 + Math.random() * 0.008,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    type: types[Math.floor(Math.random() * types.length)],
+                    rotation: Math.random() * Math.PI * 2,
+                    vRot: (Math.random() - 0.5) * 0.08,
+                });
+            }
+        };
+
+        const render = (time: number) => {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (active && time - lastSpawn > 80) {
+                spawn();
+                lastSpawn = time;
+            }
+
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.rotation += p.vRot;
+                p.alpha -= p.decay;
+
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+
+                ctx.save();
+                ctx.translate(p.x, p.y);
+                ctx.rotate(p.rotation);
+                ctx.fillStyle = `rgba(${p.color}, ${p.alpha})`;
+
+                if (p.type === "heart") {
+                    const s = p.size * 0.45;
+                    ctx.beginPath();
+                    ctx.moveTo(0, s * 0.3);
+                    ctx.bezierCurveTo(-s, -s * 0.6, -s * 1.8, s * 0.6, 0, s * 1.8);
+                    ctx.bezierCurveTo(s * 1.8, s * 0.6, s, -s * 0.6, 0, s * 0.3);
+                    ctx.fill();
+                } else if (p.type === "star") {
+                    const s = p.size * 0.6;
+                    ctx.beginPath();
+                    ctx.moveTo(0, -s);
+                    ctx.quadraticCurveTo(0, 0, s, 0);
+                    ctx.quadraticCurveTo(0, 0, 0, s);
+                    ctx.quadraticCurveTo(0, 0, -s, 0);
+                    ctx.quadraticCurveTo(0, 0, 0, -s);
+                    ctx.fill();
+                } else {
+                    ctx.beginPath();
+                    ctx.arc(0, 0, p.size * 0.35, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            }
+
+            if (active || particles.length > 0) {
+                animationFrameId = requestAnimationFrame(render);
+            }
+        };
+
+        animationFrameId = requestAnimationFrame(render);
+
+        return () => {
+            cancelAnimationFrame(animationFrameId);
+        };
+    }, [active]);
+
+    return <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-10" />;
+}
+
 interface OfflineInviteModalProps {
     invite: OfflineInviteData;
     character?: Character | null;
@@ -348,6 +473,25 @@ export function OfflineInviteModal({
         };
     }, [isPureAlertTheme]);
 
+    // 🌸 华专属特调：长按头像温存拥抱（蓝白 ➔ 豆沙淡粉光晕与微粒子过渡）
+    const [isHugging, setIsHugging] = useState(false);
+
+    const handleAvatarPointerDown = (e: React.PointerEvent) => {
+        if (isForcedTheme || isPureAlertTheme) return;
+        setIsHugging(true);
+        try {
+            if (typeof window !== "undefined" && "vibrate" in navigator) {
+                navigator.vibrate(40);
+            }
+        } catch {}
+    };
+
+    const handleAvatarPointerUp = () => {
+        if (isHugging) {
+            setIsHugging(false);
+        }
+    };
+
     return (
         <div
             className={`fixed inset-0 z-50 flex items-center justify-center p-4 ${isForcedTheme ? "bg-black/65 backdrop-blur-md" : "bg-black/45 backdrop-blur-sm"} animate-in fade-in duration-200`}
@@ -359,11 +503,18 @@ export function OfflineInviteModal({
                 className={`relative w-full max-w-[315px] rounded-2xl p-5 flex flex-col items-center gap-4 text-center select-none ${
                     isForcedTheme
                         ? "offline-invite-dialog-forced"
+                        : isHugging
+                        ? "offline-invite-dialog-hug"
                         : "bg-[var(--c-panel,#ffffff)] border border-[var(--c-panel-border,rgba(0,0,0,0.08))] shadow-2xl animate-in zoom-in-95 duration-200"
                 }`}
                 data-ui="offline-invite-dialog"
                 onClick={(e) => e.stopPropagation()}
+                onPointerUp={handleAvatarPointerUp}
+                onPointerCancel={handleAvatarPointerUp}
             >
+                {/* 🌸 长按温存拥抱粒子层 */}
+                <AvatarHugParticles active={isHugging} />
+
                 {/* 右上角返回键（弯箭头） */}
                 <button
                     type="button"
@@ -385,18 +536,24 @@ export function OfflineInviteModal({
                     // 🌸 华专属审美升级：采用纯正鲜艳的 Apple Danger 红（#FF3B30），并注入非常柔和浅漫的红光外溢光晕！
                     const badgeBg = isAlertTheme
                         ? "bg-[var(--c-danger,#FF3B30)] shadow-[0_2px_8px_rgba(255,59,48,0.4)]"
+                        : isHugging
+                        ? "offline-invite-badge-hug"
                         : "bg-[var(--c-primary,#2563eb)] shadow-[0_2px_8px_rgba(37,99,235,0.35)]";
                     const badgeBorder = isAlertTheme ? "border-[var(--c-danger,#FF3B30)]/30" : "border-[var(--c-primary,#2563eb)]/30";
                     const tagStyle = isForcedTheme
                         ? "bg-[var(--c-danger,#FF3B30)]/18 text-[#ff5449] border border-[var(--c-danger,#FF3B30)]/45 shadow-[0_0_14px_rgba(255,59,48,0.25)]"
                         : isAlertTheme
                         ? "bg-[var(--c-danger,#FF3B30)]/10 text-[var(--c-danger,#FF3B30)] border border-[var(--c-danger,#FF3B30)]/20"
+                        : isHugging
+                        ? "offline-invite-tag-hug"
                         : "bg-[var(--c-primary,#2563eb)]/10 text-[var(--c-primary,#2563eb)] border border-[var(--c-primary,#2563eb)]/20";
-                    const accentText = isAlertTheme ? "text-[var(--c-danger,#FF3B30)]" : "text-[var(--c-primary,#2563eb)]";
+                    const accentText = isAlertTheme ? "text-[var(--c-danger,#FF3B30)]" : isHugging ? "text-[#e87994]" : "text-[var(--c-primary,#2563eb)]";
                     const primaryBtn = isForcedTheme
                         ? "bg-[var(--c-danger,#FF3B30)] text-white shadow-[0_4px_18px_rgba(255,59,48,0.5),inset_0_1px_1px_rgba(255,255,255,0.3)] hover:opacity-95"
                         : isAlertTheme
                         ? "bg-[var(--c-danger,#FF3B30)] text-white shadow-[0_4px_16px_rgba(255,59,48,0.38),inset_0_1px_1px_rgba(255,255,255,0.2)] hover:opacity-95"
+                        : isHugging
+                        ? "offline-invite-btn-hug text-white hover:opacity-95"
                         : "bg-[var(--c-primary,#2563eb)] text-white shadow-[0_4px_16px_rgba(37,99,235,0.35),inset_0_1px_1px_rgba(255,255,255,0.2)] hover:opacity-95";
                     const secondaryBtn = isForcedTheme
                         ? "border border-white/15 bg-white/[0.08] text-gray-200 hover:bg-white/15 hover:text-white"
@@ -405,18 +562,27 @@ export function OfflineInviteModal({
                     return (
                         <>
                             <div className="relative mt-2">
-                                <div className={`w-16 h-16 rounded-full overflow-hidden flex items-center justify-center ${
-                                    isForcedTheme
-                                        ? "border-2 border-[var(--c-danger,#FF3B30)]/60 shadow-[0_0_18px_rgba(255,59,48,0.45)] bg-[#25202a]"
-                                        : `border-2 ${badgeBorder} shadow-md bg-[var(--c-input,#f3f4f6)]`
-                                }`}>
+                                <div
+                                    onPointerDown={handleAvatarPointerDown}
+                                    onPointerUp={handleAvatarPointerUp}
+                                    onPointerCancel={handleAvatarPointerUp}
+                                    onPointerLeave={handleAvatarPointerUp}
+                                    className={`w-16 h-16 rounded-full overflow-hidden flex items-center justify-center cursor-pointer select-none touch-none transition-all duration-300 ${
+                                        isForcedTheme
+                                            ? "border-2 border-[var(--c-danger,#FF3B30)]/60 shadow-[0_0_18px_rgba(255,59,48,0.45)] bg-[#25202a]"
+                                            : isHugging
+                                            ? "offline-invite-avatar-hug bg-[#fff5f7]"
+                                            : `border-2 ${badgeBorder} shadow-md bg-[var(--c-input,#f3f4f6)]`
+                                    }`}
+                                    title="长按头像感受心跳温存"
+                                >
                                     {character?.avatar ? (
-                                        <img src={character.avatar} alt={charName} className="w-full h-full object-cover" />
+                                        <img src={character.avatar} alt={charName} className="w-full h-full object-cover pointer-events-none" />
                                     ) : (
-                                        <User size={30} className="text-[var(--c-text,#9ca3af)]" />
+                                        <User size={30} className="text-[var(--c-text,#9ca3af)] pointer-events-none" />
                                     )}
                                 </div>
-                                <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full ${badgeBg} text-white flex items-center justify-center ${
+                                <div className={`absolute -bottom-1 -right-1 w-6 h-6 rounded-full ${badgeBg} text-white flex items-center justify-center transition-all duration-300 ${
                                     isForcedTheme ? "shadow-[0_2px_10px_rgba(255,59,48,0.7)] border border-white/20" : "shadow"
                                 }`}>
                                     {isOnTheWay ? (
@@ -431,7 +597,7 @@ export function OfflineInviteModal({
 
                             {/* 标题与情境标签 */}
                             <div className="flex flex-col items-center gap-1">
-                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium ${tagStyle}`}>
+                                <div className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-medium transition-all duration-300 ${tagStyle}`}>
                                     {invite.theme === "forced" ? (
                                         isOnTheWay ? (
                                             <SearchingEyeIcon size={16.5} className="shrink-0" />
@@ -470,19 +636,27 @@ export function OfflineInviteModal({
                                         </h3>
                                     );
                                 })()}
-                                <div className={`inline-flex items-center justify-center gap-1 text-[11px] ${isForcedTheme ? "text-gray-400" : "text-[var(--c-text,#9ca3af)]"} mt-0.5`}>
-                                    <span>按右上角</span>
-                                    <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-full ${isForcedTheme ? "bg-white/10 text-gray-300" : "bg-[var(--c-input,rgba(0,0,0,0.06))] text-[var(--c-text,#6b7280)]"}`}>
-                                        <Undo2 size={9.5} />
-                                    </span>
-                                    <span>{isOnTheWay ? "可收起状态" : isArrived ? "可收起通知" : "可稍后处理"}</span>
+                                <div className={`inline-flex items-center justify-center gap-1 text-[11px] ${isForcedTheme ? "text-gray-400" : isHugging ? "text-[#e87994] font-medium" : "text-[var(--c-text,#9ca3af)]"} mt-0.5 transition-all duration-300`}>
+                                    {isHugging ? (
+                                        <span>光芒正在把温度裹紧…… ✨</span>
+                                    ) : (
+                                        <>
+                                            <span>按右上角</span>
+                                            <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-full ${isForcedTheme ? "bg-white/10 text-gray-300" : "bg-[var(--c-input,rgba(0,0,0,0.06))] text-[var(--c-text,#6b7280)]"}`}>
+                                                <Undo2 size={9.5} />
+                                            </span>
+                                            <span>{isOnTheWay ? "可收起状态" : isArrived ? "可收起通知" : "可稍后处理"}</span>
+                                        </>
+                                    )}
                                 </div>
                             </div>
 
                             {/* 说明卡片与在途倒计时 */}
-                            <div className={`w-full rounded-xl p-3 text-left flex flex-col gap-1.5 ${
+                            <div className={`w-full rounded-xl p-3 text-left flex flex-col gap-1.5 transition-all duration-300 ${
                                 isForcedTheme
                                     ? "bg-white/[0.06] border border-[var(--c-danger,#FF3B30)]/25 shadow-[inset_0_1px_1px_rgba(255,255,255,0.05)]"
+                                    : isHugging
+                                    ? "offline-invite-desc-hug"
                                     : "bg-[var(--c-input,#f3f4f6)]/70 border border-[var(--c-input-border,rgba(0,0,0,0.04))]"
                             }`}>
                                 {isOnTheWay ? (
