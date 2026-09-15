@@ -227,26 +227,6 @@
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18), 0 0 8px rgba(255, 59, 48, 0.2), inset 0 1px 1px rgba(255, 255, 255, 0.18) !important;
 }
 
-/* 🌸 华专属特调：蓝白绅士星光微旋折射（方案B：静谧温存 · 首饰光华） */
-@keyframes gentle-sparkles-rotate {
-  0% {
-    transform: scale(0.94) rotate(-8deg);
-    opacity: 0.82;
-  }
-  50% {
-    transform: scale(1.15) rotate(14deg);
-    opacity: 1;
-    filter: drop-shadow(0 0 3px rgba(37, 99, 235, 0.45));
-  }
-  100% {
-    transform: scale(0.94) rotate(-8deg);
-    opacity: 0.82;
-  }
-}
-
-.gentle-sparkles-icon > g {
-  animation: gentle-sparkles-rotate 3s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-}
 
 /* 插件自绘设置区（settings.section 坑位）在插件管理卡片内的内边距 */
 .chat-plugin-settings-section {
