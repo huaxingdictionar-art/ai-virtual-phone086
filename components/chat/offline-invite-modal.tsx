@@ -286,14 +286,14 @@ export function OfflineInviteModal({
     useEffect(() => {
         if (!isForcedTheme) return;
         const trigger12Resonance = () => {
-            // 1. 触发手机物理马达（120ms沉单震 ➔ 停 180ms ➔ 70ms轻脆震 ➔ 停 60ms ➔ 70ms轻脆震）
+            // 1. 触发手机物理马达（舒展 1 秒版：200ms沉单震 ➔ 停 260ms ➔ 120ms轻脆震 ➔ 停 100ms ➔ 120ms轻脆震）
             try {
                 if (typeof window !== "undefined" && "vibrate" in navigator) {
-                    navigator.vibrate([120, 180, 70, 60, 70]);
+                    navigator.vibrate([200, 260, 120, 100, 120]);
                 }
             } catch {}
 
-            // 2. 视效同步：精准启动 1-2 窗口踩点颤动动画（0.52s 与震感严格对齐）
+            // 2. 视效同步：精准启动 1-2 窗口踩点颤动动画（0.96s 舒展 1 秒版，与震感严格对齐）
             if (dialogRef.current) {
                 dialogRef.current.classList.remove("offline-invite-12-pulse");
                 void dialogRef.current.offsetWidth;
@@ -304,8 +304,8 @@ export function OfflineInviteModal({
         // 弹窗开启瞬间立即触发
         trigger12Resonance();
 
-        // 弹窗保持打开期间，每隔 3.8 秒循环一次 1-2 呼吸感律动（0.5s 踩点 + 3.3s 静止留白）
-        const interval = setInterval(trigger12Resonance, 3800);
+        // 弹窗保持打开期间，每隔 4.5 秒循环一次 1-2 律动（约 1s 舒展踩点 + 3.5s 从容呼吸留白）
+        const interval = setInterval(trigger12Resonance, 4500);
 
         return () => {
             clearInterval(interval);
@@ -561,18 +561,31 @@ export function OfflineInviteCapsule({
         return () => clearInterval(timer);
     }, [isOnTheWay, invite.startTime, invite.durationMinutes]);
 
-    const isAlertTheme = invite.theme === "alert" || invite.theme === "forced";
+    const isForcedTheme = invite.theme === "forced";
+    const isAlertTheme = invite.theme === "alert" || isForcedTheme;
     const pingDotBg = isAlertTheme ? "bg-[var(--c-danger,#FF3B30)]" : "bg-[var(--c-primary,#2563eb)]";
-    const solidDotBg = isAlertTheme ? "bg-[var(--c-danger,#FF3B30)]" : "bg-[var(--c-primary,#2563eb)]";
-    const btnBg = isAlertTheme
-        ? "bg-[var(--c-danger,#FF3B30)] shadow-[0_2px_8px_rgba(255,59,48,0.38)] hover:opacity-95"
-        : "bg-[var(--c-primary,#2563eb)] shadow-[0_2px_8px_rgba(37,99,235,0.35)] hover:opacity-90";
-    const actionText = isAlertTheme ? "text-[var(--c-danger,#FF3B30)]" : "text-[var(--c-primary,#2563eb)]";
+    const solidDotBg = isAlertTheme
+        ? `bg-[var(--c-danger,#FF3B30)] ${isForcedTheme ? "shadow-[0_0_8px_rgba(255,59,48,0.9)]" : ""}`
+        : "bg-[var(--c-primary,#2563eb)]";
+    const btnBg = isForcedTheme
+        ? "bg-[var(--c-danger,#FF3B30)] shadow-[0_2px_12px_rgba(255,59,48,0.6)] hover:opacity-95 text-white"
+        : isAlertTheme
+        ? "bg-[var(--c-danger,#FF3B30)] shadow-[0_2px_8px_rgba(255,59,48,0.38)] hover:opacity-95 text-white"
+        : "bg-[var(--c-primary,#2563eb)] shadow-[0_2px_8px_rgba(37,99,235,0.35)] hover:opacity-90 text-white";
+    const actionText = isForcedTheme
+        ? "text-[#ff5449]"
+        : isAlertTheme
+        ? "text-[var(--c-danger,#FF3B30)]"
+        : "text-[var(--c-primary,#2563eb)]";
 
     return (
         <div
             onClick={onClick}
-            className="w-fit max-w-[92%] mx-auto px-3.5 py-1.5 rounded-full bg-[var(--c-panel,#ffffff)]/95 backdrop-blur-md border border-[var(--c-panel-border,rgba(0,0,0,0.12))] shadow-md flex items-center gap-2 cursor-pointer select-none hover:scale-[1.02] active:scale-[0.98] transition-all"
+            className={`w-fit max-w-[92%] mx-auto px-3.5 py-1.5 rounded-full backdrop-blur-md shadow-md flex items-center gap-2 cursor-pointer select-none hover:scale-[1.02] active:scale-[0.98] transition-all ${
+                isForcedTheme
+                    ? "offline-invite-capsule-forced"
+                    : "bg-[var(--c-panel,#ffffff)]/95 border border-[var(--c-panel-border,rgba(0,0,0,0.12))]"
+            }`}
             data-ui="offline-invite-capsule"
             title="点击查看邀约详情"
         >
@@ -580,7 +593,7 @@ export function OfflineInviteCapsule({
                 <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${pingDotBg}`} />
                 <span className={`relative inline-flex rounded-full h-2 w-2 ${solidDotBg}`} />
             </span>
-            <span className="text-xs font-medium text-[var(--c-text-title,#111827)] truncate">
+            <span className={`text-xs font-medium truncate ${isForcedTheme ? "text-gray-100" : "text-[var(--c-text-title,#111827)]"}`}>
                 {isOnTheWay
                     ? `${charName}正在赶来，约剩${remainingMins > 0 ? remainingMins : 1}分钟后到达`
                     : isArrived
@@ -603,7 +616,7 @@ export function OfflineInviteCapsule({
                         e.stopPropagation();
                         onAccept();
                     }}
-                    className={`text-[11px] text-white font-semibold px-2 py-0.5 rounded-full active:scale-95 transition-all shrink-0 cursor-pointer shadow-sm ${btnBg}`}
+                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-full active:scale-95 transition-all shrink-0 cursor-pointer shadow-sm ${btnBg}`}
                 >
                     去见Ta
                 </button>
