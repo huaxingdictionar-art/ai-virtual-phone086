@@ -27,6 +27,8 @@ export type OfflineInviteData = {
     initialBatchId?: string;
     /** 该赴约生命周期中涉及的所有批次ID（包含发起、改地点、在途、到达等） */
     relatedBatchIds?: string[];
+    /** 终身到达防重印记：是否已触发并发送过到达小灰字与到达微信消息，防止倒计时或水合重复触发 */
+    hasFiredArrivalMessage?: boolean;
 };
 
 export function getRemainingMinutes(startTime?: number, durationMinutes: number = 15): number {
@@ -81,7 +83,7 @@ function getModalDescription(invite: OfflineInviteData): string {
         : "对方正在约定的地方等候你的到来。";
 }
 
-/** 🌸 华特调的灵动三睫毛搜寻眼眸：原汁原味回退！专用于在途赶来中，无缩放无变形，纯粹左右警觉巡视探查（搜寻中） */
+/** 在途状态搜寻眼眸图标：左右警觉巡视探查动效 */
 function SearchingEyeIcon({ className = "", size = 16.5 }: { className?: string; size?: number }) {
     return (
         <svg
@@ -115,7 +117,7 @@ function SearchingEyeIcon({ className = "", size = 16.5 }: { className?: string;
     );
 }
 
-/** 🌸 华特调的灵动三睫毛锁定眼眸：专用于强制到达「Ta来了……」，眼眶克制睁大至 1.18 倍 + 维持定格 0.65秒（已找到锁定） */
+/** 强制到达锁定眼眸图标：睁大聚焦动效 */
 function LockedEyeIcon({ className = "", size = 16.5 }: { className?: string; size?: number }) {
     return (
         <svg
@@ -131,7 +133,7 @@ function LockedEyeIcon({ className = "", size = 16.5 }: { className?: string; si
             style={{ overflow: "visible" }}
         >
             <g style={{ transformOrigin: "12px 13.5px" }}>
-                {/* 华确立的灵魂体验：只缩放一次！克制睁大至 1.18 倍 ➔ 牢牢维持定格 0.65秒 ➔ 缓缓舒展归平 */}
+                {/* 睁大至 1.18 倍定格 0.65 秒后平缓回弹 */}
                 <animateTransform
                     attributeName="transform"
                     type="scale"
@@ -169,7 +171,7 @@ function LockedEyeIcon({ className = "", size = 16.5 }: { className?: string; si
     );
 }
 
-/** 🌸 华特调的灵动三睫毛闭目眼眸图标：微弯闭目、非礼勿视、三根垂睫 */
+/** 闭目眼眸图标：微弯闭目与垂睫动效 */
 function ClosedEyelashEyeIcon({ className = "", size = 16.5 }: { className?: string; size?: number }) {
     return (
         <svg
@@ -193,7 +195,7 @@ function ClosedEyelashEyeIcon({ className = "", size = 16.5 }: { className?: str
     );
 }
 
-/** 🌸 华特调的律动心电波形图标：0.6秒波形起伏爆发 + 0.8秒舒张平静待机（1.4秒黄金心率） */
+/** 律动心电波形图标：波形起伏与舒张心率动效 */
 function HeartbeatWaveIcon({ className = "", size = 16 }: { className?: string; size?: number }) {
     return (
         <svg
@@ -239,7 +241,7 @@ function HeartbeatWaveIcon({ className = "", size = 16 }: { className?: string; 
     );
 }
 
-/** 🌸 华专属特调：长按头像温存拥抱微粒子系统（轻量飘散爱心、四芒星光屑与豆沙粉光尘，Retina 高清渲染，极低内存消耗） */
+/** 长按头像/卡片温存微粒子系统（爱心与光尘微粒） */
 function AvatarHugParticles({ active }: { active: boolean }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -421,7 +423,7 @@ export function OfflineInviteModal({
     const isForcedTheme = invite.theme === "forced";
     const dialogRef = useRef<HTMLDivElement>(null);
 
-    // 🌸 华专属特调：1-2 视触踩点微颤（物理震 1 下 ➔ 窗口抖 1 下 ➔ 停顿 ➔ 物理震 2 下 ➔ 窗口抖 2 下）
+    // 强制到达震动与窗口抖动节律（1-2 微颤）
     useEffect(() => {
         if (!isForcedTheme) return;
         const trigger12Resonance = () => {
@@ -458,7 +460,7 @@ export function OfflineInviteModal({
 
     const isPureAlertTheme = invite.theme === "alert";
 
-    // 🌸 华专属特调：紧急赴约（白红非强制）1-1 心跳物理微震（踩准 HeartbeatWaveIcon 1.4秒周期的 Lub-Dub 双拍，窗口不抖动）
+    // 紧急赴约微震：对齐心跳波形周期的双拍触感
     useEffect(() => {
         if (!isPureAlertTheme) return;
         const triggerHeartbeatPulse = () => {
@@ -487,10 +489,10 @@ export function OfflineInviteModal({
         };
     }, [isPureAlertTheme]);
 
-    // 🌸 华专属特调：长按头像或卡片空白处皆可温存拥抱（蓝白 ➔ 豆沙淡粉光晕过渡，丝滑双向切换）
+    // 长按头像或卡片空白处触发温存状态与光晕渐变
     const [isHugging, setIsHugging] = useState(false);
 
-    // 🌸 华专属特调：长按温存心跳循环震动（严丝合缝咬准 1.1s 柔粉光环同心荡漾拍子）
+    // 长按温存心跳循环微震（与 1.1s 光环扩散节奏同频）
     useEffect(() => {
         if (!isHugging) return;
 
@@ -557,7 +559,7 @@ export function OfflineInviteModal({
                 onPointerCancel={handlePointerUp}
                 onPointerLeave={handlePointerUp}
             >
-                {/* 🌸 华专属特调：长按温存拥抱豆沙粉光晕过渡层（纯 GPU Opacity 渐变，无论进入还是退回都如丝般顺滑，零抖动零突变） */}
+                {/* 长按温存光晕过渡层（GPU Opacity 平滑渐变） */}
                 {!isForcedTheme && (
                     <div
                         className={`pointer-events-none absolute inset-0 rounded-2xl transition-opacity duration-500 ease-out z-0 ${
@@ -569,7 +571,7 @@ export function OfflineInviteModal({
                     />
                 )}
 
-                {/* 🌸 长按温存拥抱粒子层 */}
+                {/* 长按温存微粒子层 */}
                 <AvatarHugParticles active={isHugging} />
 
                 {/* 右上角返回键（弯箭头） */}
@@ -592,7 +594,7 @@ export function OfflineInviteModal({
                 {/* 角色头像与状态光晕徽章 */}
                 {(() => {
                     const isAlertTheme = invite.theme === "alert" || isForcedTheme;
-                    // 🌸 华专属审美升级：采用纯正鲜艳的 Apple Danger 红（#FF3B30），并注入非常柔和浅漫的红光外溢光晕！
+                    // 紧急与强制主题下的红光外溢光晕样式
                     const badgeBg = isAlertTheme
                         ? "bg-[var(--c-danger,#FF3B30)] shadow-[0_2px_8px_rgba(255,59,48,0.4)]"
                         : isHugging
@@ -621,7 +623,7 @@ export function OfflineInviteModal({
                     return (
                         <>
                             <div className="relative mt-2 w-16 h-16">
-                                {/* 🌸 华专属特调：长按时向四周荡漾的超纤细柔粉光环线（纯 CSS GPU 硬件加速，一条真正的纯净细线，极低功耗零占内存） */}
+                                {/* 长按向四周荡漾的纤细柔粉光环线（纯 CSS GPU 加速） */}
                                 {isHugging && (
                                     <div className="pointer-events-none absolute inset-0">
                                         <span className="offline-invite-hug-ring" />
@@ -706,10 +708,14 @@ export function OfflineInviteModal({
                                     ) : (
                                         <>
                                             <span>按右上角</span>
-                                            <span className="inline-flex items-center justify-center w-3.5 h-3.5 rounded-full bg-[var(--c-input,#f3f4f6)] text-[var(--c-icon,#9ca3af)] scale-90">
+                                            <span className={`inline-flex items-center justify-center w-3.5 h-3.5 rounded-full scale-90 ${
+                                                isForcedTheme
+                                                    ? "bg-white/10 border border-white/10 text-gray-300"
+                                                    : "bg-[var(--c-input,#f3f4f6)] text-[var(--c-icon,#9ca3af)]"
+                                            }`}>
                                                 <Undo2 size={9.5} />
                                             </span>
-                                            <span>{isOnTheWay ? "可收起状态" : isArrived ? "可收起通知" : "可稍后处理"}，长按温存</span>
+                                            <span>{isOnTheWay ? "可收起状态" : isArrived ? "可收起通知" : "可稍后处理"}{(!isForcedTheme && !isPureAlertTheme) ? "，长按温存" : ""}</span>
                                         </>
                                     )}
                                 </div>
@@ -802,6 +808,7 @@ interface OfflineInviteCapsuleProps {
     character?: Character | null;
     onClick: () => void;
     onAccept?: () => void;
+    isRetrying?: boolean;
 }
 
 export function OfflineInviteCapsule({
@@ -809,6 +816,7 @@ export function OfflineInviteCapsule({
     character,
     onClick,
     onAccept,
+    isRetrying = false,
 }: OfflineInviteCapsuleProps) {
     const isHeComes = invite.direction === "he_comes";
     const charName = character?.name || "对方";
@@ -849,50 +857,57 @@ export function OfflineInviteCapsule({
 
     return (
         <div
-            onClick={onClick}
-            className={`w-fit max-w-[92%] mx-auto px-3.5 py-1.5 rounded-full backdrop-blur-md shadow-md flex items-center gap-2 cursor-pointer select-none hover:scale-[1.02] active:scale-[0.98] transition-all ${
+            onClick={isRetrying ? undefined : onClick}
+            className={`w-fit max-w-[92%] mx-auto px-3.5 py-1.5 rounded-full backdrop-blur-md shadow-md flex items-center gap-2 select-none transition-all ${
+                isRetrying ? "cursor-default" : "cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+            } ${
                 isForcedTheme
                     ? "offline-invite-capsule-forced"
                     : "bg-[var(--c-panel,#ffffff)]/95 border border-[var(--c-panel-border,rgba(0,0,0,0.12))]"
             }`}
             data-ui="offline-invite-capsule"
-            title="点击查看邀约详情"
+            title={isRetrying ? "正在回溯赴约状态……" : "点击查看邀约详情"}
         >
             <span className="relative flex h-2 w-2 shrink-0">
                 <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${pingDotBg}`} />
                 <span className={`relative inline-flex rounded-full h-2 w-2 ${solidDotBg}`} />
             </span>
             <span className={`text-xs font-medium truncate ${isForcedTheme ? "text-gray-100" : "text-[var(--c-text-title,#111827)]"}`}>
-                {isOnTheWay
-                    ? `${charName}正在赶来，约剩${remainingMins > 0 ? remainingMins : 1}分钟后到达`
-                    : isArrived
-                    ? (() => {
-                        const isOriginByYourSide = invite.initialPlace === "你身边" || (!invite.initialPlace && invite.place === "你身边");
-                        const arrivedPlaceText = isOriginByYourSide
-                            ? "你身边"
-                            : (invite.place ? (invite.place === "你身边" ? "你身边" : `「${invite.place}」`) : "");
-                        const prefix = isAlertTheme ? "" : "✨ ";
-                        return `${prefix}${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`;
-                    })()
-                    : isHeComes
-                    ? (isAlertTheme ? `${charName} 执意来见你（待赴约）` : `${charName} 提议来见你（待赴约）`)
-                    : (isAlertTheme ? `${charName} 要求你前来赴约` : `${charName} 正在等候你赴约`)}
+                {isRetrying
+                    ? "正在回溯中……"
+                    : (isOnTheWay
+                        ? `${charName}正在赶来，约剩${remainingMins > 0 ? remainingMins : 1}分钟后到达`
+                        : isArrived
+                        ? (() => {
+                            const isOriginByYourSide = invite.initialPlace === "你身边" || (!invite.initialPlace && invite.place === "你身边");
+                            const arrivedPlaceText = isOriginByYourSide
+                                ? "你身边"
+                                : (invite.place ? (invite.place === "你身边" ? "你身边" : `「${invite.place}」`) : "");
+                            const prefix = isAlertTheme ? "" : "✨ ";
+                            return `${prefix}${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`;
+                        })()
+                        : isHeComes
+                        ? (isAlertTheme ? `${charName} 执意来见你（待赴约）` : `${charName} 提议来见你（待赴约）`)
+                        : (isAlertTheme ? `${charName} 要求你前来赴约` : `${charName} 正在等候你赴约`))
+                }
             </span>
-            {onAccept && (isArrived || !isHeComes) ? (
-                <button
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onAccept();
-                    }}
-                    className={`text-[11px] font-semibold px-2 py-0.5 rounded-full active:scale-95 transition-all shrink-0 cursor-pointer shadow-sm ${btnBg}`}
-                >
-                    去见Ta
-                </button>
-            ) : (
-                <span className={`text-[10px] font-semibold shrink-0 ${actionText}`}>
-                    {isOnTheWay ? "查看" : isArrived ? "去见Ta" : "处理"}
-                </span>
+            {!isRetrying && (
+                onAccept && (isArrived || !isHeComes) ? (
+                    <button
+                        type="button"
+                        onClick={(e) => {
+                            e.stopPropagation();
+                            onAccept();
+                        }}
+                        className={`text-[11px] font-semibold px-2 py-0.5 rounded-full active:scale-95 transition-all shrink-0 cursor-pointer shadow-sm ${btnBg}`}
+                    >
+                        去见Ta
+                    </button>
+                ) : (
+                    <span className={`text-[10px] font-semibold shrink-0 ${actionText}`}>
+                        {isOnTheWay ? "查看" : isArrived ? "去见Ta" : "处理"}
+                    </span>
+                )
             )}
         </div>
     );

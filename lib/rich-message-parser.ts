@@ -337,15 +337,14 @@ const RICH_PATTERNS: {
             const theme: "default" | "alert" | "forced" = isForced
                 ? "forced"
                 : ((rawTone || rawDir === "危机" || rawDir === "警报") ? "alert" : "default");
-            const direction: "he_comes" | "i_go" | undefined = isForced
+            let resolvedDirection: "he_comes" | "i_go" | undefined = isForced
                 ? "he_comes"
                 : (rawDir
                     ? ((rawDir === "我去" || rawDir === "你来" || rawDir === "用户去" || rawDir === "邀请赴约") ? "i_go" : "he_comes")
                     : undefined);
             const status = isForced ? ("on_the_way" as const) : ("pending" as const);
             const rawPlace = m[3]?.trim() || "";
-            // 华敏锐指出：地点是发起提议的前提！如果大模型在还没问出地点时胡乱把“你在哪/哪里/未定”填入地点，
-            // 绝不可强行包装成合法地点，应视为空，由后续逻辑拦截，让角色老老实实在正文中向用户问清楚！
+            // 若模型在未知地点时输出反问词（如“你在哪”），视为空地点拦截提议
             const isInvalidQuestionPlace = /^(?:你在[哪哪儿里]|在[哪哪儿里]|在哪个地方|去[哪哪儿里]|未知|未定|未知位置|不知道在哪[儿里]?)$/.test(rawPlace);
             const place = isInvalidQuestionPlace
                 ? ""
@@ -356,8 +355,16 @@ const RICH_PATTERNS: {
             let rawReason = "";
 
             if (m[5] !== undefined) {
-                timeStr = m[4]?.trim();
-                rawReason = m[5]?.trim() || "";
+                const seg4 = m[4]?.trim() || "";
+                const seg5 = m[5]?.trim() || "";
+                const isTimePattern = /^(?:\d+|半个?小时|一刻钟|\d+个?小时|\d+\s*(?:分钟|分|mins?|min)|(?:二十|三十|四十|五十|十五|十|五)[\d分]*)$/;
+                if (!isTimePattern.test(seg4) && isTimePattern.test(seg5)) {
+                    timeStr = seg5;
+                    rawReason = seg4;
+                } else {
+                    timeStr = seg4;
+                    rawReason = seg5;
+                }
             } else if (m[4] !== undefined) {
                 const segment = m[4].trim();
                 if (segment.includes("|")) {
@@ -369,25 +376,75 @@ const RICH_PATTERNS: {
                 }
             }
 
+            if (!resolvedDirection && !isForced) {
+                // 若大模型遗漏了方向标签：结合生活常理智能推断
+                const isByYourSide = place === "你身边";
+                const hasMultipleSegments = rawReason.includes("|");
+                const hasTime = Boolean(timeStr);
+                const mentionsComingOrPickingUp = /(?:接你|去找你|去你身边|动身|出门|在路上|赶过去|到你身边)/.test(rawReason);
+                const mentionsWaitingOrHere = /(?:等|在这|过来|留着|坐着|慢点走|别跑|来找我|爱来不来)/.test(rawReason);
+
+                if (isByYourSide || mentionsComingOrPickingUp || (hasTime && !mentionsWaitingOrHere) || hasMultipleSegments) {
+                    resolvedDirection = "he_comes";
+                } else {
+                    // 地点为具体场所且为单句等候语（或无用时参数），智能推断为角色在现场等候用户前来（我去）
+                    resolvedDirection = "i_go";
+                }
+            }
+
             const segments = rawReason.split("|").map(s => s.trim());
-            const reason = segments[0] || "";
-            const onTheWayMessage = segments[1] || "";
+            let reason = "";
+            let onTheWayMessage = "";
             let transitCardMessage = "";
             let arrivedMessage = "";
             let arrivalCardMessage = "";
 
-            if (segments.length >= 5) {
-                // 5段格式：提议由头 | 微信在途报备 | 卡片在途心语 | 微信到达呼唤 | 卡片到达私房心语
-                transitCardMessage = segments[2] || "";
-                arrivedMessage = segments[3] || "";
-                arrivalCardMessage = segments[4] || "";
-            } else if (segments.length === 4) {
-                // 4段格式：提议由头 | 微信在途报备 | 微信到达呼唤 | 卡片到达私房心语
-                arrivedMessage = segments[2] || "";
-                arrivalCardMessage = segments[3] || "";
-            } else if (segments.length >= 3) {
-                // 3段传统格式：提议由头 | 微信在途报备 | 微信到达呼唤
-                arrivedMessage = segments[2] || "";
+            if (isForced) {
+                // 🌟 华确立的红黑强行动身三大心语铁律：正文已为动身宣言，无需在途报备！只需 3 句话：
+                // 卡片在途心语 | 微信到达呼唤 | 卡片到达私房心语
+                onTheWayMessage = "";
+                if (segments.length === 3) {
+                    // 纯粹 3 句话标准格式
+                    transitCardMessage = segments[0] || "";
+                    arrivedMessage = segments[1] || "";
+                    arrivalCardMessage = segments[2] || "";
+                    reason = transitCardMessage;
+                } else if (segments.length >= 5) {
+                    // 兼容 5 段格式：提议由头 | 微信在途报备 | 卡片在途心语 | 微信到达呼唤 | 卡片到达心语
+                    reason = segments[0] || "";
+                    transitCardMessage = segments[2] || "";
+                    arrivedMessage = segments[3] || "";
+                    arrivalCardMessage = segments[4] || "";
+                } else if (segments.length === 4) {
+                    reason = segments[0] || "";
+                    transitCardMessage = segments[1] || "";
+                    arrivedMessage = segments[2] || "";
+                    arrivalCardMessage = segments[3] || "";
+                } else if (segments.length === 2) {
+                    arrivedMessage = segments[0] || "";
+                    arrivalCardMessage = segments[1] || "";
+                } else if (segments.length === 1) {
+                    transitCardMessage = segments[0] || "";
+                    arrivalCardMessage = segments[0] || "";
+                }
+            } else if (resolvedDirection === "i_go") {
+                // 🌟 华确立的【我去】铁律：仅需 1 句话（现场等候语 / 由头）
+                reason = segments[0] || "";
+                transitCardMessage = segments[0] || "";
+            } else {
+                // 🌟 华确立的【其他他来】标准 5 段格式：提议由头 | 微信在途报备 | 卡片在途心语 | 微信到达呼唤 | 卡片到达私房心语
+                reason = segments[0] || "";
+                onTheWayMessage = segments[1] || "";
+                if (segments.length >= 5) {
+                    transitCardMessage = segments[2] || "";
+                    arrivedMessage = segments[3] || "";
+                    arrivalCardMessage = segments[4] || "";
+                } else if (segments.length === 4) {
+                    arrivedMessage = segments[2] || "";
+                    arrivalCardMessage = segments[3] || "";
+                } else if (segments.length === 3) {
+                    arrivedMessage = segments[2] || "";
+                }
             }
 
             return {
@@ -395,7 +452,7 @@ const RICH_PATTERNS: {
                 mediaType: "offline_invite" as const,
                 mediaData: {
                     offlineInvite: {
-                        direction,
+                        direction: resolvedDirection,
                         theme,
                         place,
                         timeStr,
@@ -406,7 +463,7 @@ const RICH_PATTERNS: {
                         arrivalCardMessage,
                         status,
                     },
-                    label: `线下邀约:${direction === "i_go" ? "我去" : (isForced ? "强行动身" : "他来")}`,
+                    label: `线下邀约:${resolvedDirection === "i_go" ? "我去" : (isForced ? "强行动身" : "他来")}`,
                 },
             };
         },
@@ -428,8 +485,16 @@ const RICH_PATTERNS: {
             let rawArrival = "";
 
             if (m[4] !== undefined) {
-                timeStr = m[3]?.trim();
-                rawArrival = m[4]?.trim() || "";
+                const seg3 = m[3]?.trim() || "";
+                const seg4 = m[4]?.trim() || "";
+                const isTimePattern = /^(?:\d+|半个?小时|一刻钟|\d+个?小时|\d+\s*(?:分钟|分|mins?|min)|(?:二十|三十|四十|五十|十五|十|五)[\d分]*)$/;
+                if (!isTimePattern.test(seg3) && isTimePattern.test(seg4)) {
+                    timeStr = seg4;
+                    rawArrival = seg3;
+                } else {
+                    timeStr = seg3;
+                    rawArrival = seg4;
+                }
             } else if (m[3] !== undefined) {
                 const seg = m[3].trim();
                 if (seg.includes("|") || seg.length > 8 || !/^(?:\d+|半个?小时|一刻钟|\d+个?小时|\d+\s*(?:分钟|分|mins?|min)|(?:二十|三十|四十|五十|十五|十|五)[\d分]*)$/.test(seg)) {
@@ -522,8 +587,19 @@ const RICH_PATTERNS: {
         }),
     },
     {
-        // [封禁线下:次数:台词(可选)] — 角色封禁线下入口，需要用户敲门 N 次才触发角色主动回应
-        regex: new RegExp(`\\[封禁线下(?:${C}(\\d+))?(?:${C}([^\\]]+))?\\]`),
+        // [取消邀约] or [撤销邀约] or [收回邀约] or [取消赴约] or [撤销赴约]
+        regex: /\[(?:取消邀约|撤销邀约|收回邀约|取消赴约|撤销赴约)\]/,
+        build: () => ({
+            content: "",
+            mediaType: "offline_invite_cancel" as const,
+            mediaData: {
+                label: "取消邀约",
+            },
+        }),
+    },
+    {
+        // [封禁线下:次数:台词(可选)] / [线下封禁:次数:台词] / [封锁线下...] / [线下封锁...]
+        regex: new RegExp(`\\[(?:封禁线下|线下封禁|封锁线下|线下封锁)(?:${C}(\\d+))?(?:${C}([^\\]]+))?\\]`),
         build: (m) => ({
             content: "",
             mediaType: "offline_lock" as const,
@@ -537,8 +613,8 @@ const RICH_PATTERNS: {
         }),
     },
     {
-        // [解除封禁] — 角色主动解除线下封禁
-        regex: /\[解除封禁\]/,
+        // [解除封禁] / [解除线下封禁] / [解封线下] / [解除封锁] / [解除线下封锁] / [线下解封]（支持可选理由参数）
+        regex: new RegExp(`\\[(?:解除封禁|解除线下封禁|解封线下|解除封锁|解除线下封锁|线下解封)(?:${C}[^\\]]+)?\\]`),
         build: () => ({
             content: "",
             mediaType: "offline_unlock" as const,
@@ -905,7 +981,7 @@ export function parseAIResponse(rawText: string, previousState: StateValue[]): P
     // 1. Parse state values
     // 保护线下邀约/封禁/解除封禁相关指令，防止被 parseStateValues 误匹配为角色状态值属性（如 [封禁线下:2]）
     const offlineDirectivePlaceholders: { placeholder: string; original: string }[] = [];
-    const protectedForSV = protected_.replace(/\[(?:封禁线下|解除封禁|线下邀约|更改地点|修改地点|变更地点|提前到达|我已到达|到达现场|提前抵达|强行动身|强行赴约|霸道奔赴|执意赶来|执意奔赴|提醒赴约|再次邀约|重新邀约)(?:[:：][^\]]+)?\]/g, (match) => {
+    const protectedForSV = protected_.replace(/\[(?:封禁线下|线下封禁|封锁线下|线下封锁|解除封禁|解除线下封禁|解封线下|解除封锁|解除线下封锁|线下解封|线下邀约|更改地点|修改地点|变更地点|提前到达|我已到达|到达现场|提前抵达|强行动身|强行赴约|霸道奔赴|执意赶来|执意奔赴|提醒赴约|再次邀约|重新邀约|取消邀约|撤销邀约|收回邀约|取消赴约|撤销赴约)(?:[:：][^\]]+)?\]/g, (match) => {
         const placeholder = `\x00OFFLINE_DIR_${offlineDirectivePlaceholders.length}\x00`;
         offlineDirectivePlaceholders.push({ placeholder, original: match });
         return placeholder;
@@ -919,9 +995,10 @@ export function parseAIResponse(rawText: string, previousState: StateValue[]): P
         svCleanText = svCleanText.split(placeholder).join(original);
     }
 
-    // 彻底过滤掉名为“封禁线下”的状态值（防御历史继承与偶发异常）
-    const cleanPreviousState = (previousState || []).filter(sv => sv.name !== "封禁线下");
-    const cleanFreshSV = parsedSV.stateValues.filter(sv => sv.name !== "封禁线下");
+    // 彻底过滤掉名为“封禁线下/线下封禁”的状态值（防御历史继承与偶发异常）
+    const isLockSVName = (name?: string) => name === "封禁线下" || name === "线下封禁" || name === "解除封禁" || name === "解封线下";
+    const cleanPreviousState = (previousState || []).filter(sv => !isLockSVName(sv.name));
+    const cleanFreshSV = parsedSV.stateValues.filter(sv => !isLockSVName(sv.name));
     const stateValues = mergeStateValues(cleanPreviousState, cleanFreshSV);
 
     // 1.5. Strip AI hallucination XML/bracket action shells
@@ -934,7 +1011,7 @@ export function parseAIResponse(rawText: string, previousState: StateValue[]): P
     // 过滤内心独白中可能夹带的封禁线下指令，避免在外显便利贴中暴露
     let monoCleanedContent = mono.content;
     let lockFromMono: ParsedMessagePart | null = null;
-    const lockMatchInMono = monoCleanedContent.match(/\[封禁线下(?:[:：](\d+))?(?:[:：]([^\]]+))?\]/);
+    const lockMatchInMono = monoCleanedContent.match(/\[(?:封禁线下|线下封禁|封锁线下|线下封锁)(?:[:：](\d+))?(?:[:：]([^\]]+))?\]/);
     if (lockMatchInMono) {
         lockFromMono = {
             content: "",
@@ -947,16 +1024,16 @@ export function parseAIResponse(rawText: string, previousState: StateValue[]): P
                 label: "封禁线下",
             },
         };
-        monoCleanedContent = monoCleanedContent.replace(/\[封禁线下(?:[:：][^\]]+)?\]/g, "").trim();
+        monoCleanedContent = monoCleanedContent.replace(/\[(?:封禁线下|线下封禁|封锁线下|线下封锁)(?:[:：][^\]]+)?\]/g, "").trim();
     }
-    if (/\[解除封禁\]/.test(monoCleanedContent)) {
+    if (/\[(?:解除封禁|解除线下封禁|解封线下|解除封锁|解除线下封锁|线下解封)(?:[:：][^\]]+)?\]/.test(monoCleanedContent)) {
         if (!lockFromMono) {
             lockFromMono = {
                 content: "",
                 mediaType: "offline_unlock" as const,
             };
         }
-        monoCleanedContent = monoCleanedContent.replace(/\[解除封禁\]/g, "").trim();
+        monoCleanedContent = monoCleanedContent.replace(/\[(?:解除封禁|解除线下封禁|解封线下|解除封锁|解除线下封锁|线下解封)(?:[:：][^\]]+)?\]/g, "").trim();
     }
 
     // 2.1. Collapse residual blank lines left by tag extraction
