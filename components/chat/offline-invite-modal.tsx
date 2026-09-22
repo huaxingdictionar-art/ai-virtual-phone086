@@ -697,7 +697,7 @@ export function OfflineInviteModal({
                                                 : isArrived
                                                 ? `${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`
                                                 : isHeComes
-                                                ? (isAlertTheme ? `${charName} 执意来见你` : `${charName} 提议来见你`)
+                                                ? (isAlertTheme ? `${charName} 紧急提议来见你` : `${charName} 提议来见你`)
                                                 : (isAlertTheme ? `${charName} “邀请你”赴约` : `${charName} 邀请你赴约`)}
                                         </h3>
                                     );
@@ -887,7 +887,7 @@ export function OfflineInviteCapsule({
                             return `${prefix}${charName} ${invite.isEarlyArrived ? "已提前到达" : "已到达"}${arrivedPlaceText}`;
                         })()
                         : isHeComes
-                        ? (isAlertTheme ? `${charName} 执意来见你（待赴约）` : `${charName} 提议来见你（待赴约）`)
+                        ? (isAlertTheme ? `${charName} 紧急提议来见你（待赴约）` : `${charName} 提议来见你（待赴约）`)
                         : (isAlertTheme ? `${charName} 要求你前来赴约` : `${charName} 正在等候你赴约`))
                 }
             </span>

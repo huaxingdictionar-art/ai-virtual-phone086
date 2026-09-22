@@ -606,10 +606,11 @@ function restoreOfflineInviteFromMessages(
                 const data = m.mediaData?.offlineInvite;
                 if (data) {
                     rootMsgIndex = i;
+                    const isForced = data.theme === "forced" || data.status === "on_the_way";
                     baseInvite = {
-                        direction: data.direction || "he_comes",
-                        status: "pending",
-                        theme: data.theme || "default",
+                        direction: isForced ? "he_comes" : (data.direction || "he_comes"),
+                        status: isForced ? "on_the_way" : (data.status === "arrived" ? "arrived" : "pending"),
+                        theme: data.theme || (isForced ? "forced" : "default"),
                         place: data.place || "约定地点",
                         reason: data.reason || "",
                         onTheWayMessage: data.onTheWayMessage,
@@ -649,11 +650,12 @@ function restoreOfflineInviteFromMessages(
                                        m.content.match(/[「"“]([^」"”]+)[」"”]/) ||
                                        m.content.match(/(你身边)/);
                     const parsedPlace = placeMatch?.[1]?.trim() || "约定地点";
-                    const isIGo = m.content.includes("变更为由你") || m.content.includes("等候你碰面") || m.content.includes("就位等候");
+                    const isForcedNotice = m.content.includes("已直接动身") || m.content.includes("强行动身");
+                    const isIGo = !isForcedNotice && (m.content.includes("变更为由你") || m.content.includes("等候你碰面") || m.content.includes("就位等候"));
                     baseInvite = {
-                        direction: isIGo ? "i_go" : "he_comes",
-                        status: "pending",
-                        theme: "default",
+                        direction: isForcedNotice ? "he_comes" : (isIGo ? "i_go" : "he_comes"),
+                        status: isForcedNotice ? "on_the_way" : "pending",
+                        theme: isForcedNotice ? "forced" : "default",
                         place: parsedPlace,
                         reason: "",
                         durationMinutes: 15,
@@ -841,10 +843,11 @@ function restoreOfflineInviteFromMessages(
     const hasAcceptedInHistory = relevantMsgs.some(m =>
         m.role === "system" && m.content && m.content.includes("你已同意赴约")
     );
-    // 强制出发判定：若存在用户同意记录则属于约定赴约，非强制
+    // 强制出发判定：若存在用户同意记录则属于约定赴约，非强制；
+    // 且必须有真实的动身系统灰字记录作为物理支撑，不能脱离系统灰字悬空存在！
     const hasForcedDeparture = !hasAcceptedInHistory && relevantMsgs.some(m =>
-        (m.role === "system" && m.content && (m.content.includes("已直接动身赶往") || m.content.includes("已直接动身"))) ||
-        m.mediaData?.offlineInvite?.theme === "forced"
+        (m.role === "system" || m.mediaType === "offline_invite_system_notice") &&
+        m.content && (m.content.includes("已直接动身赶往") || m.content.includes("已直接动身") || m.content.includes("强行动身"))
     );
     const hasDepartedInHistory = hasAcceptedInHistory || hasForcedDeparture;
 
@@ -884,6 +887,17 @@ function restoreOfflineInviteFromMessages(
     } else {
         restored.isEarlyArrived = false;
         restored.hasFiredArrivalMessage = false;
+
+        // 🚨 红黑强制动身铁律：红黑只有在途、到达和碰面进行中三种合法状态，
+        // 绝对没有 i_go 方向，也绝不存在未动身的待答应 (pending) 状态！
+        // 若动身记录已被删除且未到达，红黑赴约必须直接连根拔起（返回 null），绝不允许倒退成待答应鬼魂！
+        const isThemeForced = restored.theme === "forced" || baseInvite?.theme === "forced";
+        if (isThemeForced) {
+            if (restored.direction === "i_go" || !hasDepartedInHistory) {
+                return null;
+            }
+        }
+
         if (restored.direction === "i_go") {
             restored.status = "pending";
             restored.startTime = undefined;
@@ -1028,6 +1042,9 @@ function restoreOfflineInviteFromMessages(
                 }
             }
         } else if (!hasDepartedInHistory && restored.direction === "he_comes") {
+            if (restored.theme === "forced" || baseInvite?.theme === "forced") {
+                return null;
+            }
             restored.status = "pending";
             restored.startTime = undefined;
         }
@@ -1037,6 +1054,13 @@ function restoreOfflineInviteFromMessages(
     const historyBatchIds = new Set(historyMessages.map(m => m.responseBatchId).filter(Boolean));
     const validRelated = (baseInvite.relatedBatchIds || []).filter(id => historyBatchIds.has(id));
     restored.relatedBatchIds = validRelated;
+
+    // 🚨 红黑强制赴约终极不变式防御：绝对杜绝任何待答应或我去状态
+    if (restored.theme === "forced") {
+        if (restored.direction !== "he_comes" || (restored.status !== "on_the_way" && restored.status !== "arrived")) {
+            return null;
+        }
+    }
 
     return restored;
 }
@@ -8073,34 +8097,53 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             // 若全部支撑柱子都已被删除（苦苦支撑的最后一根柱子被拔），严禁越界从历史旧账中恢复幽灵邀约，直接判空！
             let simulatedNextInvite: OfflineInviteData | null = null;
             if (currentInvite) {
+                const isCurrentForced = currentInvite.theme === "forced";
                 const rootId = currentInvite.initialBatchId || currentInvite.sourceBatchId;
-                const hasPillarsForCurrentInvite = simulatedRemaining.some(m =>
-                    (rootId && (m.responseBatchId === rootId || m.id === rootId)) ||
-                    (currentInvite.relatedBatchIds && m.responseBatchId && currentInvite.relatedBatchIds.includes(m.responseBatchId)) ||
-                    m.mediaType === "offline_invite" ||
-                    m.mediaType === "offline_invite_change_place" ||
-                    m.mediaType === "offline_invite_early_arrive" ||
-                    m.mediaType === "offline_invite_arrive_notice" ||
-                    Boolean(m.mediaData?.offlineInvite) ||
-                    (m.role === "system" && Boolean(m.content && (
-                        /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
-                        /“请求”前往|“邀请你”前往/.test(m.content) ||
-                        m.content.includes("你已同意赴约") ||
-                        m.content.includes("已直接动身赶往") ||
-                        m.content.includes("已直接动身") ||
-                        m.content.includes("正在动身赶往") ||
-                        m.content.includes("正在重新赶往") ||
-                        m.content.includes("赴约地点已更改为") ||
-                        m.content.includes("碰头方式已变更为") ||
-                        m.content.includes("赴约提议地点已更改为") ||
-                        m.content.includes("赴约提议已变更为") ||
-                        m.content.includes("已如约到达") ||
-                        m.content.includes("“如约”到达") ||
-                        m.content.includes("已提前到达") ||
-                        (m.content.includes("已在") && m.content.includes("就位等候")) ||
-                        (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
-                    )))
-                );
+                const hasPillarsForCurrentInvite = simulatedRemaining.some(m => {
+                    // 红黑强行动身专属铁律：红黑没有待答应提议阶段，其唯一支柱只能是动身、到达或碰面系统记录！
+                    // 绝不能仅凭 assistant 文本消息作为红黑在途的柱子
+                    if (isCurrentForced) {
+                        return (
+                            (m.role === "system" || m.mediaType === "offline_invite_system_notice") && Boolean(m.content && (
+                                m.content.includes("已直接动身赶往") ||
+                                m.content.includes("已直接动身") ||
+                                m.content.includes("强行动身") ||
+                                m.content.includes("正在重新赶往") ||
+                                m.content.includes("已如约到达") ||
+                                m.content.includes("“如约”到达") ||
+                                m.content.includes("已提前到达") ||
+                                (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
+                            ))
+                        );
+                    }
+                    return (
+                        (rootId && (m.responseBatchId === rootId || m.id === rootId)) ||
+                        (currentInvite.relatedBatchIds && m.responseBatchId && currentInvite.relatedBatchIds.includes(m.responseBatchId)) ||
+                        m.mediaType === "offline_invite" ||
+                        m.mediaType === "offline_invite_change_place" ||
+                        m.mediaType === "offline_invite_early_arrive" ||
+                        m.mediaType === "offline_invite_arrive_notice" ||
+                        Boolean(m.mediaData?.offlineInvite) ||
+                        (m.role === "system" && Boolean(m.content && (
+                            /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
+                            /“请求”前往|“邀请你”前往/.test(m.content) ||
+                            m.content.includes("你已同意赴约") ||
+                            m.content.includes("已直接动身赶往") ||
+                            m.content.includes("已直接动身") ||
+                            m.content.includes("正在动身赶往") ||
+                            m.content.includes("正在重新赶往") ||
+                            m.content.includes("赴约地点已更改为") ||
+                            m.content.includes("碰头方式已变更为") ||
+                            m.content.includes("赴约提议地点已更改为") ||
+                            m.content.includes("赴约提议已变更为") ||
+                            m.content.includes("已如约到达") ||
+                            m.content.includes("“如约”到达") ||
+                            m.content.includes("已提前到达") ||
+                            (m.content.includes("已在") && m.content.includes("就位等候")) ||
+                            (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
+                        )))
+                    );
+                });
                 if (hasPillarsForCurrentInvite) {
                     simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, currentInvite);
                 }
@@ -8346,35 +8389,53 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         );
 
         if (currentInvite && isInviteRelated) {
-            // 对批量删除后的剩余消息进行智能物理预演：支撑柱子归零检测
+            const isCurrentForced = currentInvite.theme === "forced";
             const rootId = currentInvite.initialBatchId || currentInvite.sourceBatchId;
-            const hasPillarsForCurrentInvite = simulatedRemaining.some(m =>
-                (rootId && (m.responseBatchId === rootId || m.id === rootId)) ||
-                (currentInvite.relatedBatchIds && m.responseBatchId && currentInvite.relatedBatchIds.includes(m.responseBatchId)) ||
-                m.mediaType === "offline_invite" ||
-                m.mediaType === "offline_invite_change_place" ||
-                m.mediaType === "offline_invite_early_arrive" ||
-                m.mediaType === "offline_invite_arrive_notice" ||
-                Boolean(m.mediaData?.offlineInvite) ||
-                (m.role === "system" && Boolean(m.content && (
-                    /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
-                    /“请求”前往|“邀请你”前往/.test(m.content) ||
-                    m.content.includes("你已同意赴约") ||
-                    m.content.includes("已直接动身赶往") ||
-                    m.content.includes("已直接动身") ||
-                    m.content.includes("正在动身赶往") ||
-                    m.content.includes("正在重新赶往") ||
-                    m.content.includes("赴约地点已更改为") ||
-                    m.content.includes("碰头方式已变更为") ||
-                    m.content.includes("赴约提议地点已更改为") ||
-                    m.content.includes("赴约提议已变更为") ||
-                    m.content.includes("已如约到达") ||
-                    m.content.includes("“如约”到达") ||
-                    m.content.includes("已提前到达") ||
-                    (m.content.includes("已在") && m.content.includes("就位等候")) ||
-                    (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
-                )))
-            );
+            const hasPillarsForCurrentInvite = simulatedRemaining.some(m => {
+                // 红黑强行动身专属铁律：红黑没有待答应提议阶段，其唯一支柱只能是动身、到达或碰面系统记录！
+                // 绝不能仅凭 assistant 文本消息作为红黑在途的柱子
+                if (isCurrentForced) {
+                    return (
+                        (m.role === "system" || m.mediaType === "offline_invite_system_notice") && Boolean(m.content && (
+                            m.content.includes("已直接动身赶往") ||
+                            m.content.includes("已直接动身") ||
+                            m.content.includes("强行动身") ||
+                            m.content.includes("正在重新赶往") ||
+                            m.content.includes("已如约到达") ||
+                            m.content.includes("“如约”到达") ||
+                            m.content.includes("已提前到达") ||
+                            (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
+                        ))
+                    );
+                }
+                return (
+                    (rootId && (m.responseBatchId === rootId || m.id === rootId)) ||
+                    (currentInvite.relatedBatchIds && m.responseBatchId && currentInvite.relatedBatchIds.includes(m.responseBatchId)) ||
+                    m.mediaType === "offline_invite" ||
+                    m.mediaType === "offline_invite_change_place" ||
+                    m.mediaType === "offline_invite_early_arrive" ||
+                    m.mediaType === "offline_invite_arrive_notice" ||
+                    Boolean(m.mediaData?.offlineInvite) ||
+                    (m.role === "system" && Boolean(m.content && (
+                        /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
+                        /“请求”前往|“邀请你”前往/.test(m.content) ||
+                        m.content.includes("你已同意赴约") ||
+                        m.content.includes("已直接动身赶往") ||
+                        m.content.includes("已直接动身") ||
+                        m.content.includes("正在动身赶往") ||
+                        m.content.includes("正在重新赶往") ||
+                        m.content.includes("赴约地点已更改为") ||
+                        m.content.includes("碰头方式已变更为") ||
+                        m.content.includes("赴约提议地点已更改为") ||
+                        m.content.includes("赴约提议已变更为") ||
+                        m.content.includes("已如约到达") ||
+                        m.content.includes("“如约”到达") ||
+                        m.content.includes("已提前到达") ||
+                        (m.content.includes("已在") && m.content.includes("就位等候")) ||
+                        (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
+                    )))
+                );
+            });
 
             const simulatedNextInvite = hasPillarsForCurrentInvite
                 ? restoreOfflineInviteFromMessages(simulatedRemaining, currentInvite)
