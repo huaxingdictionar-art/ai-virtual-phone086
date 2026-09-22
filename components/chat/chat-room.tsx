@@ -872,8 +872,34 @@ function restoreOfflineInviteFromMessages(
             const departureMsg = departureIdx !== -1 ? historyMessages[departureIdx] : null;
             const messagesAfterDeparture = departureIdx !== -1 ? historyMessages.slice(departureIdx + 1) : [];
 
-            // 非重试回溯场景下保持原有真实物理 startTime，避免时间跳变
-            if (!targetRetryMsg && baseInvite?.status === "on_the_way" && baseInvite.startTime) {
+            // 检查当前历史记录中的在途最新节点
+            let latestInTransitSnapshotSecs: number | null = null;
+            let latestInTransitSnapshotMins: number | null = null;
+            for (let i = historyMessages.length - 1; i >= searchFloor; i--) {
+                const m = historyMessages[i];
+                if (m.role === "assistant" && (m.mediaData?.inTransitRemainingSeconds || m.mediaData?.inTransitRemainingMinutes)) {
+                    latestInTransitSnapshotSecs = m.mediaData.inTransitRemainingSeconds ?? ((m.mediaData.inTransitRemainingMinutes || 15) * 60);
+                    latestInTransitSnapshotMins = m.mediaData.inTransitRemainingMinutes || Math.max(1, Math.ceil(latestInTransitSnapshotSecs / 60));
+                    break;
+                }
+            }
+
+            // 计算当前 baseInvite 物理流逝下的剩余秒数
+            let currentPhysicsRemainingSecs = 0;
+            if (baseInvite?.startTime && baseInvite.durationMinutes) {
+                const elapsedSec = Math.floor((Date.now() - baseInvite.startTime) / 1000);
+                currentPhysicsRemainingSecs = Math.max(0, (baseInvite.durationMinutes * 60) - elapsedSec);
+            }
+
+            const assistantRounds = messagesAfterDeparture.filter(m => m.role === "assistant").length;
+
+            // 若发生时间轮回溯（出发后的回复已被全删、或快照时间明显大于当前物理剩余时间），
+            // 则必须打破原有 startTime 锁死，放行进入下方的 4 层回退算法！
+            const isRewoundToStart = assistantRounds === 0 && Boolean(baseInvite?.startTime);
+            const isRewoundBySnapshot = latestInTransitSnapshotSecs !== null && (latestInTransitSnapshotSecs > currentPhysicsRemainingSecs + 15);
+
+            // 仅在非回溯、时间线自然向前推进的正常同步场景下保持原有物理 startTime，避免微小抖动
+            if (!targetRetryMsg && baseInvite?.status === "on_the_way" && baseInvite.startTime && !isRewoundToStart && !isRewoundBySnapshot) {
                 restored.startTime = baseInvite.startTime;
                 restored.durationMinutes = baseInvite.durationMinutes || duration;
                 restored.status = "on_the_way";
@@ -8214,21 +8240,57 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             }
         }
 
-        if (targetMessages.some(isOfflineInviteRootMessage)) {
+        const currentInvite = activeOfflineInviteRef.current;
+        const targetIds = new Set(targetMessages.map(m => m.id));
+        const simulatedRemaining = storedMessages.filter(m => !targetIds.has(m.id));
+
+        const isInviteRelated = targetMessages.some(m =>
+            isOfflineInviteRootMessage(m) ||
+            isOfflineInviteSystemMessage(m) ||
+            m.mediaType === "offline_invite" ||
+            m.mediaType === "offline_invite_change_place" ||
+            m.mediaType === "offline_invite_early_arrive" ||
+            m.mediaType === "offline_invite_arrive_notice" ||
+            Boolean(m.mediaData?.offlineInvite)
+        );
+
+        if (currentInvite && isInviteRelated) {
+            // 对批量删除后的剩余消息进行智能物理预演
+            const simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, null);
+
+            // 分流 1：连根拔起（删除后没有任何支撑节点了，最初发起提议也被连根拔起）
+            if (!simulatedNextInvite) {
+                setPendingInviteDeleteConfirm({
+                    title: "删除邀约记录？",
+                    message: "删除该记录及后续消息将清除本次线下赴约状态。是否确认删除？",
+                    confirmLabel: "确认删除",
+                    variant: "danger",
+                    onConfirm: () => {
+                        // 确认批量删除包含邀约根节点的内容：清空赴约状态与活跃标记，结束线下赴约
+                        kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
+                        kvRemove(OFFLINE_INVITE_ACTIVE_THEME_PREFIX + session.id);
+                        kvRemove(PENDING_OFFLINE_INVITE_DECLINE_PREFIX + session.id);
+                        kvRemove(OFFLINE_INVITE_DECLINE_COUNT_PREFIX + session.id);
+                        updateActiveOfflineInvite(null);
+                        setIsOfflineInviteMinimized(false);
+                        if (remindExpandTimerRef.current) {
+                            clearTimeout(remindExpandTimerRef.current);
+                            remindExpandTimerRef.current = null;
+                        }
+                        executeDeleteFrom();
+                    },
+                });
+                return;
+            }
+
+            // 分流 2：状态倒带 / 撤销回溯（生命之根依然健在，撤销对应进展，赴约状态同步回溯）
             setPendingInviteDeleteConfirm({
-                title: "删除以下消息？",
-                message: "删除的内容中包含本次线下赴约的发起或变动消息，删除后将直接清除当前的赴约状态。若只想回退赴约状态，可取消并重试消息。",
-                confirmLabel: "删除",
+                title: "删除变动记录？",
+                message: "删除该记录及后续消息将撤销对应进展，赴约状态将同步回溯。是否确认删除？",
+                confirmLabel: "确认删除",
                 variant: "danger",
                 onConfirm: () => {
-                    // 确认批量删除包含邀约节点的内容：清空赴约状态与活跃标记，结束线下赴约
-                    kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
-                    updateActiveOfflineInvite(null);
-                    setIsOfflineInviteMinimized(false);
-                    if (remindExpandTimerRef.current) {
-                        clearTimeout(remindExpandTimerRef.current);
-                        remindExpandTimerRef.current = null;
-                    }
+                    updateActiveOfflineInvite(simulatedNextInvite);
                     executeDeleteFrom();
                 },
             });
