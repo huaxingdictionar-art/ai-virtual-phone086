@@ -585,11 +585,22 @@ function restoreOfflineInviteFromMessages(
     }
     const currentRoundFloor = lastEndNoticeIdxInHistory !== -1 ? lastEndNoticeIdxInHistory + 1 : 0;
 
-    // 若未传入 fallbackInvite（如单聊刚导入或无 KV 水合）：自动从历史消息中寻找最初发起提议的生命之根
+    // 若未传入 fallbackInvite（如单聊刚导入或无 KV 水合）：自动从历史消息中寻找当前轮次最初发起提议的生命之根
     let baseInvite: OfflineInviteData | null = fallbackInvite ? { ...fallbackInvite } : null;
     let rootMsgIndex = -1;
+
+    // 在 currentRoundFloor 之后的区间内，定位最后一条终结事件（取消/婉拒/关闭）
+    let lastTerminationIdxInRound = -1;
+    for (let i = historyMessages.length - 1; i >= currentRoundFloor; i--) {
+        if (isOfflineInviteTerminatedMessage(historyMessages[i])) {
+            lastTerminationIdxInRound = i;
+            break;
+        }
+    }
+    const effectiveSearchStart = lastTerminationIdxInRound !== -1 ? lastTerminationIdxInRound + 1 : currentRoundFloor;
+
     if (!baseInvite) {
-        for (let i = currentRoundFloor; i < historyMessages.length; i++) {
+        for (let i = effectiveSearchStart; i < historyMessages.length; i++) {
             const m = historyMessages[i];
             if (m.mediaType === "offline_invite" || m.mediaData?.offlineInvite) {
                 const data = m.mediaData?.offlineInvite;
@@ -628,9 +639,9 @@ function restoreOfflineInviteFromMessages(
         }
     }
 
-    // 终结事件硬约束：若在最初发起提议的节点之后出现了取消、婉拒、返回线上或关闭入口等终结事件，
+    // 终结事件硬约束：若在发起提议的节点之后出现了取消、婉拒、返回线上或关闭入口等终结事件，
     // 且终止后并未重新发起新的邀约，则本次邀约已彻底终结，绝不可作为活跃邀约恢复！
-    const terminationSearchStart = rootMsgIndex >= 0 ? rootMsgIndex + 1 : currentRoundFloor;
+    const terminationSearchStart = rootMsgIndex >= 0 ? rootMsgIndex + 1 : effectiveSearchStart;
     for (let i = terminationSearchStart; i < historyMessages.length; i++) {
         if (isOfflineInviteTerminatedMessage(historyMessages[i])) {
             return null;
@@ -6988,9 +6999,11 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 }
             }
 
-            // 重试状态保全与根截断处理：
-            if (currentInvite && currentInvite.sourceBatchId !== "mock_offline_invite") {
-                if (truncatesInitialRoot) {
+            // 重试状态保全、根截断与历史回溯处理：
+            if (session.enableOfflineInvite && !session.isGroup) {
+                if (currentInvite?.sourceBatchId === "mock_offline_invite") {
+                    // mock 数据保持原样
+                } else if (truncatesInitialRoot) {
                     // 若重试截断了最初发起消息，彻底取消邀约
                     updateActiveOfflineInvite(null);
                     setIsOfflineInviteMinimized(false);
@@ -6998,15 +7011,34 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                         clearTimeout(remindExpandTimerRef.current);
                         remindExpandTimerRef.current = null;
                     }
+                    kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
+                    kvRemove(OFFLINE_INVITE_ACTIVE_THEME_PREFIX + session.id);
                 } else {
-                    // 若重试的是中间节点或普通回复（如中途改地址或在途闲聊时 AI 崩了/OOC），
-                    // 绝不能无脑将整个赴约状态一锅端取消！
-                    // 基于 contextMessages 智能回滚/保全邀约状态，使大模型重新生成时依然能拿到完整的赴约提示词上下文！
-                    const restoredInvite = restoreOfflineInviteFromMessages(contextMessages, currentInvite, targetRetryMsg);
-                    if (restoredInvite) {
-                        updateActiveOfflineInvite(restoredInvite);
-                        // 重试期间保持收起状态，避免遮挡“对方正在输入中”提示
-                        setIsOfflineInviteMinimized(true);
+                    // 检查回退后的 contextMessages 中是否包含碰面记录
+                    const contextHasMeetingNotice = contextMessages.some(m =>
+                        (m.role === "system" || m.mediaType === "offline_invite_system_notice") &&
+                        Boolean(m.content && m.content.includes("线下碰面中"))
+                    );
+
+                    if (contextHasMeetingNotice) {
+                        // 回溯至线下碰面中
+                        kvSet(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id, "1");
+                        updateActiveOfflineInvite(null);
+                        setIsOfflineInviteMinimized(false);
+                    } else {
+                        // 回溯至碰面前的赴约等候/在途状态
+                        kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
+                        kvRemove(OFFLINE_INVITE_ACTIVE_THEME_PREFIX + session.id);
+                        // 无论当前 activeOfflineInvite 是否存在（如已返回线上为 null），只要回退后的上下文包含未终结的赴约提议，立即智能回溯复活！
+                        const restoredInvite = restoreOfflineInviteFromMessages(contextMessages, currentInvite, targetRetryMsg);
+                        if (restoredInvite) {
+                            updateActiveOfflineInvite(restoredInvite);
+                            // 重试期间保持收起状态，避免遮挡“对方正在输入中”提示
+                            setIsOfflineInviteMinimized(true);
+                        } else if (currentInvite) {
+                            updateActiveOfflineInvite(null);
+                            setIsOfflineInviteMinimized(false);
+                        }
                     }
                 }
             }
