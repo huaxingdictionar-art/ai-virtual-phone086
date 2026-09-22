@@ -729,7 +729,30 @@ function restoreOfflineInviteFromMessages(
             ))
           );
 
-    if (!hasRoot) {
+    const hasSystemPillars = historyMessages.some(m =>
+        (m.role === "system" || m.mediaType === "offline_invite_system_notice") && Boolean(m.content && (
+            /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
+            /“请求”前往|“邀请你”前往/.test(m.content) ||
+            m.content.includes("线下赴约提议") ||
+            m.content.includes("你已同意赴约") ||
+            m.content.includes("已直接动身赶往") ||
+            m.content.includes("已直接动身") ||
+            m.content.includes("强行动身") ||
+            m.content.includes("正在动身赶往") ||
+            m.content.includes("正在重新赶往") ||
+            m.content.includes("赴约地点已更改为") ||
+            m.content.includes("碰头方式已变更为") ||
+            m.content.includes("赴约提议地点已更改为") ||
+            m.content.includes("赴约提议已变更为") ||
+            m.content.includes("已如约到达") ||
+            m.content.includes("“如约”到达") ||
+            m.content.includes("已提前到达") ||
+            (m.content.includes("已在") && m.content.includes("就位等候")) ||
+            (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
+        ))
+    );
+
+    if (!hasRoot || !hasSystemPillars) {
         return null;
     }
 
@@ -8111,38 +8134,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             const simulatedRemaining = storedMsgs.filter(m => m.id !== targetMsg.id);
             const currentInvite = activeOfflineInviteRef.current;
 
-            // 支撑柱子归零检测：若当前处于活跃邀约中，检查剩余消息中是否仍存有支撑当前邀约的柱子（提议/动身/改地点/到达/碰面）
-            // 若全部支撑柱子都已被删除（苦苦支撑的最后一根柱子被拔），严禁越界从历史旧账中恢复幽灵邀约，直接判空！
-            let simulatedNextInvite: OfflineInviteData | null = null;
-            if (currentInvite) {
-                const hasPillarsForCurrentInvite = simulatedRemaining.some(m =>
-                    (m.role === "system" || m.mediaType === "offline_invite_system_notice") && Boolean(m.content && (
-                        /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
-                        /“请求”前往|“邀请你”前往/.test(m.content) ||
-                        m.content.includes("线下赴约提议") ||
-                        m.content.includes("你已同意赴约") ||
-                        m.content.includes("已直接动身赶往") ||
-                        m.content.includes("已直接动身") ||
-                        m.content.includes("强行动身") ||
-                        m.content.includes("正在动身赶往") ||
-                        m.content.includes("正在重新赶往") ||
-                        m.content.includes("赴约地点已更改为") ||
-                        m.content.includes("碰头方式已变更为") ||
-                        m.content.includes("赴约提议地点已更改为") ||
-                        m.content.includes("赴约提议已变更为") ||
-                        m.content.includes("已如约到达") ||
-                        m.content.includes("“如约”到达") ||
-                        m.content.includes("已提前到达") ||
-                        (m.content.includes("已在") && m.content.includes("就位等候")) ||
-                        (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
-                    ))
-                );
-                if (hasPillarsForCurrentInvite) {
-                    simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, currentInvite);
-                }
-            } else {
-                simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, null);
-            }
+            // 【状态栏预处理钓鱼竿】：以删除后的剩余消息模拟计算下一个状态栏
+            const simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, currentInvite);
 
             // 状态倒退判定函数
             const isInviteStateRegressed = (cur: OfflineInviteData | null, next: OfflineInviteData | null): boolean => {
@@ -8382,34 +8375,10 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         );
 
         if (currentInvite && isInviteRelated) {
-            const hasPillarsForCurrentInvite = simulatedRemaining.some(m =>
-                (m.role === "system" || m.mediaType === "offline_invite_system_notice") && Boolean(m.content && (
-                    /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
-                    /“请求”前往|“邀请你”前往/.test(m.content) ||
-                    m.content.includes("线下赴约提议") ||
-                    m.content.includes("你已同意赴约") ||
-                    m.content.includes("已直接动身赶往") ||
-                    m.content.includes("已直接动身") ||
-                    m.content.includes("强行动身") ||
-                    m.content.includes("正在动身赶往") ||
-                    m.content.includes("正在重新赶往") ||
-                    m.content.includes("赴约地点已更改为") ||
-                    m.content.includes("碰头方式已变更为") ||
-                    m.content.includes("赴约提议地点已更改为") ||
-                    m.content.includes("赴约提议已变更为") ||
-                    m.content.includes("已如约到达") ||
-                    m.content.includes("“如约”到达") ||
-                    m.content.includes("已提前到达") ||
-                    (m.content.includes("已在") && m.content.includes("就位等候")) ||
-                    (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
-                ))
-            );
+            // 【状态栏预处理钓鱼竿】：以删除后的剩余消息模拟计算下一个状态栏
+            const simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, currentInvite);
 
-            const simulatedNextInvite = hasPillarsForCurrentInvite
-                ? restoreOfflineInviteFromMessages(simulatedRemaining, currentInvite)
-                : null;
-
-            // 分流 1：连根拔起（删除后没有任何支撑节点了，最初发起提议也被连根拔起）
+            // 分流 1：连根拔起（删除后状态栏没了，彻底清除本次线下赴约状态）
             if (!simulatedNextInvite) {
                 setPendingInviteDeleteConfirm({
                     title: "删除邀约记录？",
@@ -8933,30 +8902,11 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         );
 
         if (currentInvite && targetHasInviteRelated) {
-            const hasPillarsInSurviving = surviving.some(m =>
-                (m.role === "system" || m.mediaType === "offline_invite_system_notice") && Boolean(m.content && (
-                    /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
-                    /“请求”前往|“邀请你”前往/.test(m.content) ||
-                    m.content.includes("线下赴约提议") ||
-                    m.content.includes("你已同意赴约") ||
-                    m.content.includes("已直接动身赶往") ||
-                    m.content.includes("已直接动身") ||
-                    m.content.includes("强行动身") ||
-                    m.content.includes("正在动身赶往") ||
-                    m.content.includes("正在重新赶往") ||
-                    m.content.includes("赴约地点已更改为") ||
-                    m.content.includes("碰头方式已变更为") ||
-                    m.content.includes("赴约提议地点已更改为") ||
-                    m.content.includes("赴约提议已变更为") ||
-                    m.content.includes("已如约到达") ||
-                    m.content.includes("“如约”到达") ||
-                    m.content.includes("已提前到达") ||
-                    (m.content.includes("已在") && m.content.includes("就位等候")) ||
-                    (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
-                ))
-            );
+            // 【状态栏预处理钓鱼竿】：以多选删除后的剩余消息模拟计算下一个状态栏
+            const nextInvite = restoreOfflineInviteFromMessages(surviving, currentInvite);
 
-            if (!hasPillarsInSurviving) {
+            if (!nextInvite) {
+                // 状态栏没了：彻底清空本次线下赴约
                 kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
                 kvRemove(OFFLINE_INVITE_ACTIVE_THEME_PREFIX + session.id);
                 kvRemove(PENDING_OFFLINE_INVITE_DECLINE_PREFIX + session.id);
@@ -8968,7 +8918,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     remindExpandTimerRef.current = null;
                 }
             } else {
-                const nextInvite = restoreOfflineInviteFromMessages(surviving, currentInvite);
+                // 状态栏变了：精准同步回溯
                 updateActiveOfflineInvite(nextInvite);
             }
         }
@@ -10043,28 +9993,6 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     m.mediaType === "offline_invite_arrive_notice" ||
                     Boolean(m.mediaData?.offlineInvite)
                 );
-                const hasPillarsInSurviving = survivingMessages.some(m =>
-                    (m.role === "system" || m.mediaType === "offline_invite_system_notice") && Boolean(m.content && (
-                        /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
-                        /“请求”前往|“邀请你”前往/.test(m.content) ||
-                        m.content.includes("线下赴约提议") ||
-                        m.content.includes("你已同意赴约") ||
-                        m.content.includes("已直接动身赶往") ||
-                        m.content.includes("已直接动身") ||
-                        m.content.includes("强行动身") ||
-                        m.content.includes("正在动身赶往") ||
-                        m.content.includes("正在重新赶往") ||
-                        m.content.includes("赴约地点已更改为") ||
-                        m.content.includes("碰头方式已变更为") ||
-                        m.content.includes("赴约提议地点已更改为") ||
-                        m.content.includes("赴约提议已变更为") ||
-                        m.content.includes("已如约到达") ||
-                        m.content.includes("“如约”到达") ||
-                        m.content.includes("已提前到达") ||
-                        (m.content.includes("已在") && m.content.includes("就位等候")) ||
-                        (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
-                    ))
-                );
                 const targetHasLockOrUnlock = targetMessages.some(m => isOfflineLockNoticeMessage(m) || isOfflineUnlockNoticeMessage(m));
                 const count = multiDeleteTargetIds.length;
 
@@ -10074,8 +10002,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     : `将删除已选的 ${count} 条消息，删除后无法恢复。`;
 
                 if (currentInvite && targetHasInviteRelated) {
+                    const nextInvite = restoreOfflineInviteFromMessages(survivingMessages, currentInvite);
                     title = "删除所选消息？";
-                    if (!hasPillarsInSurviving) {
+                    if (!nextInvite) {
                         message = `删除的 ${count} 条消息中包含本次线下赴约的发起或有效记录，删除后将直接清除当前的赴约状态。若只想回退赴约状态，可取消并尝试删除其他。`;
                     } else {
                         message = `删除的 ${count} 条消息中包含本次线下赴约的变动记录，删除后赴约状态将同步回溯。是否确认删除？`;
