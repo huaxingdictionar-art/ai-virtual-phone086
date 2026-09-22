@@ -9133,7 +9133,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                     <span className={`relative inline-flex rounded-full h-2 w-2 ${solidDotBg}`} />
                                 </span>
                                 <span className={`text-xs font-medium truncate inline-flex items-center leading-none ${isMeetingForced ? "text-gray-100" : "text-[var(--c-text-title,#111827)]"}`}>
-                                    ✨ 与 {character?.name || "对方"} 线下碰面中
+                                    {isMeetingAlert ? "" : "✨ "}与 {character?.name || "对方"} 线下碰面中
                                 </span>
                                 <button
                                     type="button"
