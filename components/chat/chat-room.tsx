@@ -626,6 +626,40 @@ function restoreOfflineInviteFromMessages(
             }
         }
         if (!baseInvite) {
+            // 孤柱支撑兜底：若带结构化数据的节点被删，但历史中仍存有任何关键系统灰字记录（提议/动身/到达/碰面），依然认其为最后的生命之根！
+            for (let i = effectiveSearchStart; i < historyMessages.length; i++) {
+                const m = historyMessages[i];
+                if (m.role === "system" && m.content && (
+                    m.content.includes("线下赴约提议") ||
+                    m.content.includes("你已同意赴约") ||
+                    m.content.includes("动身赶往") ||
+                    m.content.includes("已直接动身") ||
+                    m.content.includes("正在重新赶往") ||
+                    m.content.includes("已如约到达") ||
+                    m.content.includes("已提前到达") ||
+                    m.content.includes("就位等候") ||
+                    m.content.includes("线下碰面中")
+                )) {
+                    rootMsgIndex = i;
+                    const placeMatch = m.content.match(/[「"“]([^」"”]+)[」"”]/) || m.content.match(/(你身边)/);
+                    const parsedPlace = placeMatch?.[1]?.trim() || "约定地点";
+                    const isIGo = m.content.includes("变更为由你") || m.content.includes("等候你碰面") || m.content.includes("就位等候");
+                    baseInvite = {
+                        direction: isIGo ? "i_go" : "he_comes",
+                        status: "pending",
+                        theme: "default",
+                        place: parsedPlace,
+                        reason: "",
+                        durationMinutes: 15,
+                        initialPlace: parsedPlace,
+                        sourceBatchId: m.responseBatchId || m.id,
+                        initialBatchId: m.responseBatchId || m.id,
+                    };
+                    break;
+                }
+            }
+        }
+        if (!baseInvite) {
             return null;
         }
     } else {
