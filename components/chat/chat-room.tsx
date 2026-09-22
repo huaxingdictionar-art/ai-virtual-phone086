@@ -8921,15 +8921,55 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         const targetMessages = stored.filter(msg => targetIds.has(msg.id));
         const surviving = stored.filter(msg => !targetIds.has(msg.id));
         setShowConfirmMultiDelete(false);
-        if (targetMessages.some(isOfflineInviteRootMessage)) {
-            kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
-            kvRemove(PENDING_OFFLINE_INVITE_DECLINE_PREFIX + session.id);
-            kvRemove(OFFLINE_INVITE_DECLINE_COUNT_PREFIX + session.id);
-            updateActiveOfflineInvite(null);
-            setIsOfflineInviteMinimized(false);
-            if (remindExpandTimerRef.current) {
-                clearTimeout(remindExpandTimerRef.current);
-                remindExpandTimerRef.current = null;
+        const currentInvite = activeOfflineInviteRef.current;
+        const targetHasInviteRelated = targetMessages.some(m =>
+            isOfflineInviteRootMessage(m) ||
+            isOfflineInviteSystemMessage(m) ||
+            m.mediaType === "offline_invite" ||
+            m.mediaType === "offline_invite_change_place" ||
+            m.mediaType === "offline_invite_early_arrive" ||
+            m.mediaType === "offline_invite_arrive_notice" ||
+            Boolean(m.mediaData?.offlineInvite)
+        );
+
+        if (currentInvite && targetHasInviteRelated) {
+            const hasPillarsInSurviving = surviving.some(m =>
+                (m.role === "system" || m.mediaType === "offline_invite_system_notice") && Boolean(m.content && (
+                    /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
+                    /“请求”前往|“邀请你”前往/.test(m.content) ||
+                    m.content.includes("线下赴约提议") ||
+                    m.content.includes("你已同意赴约") ||
+                    m.content.includes("已直接动身赶往") ||
+                    m.content.includes("已直接动身") ||
+                    m.content.includes("强行动身") ||
+                    m.content.includes("正在动身赶往") ||
+                    m.content.includes("正在重新赶往") ||
+                    m.content.includes("赴约地点已更改为") ||
+                    m.content.includes("碰头方式已变更为") ||
+                    m.content.includes("赴约提议地点已更改为") ||
+                    m.content.includes("赴约提议已变更为") ||
+                    m.content.includes("已如约到达") ||
+                    m.content.includes("“如约”到达") ||
+                    m.content.includes("已提前到达") ||
+                    (m.content.includes("已在") && m.content.includes("就位等候")) ||
+                    (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
+                ))
+            );
+
+            if (!hasPillarsInSurviving) {
+                kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
+                kvRemove(OFFLINE_INVITE_ACTIVE_THEME_PREFIX + session.id);
+                kvRemove(PENDING_OFFLINE_INVITE_DECLINE_PREFIX + session.id);
+                kvRemove(OFFLINE_INVITE_DECLINE_COUNT_PREFIX + session.id);
+                updateActiveOfflineInvite(null);
+                setIsOfflineInviteMinimized(false);
+                if (remindExpandTimerRef.current) {
+                    clearTimeout(remindExpandTimerRef.current);
+                    remindExpandTimerRef.current = null;
+                }
+            } else {
+                const nextInvite = restoreOfflineInviteFromMessages(surviving, currentInvite);
+                updateActiveOfflineInvite(nextInvite);
             }
         }
         if (unlockExpandTimerRef.current) {
@@ -9993,7 +10033,38 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 const storedMessages = loadChatMessages(session.id);
                 const targetMessages = storedMessages.filter(m => targetIds.has(m.id));
                 const survivingMessages = storedMessages.filter(m => !targetIds.has(m.id));
-                const hasInviteRoot = storedMessages.some(m => targetIds.has(m.id) && isOfflineInviteRootMessage(m));
+                const currentInvite = activeOfflineInviteRef.current;
+                const targetHasInviteRelated = targetMessages.some(m =>
+                    isOfflineInviteRootMessage(m) ||
+                    isOfflineInviteSystemMessage(m) ||
+                    m.mediaType === "offline_invite" ||
+                    m.mediaType === "offline_invite_change_place" ||
+                    m.mediaType === "offline_invite_early_arrive" ||
+                    m.mediaType === "offline_invite_arrive_notice" ||
+                    Boolean(m.mediaData?.offlineInvite)
+                );
+                const hasPillarsInSurviving = survivingMessages.some(m =>
+                    (m.role === "system" || m.mediaType === "offline_invite_system_notice") && Boolean(m.content && (
+                        /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
+                        /“请求”前往|“邀请你”前往/.test(m.content) ||
+                        m.content.includes("线下赴约提议") ||
+                        m.content.includes("你已同意赴约") ||
+                        m.content.includes("已直接动身赶往") ||
+                        m.content.includes("已直接动身") ||
+                        m.content.includes("强行动身") ||
+                        m.content.includes("正在动身赶往") ||
+                        m.content.includes("正在重新赶往") ||
+                        m.content.includes("赴约地点已更改为") ||
+                        m.content.includes("碰头方式已变更为") ||
+                        m.content.includes("赴约提议地点已更改为") ||
+                        m.content.includes("赴约提议已变更为") ||
+                        m.content.includes("已如约到达") ||
+                        m.content.includes("“如约”到达") ||
+                        m.content.includes("已提前到达") ||
+                        (m.content.includes("已在") && m.content.includes("就位等候")) ||
+                        (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
+                    ))
+                );
                 const targetHasLockOrUnlock = targetMessages.some(m => isOfflineLockNoticeMessage(m) || isOfflineUnlockNoticeMessage(m));
                 const count = multiDeleteTargetIds.length;
 
@@ -10002,9 +10073,13 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     ? `将删除已选消息，并一并删除相邻已选消息之间的隐藏历史。实际删除 ${count} 条，删除后无法恢复。`
                     : `将删除已选的 ${count} 条消息，删除后无法恢复。`;
 
-                if (hasInviteRoot) {
+                if (currentInvite && targetHasInviteRelated) {
                     title = "删除所选消息？";
-                    message = `删除的 ${count} 条消息中包含本次线下赴约的发起或变动消息，删除后将直接清除当前的赴约状态。若只想回退赴约状态，可取消并重试消息。`;
+                    if (!hasPillarsInSurviving) {
+                        message = `删除的 ${count} 条消息中包含本次线下赴约的发起或有效记录，删除后将直接清除当前的赴约状态。若只想回退赴约状态，可取消并尝试删除其他。`;
+                    } else {
+                        message = `删除的 ${count} 条消息中包含本次线下赴约的变动记录，删除后赴约状态将同步回溯。是否确认删除？`;
+                    }
                 } else if (targetHasLockOrUnlock) {
                     title = "删除所选消息？";
                     message = "删除的内容中包含角色的线下封禁记录/心墙变更记录/解封记录，删除将可能导致线下入口状态变更。若只想回退状态，可取消并重试消息。是否确认删除？";
