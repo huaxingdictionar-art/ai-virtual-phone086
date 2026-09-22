@@ -427,14 +427,14 @@ export function OfflineInviteModal({
     useEffect(() => {
         if (!isForcedTheme) return;
         const trigger12Resonance = () => {
-            // 1. 触发手机物理马达（舒展 1 秒版：200ms沉单震 ➔ 停 260ms ➔ 120ms轻脆震 ➔ 停 100ms ➔ 120ms轻脆震）
+            // 1. 触觉震动模式（200ms -> 停 260ms -> 120ms -> 停 100ms -> 120ms）
             try {
                 if (typeof window !== "undefined" && "vibrate" in navigator) {
                     navigator.vibrate([200, 260, 120, 100, 120]);
                 }
             } catch {}
 
-            // 2. 视效同步：精准启动 1-2 窗口踩点颤动动画（0.96s 舒展 1 秒版，与震感严格对齐）
+            // 2. 视效同步：启动 1-2 窗口抖动动画（0.96s，与震感对齐）
             if (dialogRef.current) {
                 dialogRef.current.classList.remove("offline-invite-12-pulse");
                 void dialogRef.current.offsetWidth;
@@ -445,7 +445,7 @@ export function OfflineInviteModal({
         // 弹窗开启瞬间立即触发
         trigger12Resonance();
 
-        // 弹窗保持打开期间，每隔 4.5 秒循环一次 1-2 律动（约 1s 舒展踩点 + 3.5s 从容呼吸留白）
+        // 弹窗保持打开期间，每隔 4.5 秒循环一次 1-2 律动
         const interval = setInterval(trigger12Resonance, 4500);
 
         return () => {
@@ -466,7 +466,7 @@ export function OfflineInviteModal({
         const triggerHeartbeatPulse = () => {
             try {
                 if (typeof window !== "undefined" && "vibrate" in navigator) {
-                    // 严丝合缝对齐 HeartbeatWaveIcon 峰值：150ms 饱满主峰 ➔ 停 170ms ➔ 380ms 处爆发 140ms 第二峰（深沉扎实，绝不抢跑）
+                    // 对齐 HeartbeatWaveIcon 波峰节律（150ms -> 停 170ms -> 140ms）
                     navigator.vibrate([150, 170, 140]);
                 }
             } catch {}
@@ -475,7 +475,7 @@ export function OfflineInviteModal({
         // 弹窗开启稍作 50ms 缓冲让 SVG 动画起跑，第一记正好咬住 180ms 峰顶
         const initialTimer = setTimeout(triggerHeartbeatPulse, 50);
 
-        // 严丝合缝对齐心跳波形（1.4s * 3 = 4.2s，波形跳第 3 轮时手心恰好同步感受心悸脉搏）
+        // 对齐心跳波形周期（1.4s * 3 = 4.2s）
         const interval = setInterval(triggerHeartbeatPulse, 4200);
 
         return () => {
@@ -499,7 +499,7 @@ export function OfflineInviteModal({
         const triggerHugHeartbeat = () => {
             try {
                 if (typeof window !== "undefined" && "vibrate" in navigator) {
-                    // 温润自然的拟真心跳节奏（38ms 主峰 ➔ 停 70ms ➔ 28ms 回响次峰，如轻倚在胸口的心跳脉动）
+                    // 拟真心跳触觉节奏（38ms -> 停 70ms -> 28ms）
                     navigator.vibrate([38, 70, 28]);
                 }
             } catch {}
@@ -781,7 +781,7 @@ export function OfflineInviteModal({
                                             onClick={onEarlyArrive || onAccept}
                                             className={`flex-1 py-2.5 px-3 rounded-xl ${primaryBtn} text-xs font-semibold active:scale-95 transition-all duration-500 ease-out cursor-pointer`}
                                         >
-                                            已经到了/去见Ta
+                                            已经到了
                                         </button>
                                     </>
                                 ) : (
@@ -868,11 +868,11 @@ export function OfflineInviteCapsule({
             data-ui="offline-invite-capsule"
             title={isRetrying ? "正在回溯赴约状态……" : "点击查看邀约详情"}
         >
-            <span className="relative flex h-2 w-2 shrink-0">
+            <span className="relative inline-flex items-center justify-center h-2 w-2 shrink-0">
                 <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${pingDotBg}`} />
                 <span className={`relative inline-flex rounded-full h-2 w-2 ${solidDotBg}`} />
             </span>
-            <span className={`text-xs font-medium truncate ${isForcedTheme ? "text-gray-100" : "text-[var(--c-text-title,#111827)]"}`}>
+            <span className={`text-xs font-medium truncate inline-flex items-center leading-none ${isForcedTheme ? "text-gray-100" : "text-[var(--c-text-title,#111827)]"}`}>
                 {isRetrying
                     ? "正在回溯中……"
                     : (isOnTheWay
@@ -899,12 +899,12 @@ export function OfflineInviteCapsule({
                             e.stopPropagation();
                             onAccept();
                         }}
-                        className={`text-[11px] font-semibold px-2 py-0.5 rounded-full active:scale-95 transition-all shrink-0 cursor-pointer shadow-sm ${btnBg}`}
+                        className={`text-[11px] font-semibold px-2.5 h-[22px] rounded-full active:scale-95 transition-all shrink-0 cursor-pointer shadow-sm inline-flex items-center justify-center leading-none ${btnBg}`}
                     >
                         去见Ta
                     </button>
                 ) : (
-                    <span className={`text-[10px] font-semibold shrink-0 ${actionText}`}>
+                    <span className={`text-[10px] font-semibold shrink-0 inline-flex items-center leading-none ${actionText}`}>
                         {isOnTheWay ? "查看" : isArrived ? "去见Ta" : "处理"}
                     </span>
                 )

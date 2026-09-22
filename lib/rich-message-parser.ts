@@ -400,7 +400,7 @@ const RICH_PATTERNS: {
             let arrivalCardMessage = "";
 
             if (isForced) {
-                // 🌟 华确立的红黑强行动身三大心语铁律：正文已为动身宣言，无需在途报备！只需 3 句话：
+                // 红黑强行动身三大心语设计：正文已为动身宣言，无需在途报备，只需 3 句话：
                 // 卡片在途心语 | 微信到达呼唤 | 卡片到达私房心语
                 onTheWayMessage = "";
                 if (segments.length === 3) {
@@ -428,11 +428,11 @@ const RICH_PATTERNS: {
                     arrivalCardMessage = segments[0] || "";
                 }
             } else if (resolvedDirection === "i_go") {
-                // 🌟 华确立的【我去】铁律：仅需 1 句话（现场等候语 / 由头）
+                // 【我去】模式规范：仅需 1 句话（现场等候语 / 由头）
                 reason = segments[0] || "";
                 transitCardMessage = segments[0] || "";
             } else {
-                // 🌟 华确立的【其他他来】标准 5 段格式：提议由头 | 微信在途报备 | 卡片在途心语 | 微信到达呼唤 | 卡片到达私房心语
+                // 【他来】标准 5 段格式：提议由头 | 微信在途报备 | 卡片在途心语 | 微信到达呼唤 | 卡片到达私房心语
                 reason = segments[0] || "";
                 onTheWayMessage = segments[1] || "";
                 if (segments.length >= 5) {
@@ -995,7 +995,7 @@ export function parseAIResponse(rawText: string, previousState: StateValue[]): P
         svCleanText = svCleanText.split(placeholder).join(original);
     }
 
-    // 彻底过滤掉名为“封禁线下/线下封禁”的状态值（防御历史继承与偶发异常）
+    // 过滤名为“封禁线下/线下封禁”的状态值，防止误识别为角色状态属性
     const isLockSVName = (name?: string) => name === "封禁线下" || name === "线下封禁" || name === "解除封禁" || name === "解封线下";
     const cleanPreviousState = (previousState || []).filter(sv => !isLockSVName(sv.name));
     const cleanFreshSV = parsedSV.stateValues.filter(sv => !isLockSVName(sv.name));

@@ -1227,6 +1227,9 @@
   position: static;
   bottom: auto;
   align-self: auto;
+  white-space: pre-line;
+  text-align: center;
+  line-height: 1.45;
 }
 
 /* ── Bubble role defaults ── */

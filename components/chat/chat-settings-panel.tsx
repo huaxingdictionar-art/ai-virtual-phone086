@@ -18,9 +18,18 @@ import {
     MAX_VISION_IMAGE_PROMPT_LIMIT,
     type ChatMessage,
     DEFAULT_OFFLINE_INVITE_PROMPT,
+    DEFAULT_OFFLINE_INVITE_PROMPT_COMPACT,
     DEFAULT_OFFLINE_MEETING_PROMPT,
+    DEFAULT_OFFLINE_DECLINE_PROMPT,
+    DEFAULT_OFFLINE_ORAL_DECLINE_PROMPT,
+    DEFAULT_OFFLINE_RETURN_ONLINE_PROMPT,
+    DEFAULT_OFFLINE_MEETING_INITIATIVE_PROMPT,
     DEFAULT_OFFLINE_LOCK_PROMPT,
     DEFAULT_OFFLINE_LOCK_INVITE_PROMPT,
+    DEFAULT_OFFLINE_KNOCK_PROMPT,
+    DEFAULT_OFFLINE_LOCK_MEETING_PROMPT,
+    DEFAULT_OFFLINE_INVITE_MEMORY_PROMPT,
+    DEFAULT_OFFLINE_LOCK_MEMORY_PROMPT,
 } from "@/lib/chat-storage";
 import {
     GROUP_SELF_KEY,
@@ -408,9 +417,26 @@ export function ChatSettingsPanel({
     const [offlineInvitePromptDraft, setOfflineInvitePromptDraft] = useState(session.offlineInvitePrompt || DEFAULT_OFFLINE_INVITE_PROMPT);
     const [editingOfflineInvitePrompt, setEditingOfflineInvitePrompt] = useState(false);
     const [isPromptCopied, setIsPromptCopied] = useState(false);
+    const [invitePromptToast, setInvitePromptToast] = useState<string | null>(null);
+    const invitePromptToastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
     const [offlineMeetingPrompt, setOfflineMeetingPrompt] = useState(session.offlineMeetingPrompt || DEFAULT_OFFLINE_MEETING_PROMPT);
     const [offlineMeetingPromptDraft, setOfflineMeetingPromptDraft] = useState(session.offlineMeetingPrompt || DEFAULT_OFFLINE_MEETING_PROMPT);
     const [isMeetingPromptCopied, setIsMeetingPromptCopied] = useState(false);
+    const [offlineDeclinePrompt, setOfflineDeclinePrompt] = useState(session.offlineDeclinePrompt || DEFAULT_OFFLINE_DECLINE_PROMPT);
+    const [offlineDeclinePromptDraft, setOfflineDeclinePromptDraft] = useState(session.offlineDeclinePrompt || DEFAULT_OFFLINE_DECLINE_PROMPT);
+    const [isDeclinePromptCopied, setIsDeclinePromptCopied] = useState(false);
+    const [offlineOralDeclinePrompt, setOfflineOralDeclinePrompt] = useState(session.offlineOralDeclinePrompt || DEFAULT_OFFLINE_ORAL_DECLINE_PROMPT);
+    const [offlineOralDeclinePromptDraft, setOfflineOralDeclinePromptDraft] = useState(session.offlineOralDeclinePrompt || DEFAULT_OFFLINE_ORAL_DECLINE_PROMPT);
+    const [isOralDeclinePromptCopied, setIsOralDeclinePromptCopied] = useState(false);
+    const [offlineReturnOnlinePrompt, setOfflineReturnOnlinePrompt] = useState(session.offlineReturnOnlinePrompt || DEFAULT_OFFLINE_RETURN_ONLINE_PROMPT);
+    const [offlineReturnOnlinePromptDraft, setOfflineReturnOnlinePromptDraft] = useState(session.offlineReturnOnlinePrompt || DEFAULT_OFFLINE_RETURN_ONLINE_PROMPT);
+    const [isReturnOnlinePromptCopied, setIsReturnOnlinePromptCopied] = useState(false);
+    const [offlineMeetingInitiativePrompt, setOfflineMeetingInitiativePrompt] = useState(session.offlineMeetingInitiativePrompt || DEFAULT_OFFLINE_MEETING_INITIATIVE_PROMPT);
+    const [offlineMeetingInitiativePromptDraft, setOfflineMeetingInitiativePromptDraft] = useState(session.offlineMeetingInitiativePrompt || DEFAULT_OFFLINE_MEETING_INITIATIVE_PROMPT);
+    const [isMeetingInitiativePromptCopied, setIsMeetingInitiativePromptCopied] = useState(false);
+    const [offlineInviteMemoryPrompt, setOfflineInviteMemoryPrompt] = useState(session.offlineInviteMemoryPrompt || DEFAULT_OFFLINE_INVITE_MEMORY_PROMPT);
+    const [offlineInviteMemoryPromptDraft, setOfflineInviteMemoryPromptDraft] = useState(session.offlineInviteMemoryPrompt || DEFAULT_OFFLINE_INVITE_MEMORY_PROMPT);
+    const [isInviteMemoryPromptCopied, setIsInviteMemoryPromptCopied] = useState(false);
     const [offlineLockPrompt, setOfflineLockPrompt] = useState(session.offlineLockPrompt || DEFAULT_OFFLINE_LOCK_PROMPT);
     const [offlineLockPromptDraft, setOfflineLockPromptDraft] = useState(session.offlineLockPrompt || DEFAULT_OFFLINE_LOCK_PROMPT);
     const [editingOfflineLockPrompt, setEditingOfflineLockPrompt] = useState(false);
@@ -418,6 +444,17 @@ export function ChatSettingsPanel({
     const [offlineLockInvitePrompt, setOfflineLockInvitePrompt] = useState(session.offlineLockInvitePrompt || DEFAULT_OFFLINE_LOCK_INVITE_PROMPT);
     const [offlineLockInvitePromptDraft, setOfflineLockInvitePromptDraft] = useState(session.offlineLockInvitePrompt || DEFAULT_OFFLINE_LOCK_INVITE_PROMPT);
     const [isLockInvitePromptCopied, setIsLockInvitePromptCopied] = useState(false);
+    const [offlineKnockPrompt, setOfflineKnockPrompt] = useState(session.offlineKnockPrompt || DEFAULT_OFFLINE_KNOCK_PROMPT);
+    const [offlineKnockPromptDraft, setOfflineKnockPromptDraft] = useState(session.offlineKnockPrompt || DEFAULT_OFFLINE_KNOCK_PROMPT);
+    const [isKnockPromptCopied, setIsKnockPromptCopied] = useState(false);
+    const [offlineInviteAutoFirstSpeech, setOfflineInviteAutoFirstSpeech] = useState(session.offlineInviteAutoFirstSpeech !== false);
+    const [offlineLockAutoFirstSpeech, setOfflineLockAutoFirstSpeech] = useState(session.offlineLockAutoFirstSpeech !== false);
+    const [offlineLockMeetingPrompt, setOfflineLockMeetingPrompt] = useState(session.offlineLockMeetingPrompt || DEFAULT_OFFLINE_LOCK_MEETING_PROMPT);
+    const [offlineLockMeetingPromptDraft, setOfflineLockMeetingPromptDraft] = useState(session.offlineLockMeetingPrompt || DEFAULT_OFFLINE_LOCK_MEETING_PROMPT);
+    const [isLockMeetingPromptCopied, setIsLockMeetingPromptCopied] = useState(false);
+    const [offlineLockMemoryPrompt, setOfflineLockMemoryPrompt] = useState(session.offlineLockMemoryPrompt || DEFAULT_OFFLINE_LOCK_MEMORY_PROMPT);
+    const [offlineLockMemoryPromptDraft, setOfflineLockMemoryPromptDraft] = useState(session.offlineLockMemoryPrompt || DEFAULT_OFFLINE_LOCK_MEMORY_PROMPT);
+    const [isLockMemoryPromptCopied, setIsLockMemoryPromptCopied] = useState(false);
     const defaultBilingualPrompt = session.isGroup ? DEFAULT_GROUP_CHAT_BILINGUAL_PROMPT : DEFAULT_CHAT_BILINGUAL_PROMPT;
     const defaultOfflineBilingualPrompt = session.isGroup ? DEFAULT_GROUP_OFFLINE_CHAT_BILINGUAL_PROMPT : DEFAULT_OFFLINE_CHAT_BILINGUAL_PROMPT;
     const [bilingualTranslationPrompt, setBilingualTranslationPrompt] = useState(session.bilingualTranslationPrompt || defaultBilingualPrompt);
@@ -704,8 +741,19 @@ export function ChatSettingsPanel({
     const openOfflineInvitePromptEditor = () => {
         setOfflineInvitePromptDraft(offlineInvitePrompt || DEFAULT_OFFLINE_INVITE_PROMPT);
         setOfflineMeetingPromptDraft(offlineMeetingPrompt || DEFAULT_OFFLINE_MEETING_PROMPT);
+        setOfflineDeclinePromptDraft(offlineDeclinePrompt || DEFAULT_OFFLINE_DECLINE_PROMPT);
+        setOfflineOralDeclinePromptDraft(offlineOralDeclinePrompt || DEFAULT_OFFLINE_ORAL_DECLINE_PROMPT);
+        setOfflineReturnOnlinePromptDraft(offlineReturnOnlinePrompt || DEFAULT_OFFLINE_RETURN_ONLINE_PROMPT);
+        setOfflineMeetingInitiativePromptDraft(offlineMeetingInitiativePrompt || DEFAULT_OFFLINE_MEETING_INITIATIVE_PROMPT);
+        setOfflineInviteMemoryPromptDraft(offlineInviteMemoryPrompt || DEFAULT_OFFLINE_INVITE_MEMORY_PROMPT);
         setIsPromptCopied(false);
         setIsMeetingPromptCopied(false);
+        setIsDeclinePromptCopied(false);
+        setIsOralDeclinePromptCopied(false);
+        setIsReturnOnlinePromptCopied(false);
+        setIsMeetingInitiativePromptCopied(false);
+        setIsInviteMemoryPromptCopied(false);
+        setInvitePromptToast(null);
         setEditingOfflineInvitePrompt(true);
     };
 
@@ -718,18 +766,42 @@ export function ChatSettingsPanel({
         const nextMeeting = (!trimmedMeeting || trimmedMeeting === DEFAULT_OFFLINE_MEETING_PROMPT) ? undefined : trimmedMeeting;
         setOfflineMeetingPrompt(nextMeeting || DEFAULT_OFFLINE_MEETING_PROMPT);
 
+        const trimmedDecline = offlineDeclinePromptDraft.trim();
+        const nextDecline = (!trimmedDecline || trimmedDecline === DEFAULT_OFFLINE_DECLINE_PROMPT) ? undefined : trimmedDecline;
+        setOfflineDeclinePrompt(nextDecline || DEFAULT_OFFLINE_DECLINE_PROMPT);
+
+        const trimmedOralDecline = offlineOralDeclinePromptDraft.trim();
+        const nextOralDecline = (!trimmedOralDecline || trimmedOralDecline === DEFAULT_OFFLINE_ORAL_DECLINE_PROMPT) ? undefined : trimmedOralDecline;
+        setOfflineOralDeclinePrompt(nextOralDecline || DEFAULT_OFFLINE_ORAL_DECLINE_PROMPT);
+
+        const trimmedReturn = offlineReturnOnlinePromptDraft.trim();
+        const nextReturn = (!trimmedReturn || trimmedReturn === DEFAULT_OFFLINE_RETURN_ONLINE_PROMPT) ? undefined : trimmedReturn;
+        setOfflineReturnOnlinePrompt(nextReturn || DEFAULT_OFFLINE_RETURN_ONLINE_PROMPT);
+
+        const trimmedInitiative = offlineMeetingInitiativePromptDraft.trim();
+        const nextInitiative = (!trimmedInitiative || trimmedInitiative === DEFAULT_OFFLINE_MEETING_INITIATIVE_PROMPT) ? undefined : trimmedInitiative;
+        setOfflineMeetingInitiativePrompt(nextInitiative || DEFAULT_OFFLINE_MEETING_INITIATIVE_PROMPT);
+
+        const trimmedInviteMemory = offlineInviteMemoryPromptDraft.trim();
+        const nextInviteMemory = (!trimmedInviteMemory || trimmedInviteMemory === DEFAULT_OFFLINE_INVITE_MEMORY_PROMPT) ? undefined : trimmedInviteMemory;
+        setOfflineInviteMemoryPrompt(nextInviteMemory || DEFAULT_OFFLINE_INVITE_MEMORY_PROMPT);
+
         updateSession({
             offlineInvitePrompt: nextInvite,
             offlineMeetingPrompt: nextMeeting,
+            offlineDeclinePrompt: nextDecline,
+            offlineOralDeclinePrompt: nextOralDecline,
+            offlineReturnOnlinePrompt: nextReturn,
+            offlineMeetingInitiativePrompt: nextInitiative,
+            offlineInviteMemoryPrompt: nextInviteMemory,
         });
         setEditingOfflineInvitePrompt(false);
     };
 
-    const handleCopyOfflineInvitePrompt = () => {
-        const textToCopy = offlineInvitePromptDraft || DEFAULT_OFFLINE_INVITE_PROMPT;
+    const copyTextHelper = (text: string, setCopied: (v: boolean) => void) => {
         const fallbackCopy = () => {
             const ta = document.createElement("textarea");
-            ta.value = textToCopy;
+            ta.value = text;
             ta.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
             document.body.appendChild(ta);
             ta.focus();
@@ -738,40 +810,55 @@ export function ChatSettingsPanel({
             document.body.removeChild(ta);
         };
         if (navigator.clipboard?.writeText) {
-            navigator.clipboard.writeText(textToCopy).catch(fallbackCopy);
+            navigator.clipboard.writeText(text).catch(fallbackCopy);
         } else {
             fallbackCopy();
         }
-        setIsPromptCopied(true);
-        setTimeout(() => setIsPromptCopied(false), 1500);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
     };
 
-    const handleCopyOfflineMeetingPrompt = () => {
-        const textToCopy = offlineMeetingPromptDraft || DEFAULT_OFFLINE_MEETING_PROMPT;
-        const fallbackCopy = () => {
-            const ta = document.createElement("textarea");
-            ta.value = textToCopy;
-            ta.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
-            document.body.appendChild(ta);
-            ta.focus();
-            ta.select();
-            try { document.execCommand("copy"); } catch {}
-            document.body.removeChild(ta);
-        };
-        if (navigator.clipboard?.writeText) {
-            navigator.clipboard.writeText(textToCopy).catch(fallbackCopy);
+    const handleCopyOfflineInvitePrompt = () => copyTextHelper(offlineInvitePromptDraft || DEFAULT_OFFLINE_INVITE_PROMPT, setIsPromptCopied);
+    const handleCopyOfflineMeetingPrompt = () => copyTextHelper(offlineMeetingPromptDraft || DEFAULT_OFFLINE_MEETING_PROMPT, setIsMeetingPromptCopied);
+    const handleCopyOfflineDeclinePrompt = () => copyTextHelper(offlineDeclinePromptDraft || DEFAULT_OFFLINE_DECLINE_PROMPT, setIsDeclinePromptCopied);
+    const handleCopyOfflineOralDeclinePrompt = () => copyTextHelper(offlineOralDeclinePromptDraft || DEFAULT_OFFLINE_ORAL_DECLINE_PROMPT, setIsOralDeclinePromptCopied);
+    const handleCopyOfflineReturnOnlinePrompt = () => copyTextHelper(offlineReturnOnlinePromptDraft || DEFAULT_OFFLINE_RETURN_ONLINE_PROMPT, setIsReturnOnlinePromptCopied);
+    const handleCopyOfflineMeetingInitiativePrompt = () => copyTextHelper(offlineMeetingInitiativePromptDraft || DEFAULT_OFFLINE_MEETING_INITIATIVE_PROMPT, setIsMeetingInitiativePromptCopied);
+    const handleCopyOfflineInviteMemoryPrompt = () => copyTextHelper(offlineInviteMemoryPromptDraft || DEFAULT_OFFLINE_INVITE_MEMORY_PROMPT, setIsInviteMemoryPromptCopied);
+
+    const isInviteCompact = offlineInvitePromptDraft.trim() === DEFAULT_OFFLINE_INVITE_PROMPT_COMPACT.trim();
+    const isInviteFull = !offlineInvitePromptDraft.trim() || offlineInvitePromptDraft.trim() === DEFAULT_OFFLINE_INVITE_PROMPT.trim();
+    const isInviteCustom = !isInviteCompact && !isInviteFull;
+
+    const triggerInvitePromptToast = (msg: string) => {
+        clearTimeout(invitePromptToastTimer.current);
+        setInvitePromptToast(msg);
+        invitePromptToastTimer.current = setTimeout(() => {
+            setInvitePromptToast(null);
+        }, 2500);
+    };
+
+    const handleToggleInvitePromptVersion = () => {
+        if (isInviteCompact) {
+            setOfflineInvitePromptDraft(DEFAULT_OFFLINE_INVITE_PROMPT);
+            triggerInvitePromptToast("已切换为默认完整版提示词（保存后生效）");
         } else {
-            fallbackCopy();
+            setOfflineInvitePromptDraft(DEFAULT_OFFLINE_INVITE_PROMPT_COMPACT);
+            triggerInvitePromptToast("已切换为默认精简版提示词（保存后生效）");
         }
-        setIsMeetingPromptCopied(true);
-        setTimeout(() => setIsMeetingPromptCopied(false), 1500);
     };
 
     const openOfflineLockPromptEditor = () => {
         setOfflineLockPromptDraft(offlineLockPrompt || DEFAULT_OFFLINE_LOCK_PROMPT);
         setOfflineLockInvitePromptDraft(offlineLockInvitePrompt || DEFAULT_OFFLINE_LOCK_INVITE_PROMPT);
+        setOfflineKnockPromptDraft(offlineKnockPrompt || DEFAULT_OFFLINE_KNOCK_PROMPT);
+        setOfflineLockMeetingPromptDraft(offlineLockMeetingPrompt || DEFAULT_OFFLINE_LOCK_MEETING_PROMPT);
+        setOfflineLockMemoryPromptDraft(offlineLockMemoryPrompt || DEFAULT_OFFLINE_LOCK_MEMORY_PROMPT);
         setIsLockPromptCopied(false);
         setIsLockInvitePromptCopied(false);
+        setIsKnockPromptCopied(false);
+        setIsLockMeetingPromptCopied(false);
+        setIsLockMemoryPromptCopied(false);
         setEditingOfflineLockPrompt(true);
     };
 
@@ -784,54 +871,33 @@ export function ChatSettingsPanel({
         const nextInvite = (!trimmedInvite || trimmedInvite === DEFAULT_OFFLINE_LOCK_INVITE_PROMPT) ? undefined : trimmedInvite;
         setOfflineLockInvitePrompt(nextInvite || DEFAULT_OFFLINE_LOCK_INVITE_PROMPT);
 
+        const trimmedKnock = offlineKnockPromptDraft.trim();
+        const nextKnock = (!trimmedKnock || trimmedKnock === DEFAULT_OFFLINE_KNOCK_PROMPT) ? undefined : trimmedKnock;
+        setOfflineKnockPrompt(nextKnock || DEFAULT_OFFLINE_KNOCK_PROMPT);
+
+        const trimmedMeeting = offlineLockMeetingPromptDraft.trim();
+        const nextMeeting = (!trimmedMeeting || trimmedMeeting === DEFAULT_OFFLINE_LOCK_MEETING_PROMPT) ? undefined : trimmedMeeting;
+        setOfflineLockMeetingPrompt(nextMeeting || DEFAULT_OFFLINE_LOCK_MEETING_PROMPT);
+
+        const trimmedLockMemory = offlineLockMemoryPromptDraft.trim();
+        const nextLockMemory = (!trimmedLockMemory || trimmedLockMemory === DEFAULT_OFFLINE_LOCK_MEMORY_PROMPT) ? undefined : trimmedLockMemory;
+        setOfflineLockMemoryPrompt(nextLockMemory || DEFAULT_OFFLINE_LOCK_MEMORY_PROMPT);
+
         updateSession({
             offlineLockPrompt: nextLock,
             offlineLockInvitePrompt: nextInvite,
+            offlineKnockPrompt: nextKnock,
+            offlineLockMeetingPrompt: nextMeeting,
+            offlineLockMemoryPrompt: nextLockMemory,
         });
         setEditingOfflineLockPrompt(false);
     };
 
-    const handleCopyOfflineLockPrompt = () => {
-        const textToCopy = offlineLockPromptDraft || DEFAULT_OFFLINE_LOCK_PROMPT;
-        const fallbackCopy = () => {
-            const ta = document.createElement("textarea");
-            ta.value = textToCopy;
-            ta.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
-            document.body.appendChild(ta);
-            ta.focus();
-            ta.select();
-            try { document.execCommand("copy"); } catch {}
-            document.body.removeChild(ta);
-        };
-        if (navigator.clipboard?.writeText) {
-            navigator.clipboard.writeText(textToCopy).catch(fallbackCopy);
-        } else {
-            fallbackCopy();
-        }
-        setIsLockPromptCopied(true);
-        setTimeout(() => setIsLockPromptCopied(false), 1500);
-    };
-
-    const handleCopyOfflineLockInvitePrompt = () => {
-        const textToCopy = offlineLockInvitePromptDraft || DEFAULT_OFFLINE_LOCK_INVITE_PROMPT;
-        const fallbackCopy = () => {
-            const ta = document.createElement("textarea");
-            ta.value = textToCopy;
-            ta.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
-            document.body.appendChild(ta);
-            ta.focus();
-            ta.select();
-            try { document.execCommand("copy"); } catch {}
-            document.body.removeChild(ta);
-        };
-        if (navigator.clipboard?.writeText) {
-            navigator.clipboard.writeText(textToCopy).catch(fallbackCopy);
-        } else {
-            fallbackCopy();
-        }
-        setIsLockInvitePromptCopied(true);
-        setTimeout(() => setIsLockInvitePromptCopied(false), 1500);
-    };
+    const handleCopyOfflineLockPrompt = () => copyTextHelper(offlineLockPromptDraft || DEFAULT_OFFLINE_LOCK_PROMPT, setIsLockPromptCopied);
+    const handleCopyOfflineLockInvitePrompt = () => copyTextHelper(offlineLockInvitePromptDraft || DEFAULT_OFFLINE_LOCK_INVITE_PROMPT, setIsLockInvitePromptCopied);
+    const handleCopyOfflineKnockPrompt = () => copyTextHelper(offlineKnockPromptDraft || DEFAULT_OFFLINE_KNOCK_PROMPT, setIsKnockPromptCopied);
+    const handleCopyOfflineLockMeetingPrompt = () => copyTextHelper(offlineLockMeetingPromptDraft || DEFAULT_OFFLINE_LOCK_MEETING_PROMPT, setIsLockMeetingPromptCopied);
+    const handleCopyOfflineLockMemoryPrompt = () => copyTextHelper(offlineLockMemoryPromptDraft || DEFAULT_OFFLINE_LOCK_MEMORY_PROMPT, setIsLockMemoryPromptCopied);
 
     const handleImageUpload = async (
         e: React.ChangeEvent<HTMLInputElement>,
@@ -1314,21 +1380,52 @@ export function ChatSettingsPanel({
                             </div>
                         )}
                         {!session.isGroup && enableOfflineInvite && (
-                            <button className="menu-item" onClick={openOfflineInvitePromptEditor}>
-                                <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.memory} />
-                                <div className="menu-label-group">
-                                    <span className="menu-label">角色自主线下邀约提示词</span>
+                            <>
+                                <div className="menu-item">
+                                    <ChatInfoIcon icon={MessageSquare} color={BINDING_ACCENTS.voice} />
+                                    <div className="menu-label-group">
+                                        <span className="menu-label">进入线下角色主动开场</span>
+                                        <span className="menu-desc">开启后进入面对面角色主动说第一句话；关闭后等待你主动发送第一句</span>
+                                    </div>
+                                    <div className="menu-right">
+                                        <Toggle
+                                            checked={offlineInviteAutoFirstSpeech}
+                                            onChange={c => {
+                                                setOfflineInviteAutoFirstSpeech(c);
+                                                updateSession({ offlineInviteAutoFirstSpeech: c });
+                                            }}
+                                        />
+                                    </div>
                                 </div>
-                                <div className="menu-right">
-                                    <span className="menu-desc mr-1">
-                                        {(!offlineInvitePrompt || offlineInvitePrompt === DEFAULT_OFFLINE_INVITE_PROMPT) &&
-                                        (!offlineMeetingPrompt || offlineMeetingPrompt === DEFAULT_OFFLINE_MEETING_PROMPT)
-                                            ? "默认"
-                                            : "已自定义"}
-                                    </span>
-                                    <ChevronRight size={16} />
-                                </div>
-                            </button>
+                                <button className="menu-item" onClick={openOfflineInvitePromptEditor}>
+                                    <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.memory} />
+                                    <div className="menu-label-group">
+                                        <span className="menu-label">角色自主线下邀约提示词</span>
+                                    </div>
+                                    <div className="menu-right">
+                                        <span className="menu-desc mr-1">
+                                            {(!offlineInvitePrompt || offlineInvitePrompt === DEFAULT_OFFLINE_INVITE_PROMPT) &&
+                                            (!offlineMeetingPrompt || offlineMeetingPrompt === DEFAULT_OFFLINE_MEETING_PROMPT) &&
+                                            (!offlineDeclinePrompt || offlineDeclinePrompt === DEFAULT_OFFLINE_DECLINE_PROMPT) &&
+                                            (!offlineOralDeclinePrompt || offlineOralDeclinePrompt === DEFAULT_OFFLINE_ORAL_DECLINE_PROMPT) &&
+                                            (!offlineReturnOnlinePrompt || offlineReturnOnlinePrompt === DEFAULT_OFFLINE_RETURN_ONLINE_PROMPT) &&
+                                            (!offlineMeetingInitiativePrompt || offlineMeetingInitiativePrompt === DEFAULT_OFFLINE_MEETING_INITIATIVE_PROMPT) &&
+                                            (!offlineInviteMemoryPrompt || offlineInviteMemoryPrompt === DEFAULT_OFFLINE_INVITE_MEMORY_PROMPT)
+                                                ? "默认"
+                                                : offlineInvitePrompt === DEFAULT_OFFLINE_INVITE_PROMPT_COMPACT &&
+                                                  (!offlineMeetingPrompt || offlineMeetingPrompt === DEFAULT_OFFLINE_MEETING_PROMPT) &&
+                                                  (!offlineDeclinePrompt || offlineDeclinePrompt === DEFAULT_OFFLINE_DECLINE_PROMPT) &&
+                                                  (!offlineOralDeclinePrompt || offlineOralDeclinePrompt === DEFAULT_OFFLINE_ORAL_DECLINE_PROMPT) &&
+                                                  (!offlineReturnOnlinePrompt || offlineReturnOnlinePrompt === DEFAULT_OFFLINE_RETURN_ONLINE_PROMPT) &&
+                                                  (!offlineMeetingInitiativePrompt || offlineMeetingInitiativePrompt === DEFAULT_OFFLINE_MEETING_INITIATIVE_PROMPT) &&
+                                                  (!offlineInviteMemoryPrompt || offlineInviteMemoryPrompt === DEFAULT_OFFLINE_INVITE_MEMORY_PROMPT)
+                                                ? "精简版"
+                                                : "已自定义"}
+                                        </span>
+                                        <ChevronRight size={16} />
+                                    </div>
+                                </button>
+                            </>
                         )}
                         {!session.isGroup && (
                             <div className="menu-item">
@@ -1349,21 +1446,42 @@ export function ChatSettingsPanel({
                             </div>
                         )}
                         {!session.isGroup && enableOfflineLock && (
-                            <button className="menu-item" onClick={openOfflineLockPromptEditor}>
-                                <ChatInfoIcon icon={Lock} color={BINDING_ACCENTS.memory} />
-                                <div className="menu-label-group">
-                                    <span className="menu-label">角色自主线下封禁提示词</span>
+                            <>
+                                <div className="menu-item">
+                                    <ChatInfoIcon icon={MessageSquare} color={BINDING_ACCENTS.voice} />
+                                    <div className="menu-label-group">
+                                        <span className="menu-label">解封进入线下角色主动开场</span>
+                                        <span className="menu-desc">开启后解封前往面对面角色主动说第一句话；关闭后等待你主动发送第一句</span>
+                                    </div>
+                                    <div className="menu-right">
+                                        <Toggle
+                                            checked={offlineLockAutoFirstSpeech}
+                                            onChange={c => {
+                                                setOfflineLockAutoFirstSpeech(c);
+                                                updateSession({ offlineLockAutoFirstSpeech: c });
+                                            }}
+                                        />
+                                    </div>
                                 </div>
-                                <div className="menu-right">
-                                    <span className="menu-desc mr-1">
-                                        {(!offlineLockPrompt || offlineLockPrompt === DEFAULT_OFFLINE_LOCK_PROMPT) &&
-                                        (!offlineLockInvitePrompt || offlineLockInvitePrompt === DEFAULT_OFFLINE_LOCK_INVITE_PROMPT)
-                                            ? "默认"
-                                            : "已自定义"}
-                                    </span>
-                                    <ChevronRight size={16} />
-                                </div>
-                            </button>
+                                <button className="menu-item" onClick={openOfflineLockPromptEditor}>
+                                    <ChatInfoIcon icon={Lock} color={BINDING_ACCENTS.memory} />
+                                    <div className="menu-label-group">
+                                        <span className="menu-label">角色自主线下封禁提示词</span>
+                                    </div>
+                                    <div className="menu-right">
+                                        <span className="menu-desc mr-1">
+                                            {(!offlineLockPrompt || offlineLockPrompt === DEFAULT_OFFLINE_LOCK_PROMPT) &&
+                                            (!offlineLockInvitePrompt || offlineLockInvitePrompt === DEFAULT_OFFLINE_LOCK_INVITE_PROMPT) &&
+                                            (!offlineKnockPrompt || offlineKnockPrompt === DEFAULT_OFFLINE_KNOCK_PROMPT) &&
+                                            (!offlineLockMeetingPrompt || offlineLockMeetingPrompt === DEFAULT_OFFLINE_LOCK_MEETING_PROMPT) &&
+                                            (!offlineLockMemoryPrompt || offlineLockMemoryPrompt === DEFAULT_OFFLINE_LOCK_MEMORY_PROMPT)
+                                                ? "默认"
+                                                : "已自定义"}
+                                        </span>
+                                        <ChevronRight size={16} />
+                                    </div>
+                                </button>
+                            </>
                         )}
                         <button className="menu-item" onClick={() => setShowScreenEffects(true)}>
                             <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.preset} />
@@ -1703,15 +1821,28 @@ export function ChatSettingsPanel({
                         <div className="chat-bilingual-prompt-stack">
                             <div className="chat-bilingual-prompt-section">
                                 <div className="flex items-center justify-between gap-2">
-                                    <div className="chat-bilingual-prompt-title">发起邀约提示词</div>
+                                    <div className="chat-bilingual-prompt-title">角色自主发起邀约提示词</div>
                                     <div className="flex items-center gap-1.5 shrink-0">
                                         <button
                                             type="button"
                                             className="chat-bilingual-prompt-reset"
-                                            onClick={() => setOfflineInvitePromptDraft(DEFAULT_OFFLINE_INVITE_PROMPT)}
+                                            onClick={handleToggleInvitePromptVersion}
+                                            title={isInviteCompact ? "切换为完整版默认提示词" : "切换为精简版默认提示词"}
                                         >
-                                            还原默认
+                                            {isInviteCompact ? "切为完整版" : "切为精简版"}
                                         </button>
+                                        {isInviteCustom && (
+                                            <button
+                                                type="button"
+                                                className="chat-bilingual-prompt-reset"
+                                                onClick={() => {
+                                                    setOfflineInvitePromptDraft(DEFAULT_OFFLINE_INVITE_PROMPT);
+                                                    triggerInvitePromptToast("已还原为默认完整版提示词");
+                                                }}
+                                            >
+                                                还原默认
+                                            </button>
+                                        )}
                                         <button
                                             type="button"
                                             className="chat-bilingual-prompt-reset"
@@ -1721,11 +1852,97 @@ export function ChatSettingsPanel({
                                         </button>
                                     </div>
                                 </div>
-                                <div className="chat-bilingual-prompt-desc -mt-1">约束角色在私聊中主动发起线下邀约的动机、人设口吻与五段台词。</div>
+                                {invitePromptToast && (
+                                    <div className="text-[12px] text-emerald-600 dark:text-emerald-400 font-medium py-0.5 animate-in fade-in duration-200">
+                                        ✨ {invitePromptToast}
+                                    </div>
+                                )}
+                                <div className="chat-bilingual-prompt-desc -mt-1"><span className="font-semibold text-[var(--c-text)]">常驻注入给角色：</span>约束角色在私聊中主动发起线下邀约的动机、人设口吻与台词风格。</div>
                                 <textarea
                                     className="ui-input chat-bilingual-prompt-textarea chat-bilingual-prompt-textarea--split"
                                     value={offlineInvitePromptDraft}
                                     onChange={e => setOfflineInvitePromptDraft(e.target.value)}
+                                />
+                            </div>
+                            <div className="chat-bilingual-prompt-section">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="chat-bilingual-prompt-title">卡片拒绝按钮反应提示词</div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={() => setOfflineDeclinePromptDraft(DEFAULT_OFFLINE_DECLINE_PROMPT)}
+                                        >
+                                            还原默认
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={handleCopyOfflineDeclinePrompt}
+                                        >
+                                            {isDeclinePromptCopied ? "已复制" : "复制"}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="chat-bilingual-prompt-desc -mt-1"><span className="font-semibold text-[var(--c-text)]">仅在点击卡片「拒绝Ta」时注入给角色：</span>用户在全屏卡片上点击拒绝按钮时角色的心理与应对风格。</div>
+                                <textarea
+                                    className="ui-input chat-bilingual-prompt-textarea chat-bilingual-prompt-textarea--split"
+                                    value={offlineDeclinePromptDraft}
+                                    onChange={e => setOfflineDeclinePromptDraft(e.target.value)}
+                                />
+                            </div>
+                            <div className="chat-bilingual-prompt-section">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="chat-bilingual-prompt-title">微信口头拒绝反应提示词</div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={() => setOfflineOralDeclinePromptDraft(DEFAULT_OFFLINE_ORAL_DECLINE_PROMPT)}
+                                        >
+                                            还原默认
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={handleCopyOfflineOralDeclinePrompt}
+                                        >
+                                            {isOralDeclinePromptCopied ? "已复制" : "复制"}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="chat-bilingual-prompt-desc -mt-1"><span className="font-semibold text-[var(--c-text)]">仅在邀约卡片挂起期间注入给角色：</span>约束用户在微信文字中表达不便、推脱、说不去或让你回去时，角色的心理与应对路径。</div>
+                                <textarea
+                                    className="ui-input chat-bilingual-prompt-textarea chat-bilingual-prompt-textarea--split"
+                                    value={offlineOralDeclinePromptDraft}
+                                    onChange={e => setOfflineOralDeclinePromptDraft(e.target.value)}
+                                />
+                            </div>
+                            <div className="chat-bilingual-prompt-section">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="chat-bilingual-prompt-title">线下相遇开场白提示词</div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={() => setOfflineMeetingInitiativePromptDraft(DEFAULT_OFFLINE_MEETING_INITIATIVE_PROMPT)}
+                                        >
+                                            还原默认
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={handleCopyOfflineMeetingInitiativePrompt}
+                                        >
+                                            {isMeetingInitiativePromptCopied ? "已复制" : "复制"}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="chat-bilingual-prompt-desc -mt-1"><span className="font-semibold text-[var(--c-text)]">仅在刚进入线下碰面时注入给角色：</span>约束进入线下界面碰面那一刻角色的台词与神态举止。</div>
+                                <textarea
+                                    className="ui-input chat-bilingual-prompt-textarea chat-bilingual-prompt-textarea--split"
+                                    value={offlineMeetingInitiativePromptDraft}
+                                    onChange={e => setOfflineMeetingInitiativePromptDraft(e.target.value)}
                                 />
                             </div>
                             <div className="chat-bilingual-prompt-section">
@@ -1748,11 +1965,65 @@ export function ChatSettingsPanel({
                                         </button>
                                     </div>
                                 </div>
-                                <div className="chat-bilingual-prompt-desc -mt-1">仅在线下面对面共处中生效：双方处于线下碰面共处、对方切回手机发微信时的角色真实回应与防出戏。</div>
+                                <div className="chat-bilingual-prompt-desc -mt-1"><span className="font-semibold text-[var(--c-text)]">仅在双方处于线下共处中注入给角色：</span>双方在线下碰面共处、切回手机发微信时的角色真实回应与防出戏。</div>
                                 <textarea
                                     className="ui-input chat-bilingual-prompt-textarea chat-bilingual-prompt-textarea--split"
                                     value={offlineMeetingPromptDraft}
                                     onChange={e => setOfflineMeetingPromptDraft(e.target.value)}
+                                />
+                            </div>
+                            <div className="chat-bilingual-prompt-section">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="chat-bilingual-prompt-title">结束线下回线上发信提示词</div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={() => setOfflineReturnOnlinePromptDraft(DEFAULT_OFFLINE_RETURN_ONLINE_PROMPT)}
+                                        >
+                                            还原默认
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={handleCopyOfflineReturnOnlinePrompt}
+                                        >
+                                            {isReturnOnlinePromptCopied ? "已复制" : "复制"}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="chat-bilingual-prompt-desc -mt-1"><span className="font-semibold text-[var(--c-text)]">仅在结束线下返回微信时注入给角色：</span>结束面对面共处、回到微信线上时角色的主动发信风格。</div>
+                                <textarea
+                                    className="ui-input chat-bilingual-prompt-textarea chat-bilingual-prompt-textarea--split"
+                                    value={offlineReturnOnlinePromptDraft}
+                                    onChange={e => setOfflineReturnOnlinePromptDraft(e.target.value)}
+                                />
+                            </div>
+                            <div className="chat-bilingual-prompt-section">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="chat-bilingual-prompt-title">拒绝邀约记忆总结提示词</div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={() => setOfflineInviteMemoryPromptDraft(DEFAULT_OFFLINE_INVITE_MEMORY_PROMPT)}
+                                        >
+                                            还原默认
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={handleCopyOfflineInviteMemoryPrompt}
+                                        >
+                                            {isInviteMemoryPromptCopied ? "已复制" : "复制"}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="chat-bilingual-prompt-desc -mt-1"><span className="font-semibold text-[var(--c-text)]">仅在用户多次点击「拒绝Ta」，且最终选择「去见Ta」时生效：</span>约束记忆总结模型提炼长期记忆时的文风偏好；拒绝次数、碰头地点与标题格式由系统底层自动精准注入。</div>
+                                <textarea
+                                    className="ui-input chat-bilingual-prompt-textarea chat-bilingual-prompt-textarea--split"
+                                    value={offlineInviteMemoryPromptDraft}
+                                    onChange={e => setOfflineInviteMemoryPromptDraft(e.target.value)}
                                 />
                             </div>
                         </div>
@@ -1794,11 +2065,38 @@ export function ChatSettingsPanel({
                                         </button>
                                     </div>
                                 </div>
-                                <div className="chat-bilingual-prompt-desc -mt-1">约束角色在争吵、赌气或拒绝见面时的封禁动机、心墙厚度（1~7次）以及基础解封。</div>
+                                <div className="chat-bilingual-prompt-desc -mt-1"><span className="font-semibold text-[var(--c-text)]">常驻注入给角色：</span>约束角色在争吵、赌气或拒绝见面时的封禁动机、心墙厚度（1~7次）以及基础解封。</div>
                                 <textarea
                                     className="ui-input chat-bilingual-prompt-textarea chat-bilingual-prompt-textarea--split"
                                     value={offlineLockPromptDraft}
                                     onChange={e => setOfflineLockPromptDraft(e.target.value)}
+                                />
+                            </div>
+                            <div className="chat-bilingual-prompt-section">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="chat-bilingual-prompt-title">叩门触动打破沉默提示词</div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={() => setOfflineKnockPromptDraft(DEFAULT_OFFLINE_KNOCK_PROMPT)}
+                                        >
+                                            还原默认
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={handleCopyOfflineKnockPrompt}
+                                        >
+                                            {isKnockPromptCopied ? "已复制" : "复制"}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="chat-bilingual-prompt-desc -mt-1"><span className="font-semibold text-[var(--c-text)]">仅在敲门达到心墙要求时注入给角色：</span>当用户在界面上连续敲门申请达到心墙要求时，角色在微信中主动发信打破沉默的性格与台词风格。</div>
+                                <textarea
+                                    className="ui-input chat-bilingual-prompt-textarea chat-bilingual-prompt-textarea--split"
+                                    value={offlineKnockPromptDraft}
+                                    onChange={e => setOfflineKnockPromptDraft(e.target.value)}
                                 />
                             </div>
                             <div className="chat-bilingual-prompt-section">
@@ -1821,11 +2119,65 @@ export function ChatSettingsPanel({
                                         </button>
                                     </div>
                                 </div>
-                                <div className="chat-bilingual-prompt-desc -mt-1">仅在同时开启【自主线下邀约】时生效：约束角色在和好时的三种姿态（纯解封、我去等候、他来奔赴）。</div>
+                                <div className="chat-bilingual-prompt-desc -mt-1"><span className="font-semibold text-[var(--c-text)]">仅在同时开启自主邀约时注入给角色：</span>约束角色在和好时的三种姿态，即纯解封、我去等候、他来奔赴。</div>
                                 <textarea
                                     className="ui-input chat-bilingual-prompt-textarea chat-bilingual-prompt-textarea--split"
                                     value={offlineLockInvitePromptDraft}
                                     onChange={e => setOfflineLockInvitePromptDraft(e.target.value)}
+                                />
+                            </div>
+                            <div className="chat-bilingual-prompt-section">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="chat-bilingual-prompt-title">解封线下开场提示词</div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={() => setOfflineLockMeetingPromptDraft(DEFAULT_OFFLINE_LOCK_MEETING_PROMPT)}
+                                        >
+                                            还原默认
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={handleCopyOfflineLockMeetingPrompt}
+                                        >
+                                            {isLockMeetingPromptCopied ? "已复制" : "复制"}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="chat-bilingual-prompt-desc -mt-1"><span className="font-semibold text-[var(--c-text)]">仅在解封后点击前往线下见面时注入给角色：</span>约束角色从微信封闭到线下初次碰面时的第一句开场白与神态动作风格。</div>
+                                <textarea
+                                    className="ui-input chat-bilingual-prompt-textarea chat-bilingual-prompt-textarea--split"
+                                    value={offlineLockMeetingPromptDraft}
+                                    onChange={e => setOfflineLockMeetingPromptDraft(e.target.value)}
+                                />
+                            </div>
+                            <div className="chat-bilingual-prompt-section">
+                                <div className="flex items-center justify-between gap-2">
+                                    <div className="chat-bilingual-prompt-title">叩门申请记忆总结提示词</div>
+                                    <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={() => setOfflineLockMemoryPromptDraft(DEFAULT_OFFLINE_LOCK_MEMORY_PROMPT)}
+                                        >
+                                            还原默认
+                                        </button>
+                                        <button
+                                            type="button"
+                                            className="chat-bilingual-prompt-reset"
+                                            onClick={handleCopyOfflineLockMemoryPrompt}
+                                        >
+                                            {isLockMemoryPromptCopied ? "已复制" : "复制"}
+                                        </button>
+                                    </div>
+                                </div>
+                                <div className="chat-bilingual-prompt-desc -mt-1"><span className="font-semibold text-[var(--c-text)]">仅在用户叩门申请解封线下，且角色最终解封线下时生效：</span>约束记忆总结模型提炼长期记忆时的文风偏好；累计叩门次数与标题格式由系统底层自动精准注入。</div>
+                                <textarea
+                                    className="ui-input chat-bilingual-prompt-textarea chat-bilingual-prompt-textarea--split"
+                                    value={offlineLockMemoryPromptDraft}
+                                    onChange={e => setOfflineLockMemoryPromptDraft(e.target.value)}
                                 />
                             </div>
                         </div>
