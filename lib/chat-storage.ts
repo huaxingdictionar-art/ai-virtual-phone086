@@ -2483,7 +2483,7 @@ export const DEFAULT_OFFLINE_INVITE_PROMPT = [
 ].join("\n");
 
 /**
- * 角色主动线下邀约默认提示词（精简优化版本，约3100字）
+ * 角色主动线下邀约默认提示词（精简优化版本，4k+字符）
  */
 export const DEFAULT_OFFLINE_INVITE_PROMPT_COMPACT = [
     "### 线下邀约动作指令（极度克制的高权重剧情动作）：",
