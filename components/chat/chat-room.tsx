@@ -635,13 +635,19 @@ function restoreOfflineInviteFromMessages(
                     m.content.includes("动身赶往") ||
                     m.content.includes("已直接动身") ||
                     m.content.includes("正在重新赶往") ||
+                    m.content.includes("赴约地点已更改为") ||
+                    m.content.includes("碰头方式已变更为") ||
+                    m.content.includes("赴约提议地点已更改为") ||
+                    m.content.includes("等候你碰面") ||
                     m.content.includes("已如约到达") ||
                     m.content.includes("已提前到达") ||
                     m.content.includes("就位等候") ||
                     m.content.includes("线下碰面中")
                 )) {
                     rootMsgIndex = i;
-                    const placeMatch = m.content.match(/[「"“]([^」"”]+)[」"”]/) || m.content.match(/(你身边)/);
+                    const placeMatch = m.content.match(/(?:赴约(?:提议)?地点已更改为|正在动身赶往|前往|正在重新赶往|已(?:提前|如约)?到达|已在)[「"“]([^」"”]+)[」"”]/) ||
+                                       m.content.match(/[「"“]([^」"”]+)[」"”]/) ||
+                                       m.content.match(/(你身边)/);
                     const parsedPlace = placeMatch?.[1]?.trim() || "约定地点";
                     const isIGo = m.content.includes("变更为由你") || m.content.includes("等候你碰面") || m.content.includes("就位等候");
                     baseInvite = {
@@ -696,6 +702,7 @@ function restoreOfflineInviteFromMessages(
                 m.content.includes("已直接动身") ||
                 m.content.includes("前往") ||
                 m.content.includes("正在重新赶往") ||
+                m.content.includes("赴约地点已更改为") ||
                 m.content.includes("已到达") ||
                 m.content.includes("已提前到达") ||
                 m.content.includes("就位等候")
@@ -713,13 +720,14 @@ function restoreOfflineInviteFromMessages(
                 m.content.includes("已直接动身") ||
                 m.content.includes("前往") ||
                 m.content.includes("正在重新赶往") ||
+                m.content.includes("赴约地点已更改为") ||
                 m.content.includes("已到达") ||
                 m.content.includes("已提前到达") ||
                 m.content.includes("就位等候")
             ))
           );
 
-    if (!hasRoot && (!baseInvite || !baseInvite.status)) {
+    if (!hasRoot) {
         return null;
     }
 
@@ -8057,7 +8065,45 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             // 【智能物理预演】：模拟若当前目标消息被删除，内存中的下一个状态机
             const simulatedRemaining = storedMsgs.filter(m => m.id !== targetMsg.id);
             const currentInvite = activeOfflineInviteRef.current;
-            const simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, null);
+
+            // 支撑柱子归零检测：若当前处于活跃邀约中，检查剩余消息中是否仍存有支撑当前邀约的柱子（提议/动身/改地点/到达/碰面）
+            // 若全部支撑柱子都已被删除（苦苦支撑的最后一根柱子被拔），严禁越界从历史旧账中恢复幽灵邀约，直接判空！
+            let simulatedNextInvite: OfflineInviteData | null = null;
+            if (currentInvite) {
+                const rootId = currentInvite.initialBatchId || currentInvite.sourceBatchId;
+                const hasPillarsForCurrentInvite = simulatedRemaining.some(m =>
+                    (rootId && (m.responseBatchId === rootId || m.id === rootId)) ||
+                    (currentInvite.relatedBatchIds && m.responseBatchId && currentInvite.relatedBatchIds.includes(m.responseBatchId)) ||
+                    m.mediaType === "offline_invite" ||
+                    m.mediaType === "offline_invite_change_place" ||
+                    m.mediaType === "offline_invite_early_arrive" ||
+                    m.mediaType === "offline_invite_arrive_notice" ||
+                    Boolean(m.mediaData?.offlineInvite) ||
+                    (m.role === "system" && Boolean(m.content && (
+                        /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
+                        /“请求”前往|“邀请你”前往/.test(m.content) ||
+                        m.content.includes("你已同意赴约") ||
+                        m.content.includes("已直接动身赶往") ||
+                        m.content.includes("已直接动身") ||
+                        m.content.includes("正在动身赶往") ||
+                        m.content.includes("正在重新赶往") ||
+                        m.content.includes("赴约地点已更改为") ||
+                        m.content.includes("碰头方式已变更为") ||
+                        m.content.includes("赴约提议地点已更改为") ||
+                        m.content.includes("赴约提议已变更为") ||
+                        m.content.includes("已如约到达") ||
+                        m.content.includes("“如约”到达") ||
+                        m.content.includes("已提前到达") ||
+                        (m.content.includes("已在") && m.content.includes("就位等候")) ||
+                        (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
+                    )))
+                );
+                if (hasPillarsForCurrentInvite) {
+                    simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, currentInvite);
+                }
+            } else {
+                simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, null);
+            }
 
             // 状态倒退判定函数
             const isInviteStateRegressed = (cur: OfflineInviteData | null, next: OfflineInviteData | null): boolean => {
@@ -8245,6 +8291,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     confirmLabel: "确认回溯",
                     variant: "danger",
                     onConfirm: () => {
+                        kvSet(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id, "1");
+                        updateActiveOfflineInvite(null);
+                        setIsOfflineInviteMinimized(false);
                         executeDeleteFrom();
                     },
                 });
@@ -8256,6 +8305,11 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     confirmLabel: "确认回溯",
                     variant: "danger",
                     onConfirm: () => {
+                        const nextInvite = restoreOfflineInviteFromMessages(remainingStored, null);
+                        if (nextInvite) {
+                            updateActiveOfflineInvite(nextInvite);
+                            setIsOfflineInviteMinimized(nextInvite.status === "on_the_way");
+                        }
                         executeDeleteFrom();
                     },
                 });
@@ -8289,8 +8343,39 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         );
 
         if (currentInvite && isInviteRelated) {
-            // 对批量删除后的剩余消息进行智能物理预演
-            const simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, null);
+            // 对批量删除后的剩余消息进行智能物理预演：支撑柱子归零检测
+            const rootId = currentInvite.initialBatchId || currentInvite.sourceBatchId;
+            const hasPillarsForCurrentInvite = simulatedRemaining.some(m =>
+                (rootId && (m.responseBatchId === rootId || m.id === rootId)) ||
+                (currentInvite.relatedBatchIds && m.responseBatchId && currentInvite.relatedBatchIds.includes(m.responseBatchId)) ||
+                m.mediaType === "offline_invite" ||
+                m.mediaType === "offline_invite_change_place" ||
+                m.mediaType === "offline_invite_early_arrive" ||
+                m.mediaType === "offline_invite_arrive_notice" ||
+                Boolean(m.mediaData?.offlineInvite) ||
+                (m.role === "system" && Boolean(m.content && (
+                    /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
+                    /“请求”前往|“邀请你”前往/.test(m.content) ||
+                    m.content.includes("你已同意赴约") ||
+                    m.content.includes("已直接动身赶往") ||
+                    m.content.includes("已直接动身") ||
+                    m.content.includes("正在动身赶往") ||
+                    m.content.includes("正在重新赶往") ||
+                    m.content.includes("赴约地点已更改为") ||
+                    m.content.includes("碰头方式已变更为") ||
+                    m.content.includes("赴约提议地点已更改为") ||
+                    m.content.includes("赴约提议已变更为") ||
+                    m.content.includes("已如约到达") ||
+                    m.content.includes("“如约”到达") ||
+                    m.content.includes("已提前到达") ||
+                    (m.content.includes("已在") && m.content.includes("就位等候")) ||
+                    (m.content.includes("双方正在") && m.content.includes("线下碰面中"))
+                )))
+            );
+
+            const simulatedNextInvite = hasPillarsForCurrentInvite
+                ? restoreOfflineInviteFromMessages(simulatedRemaining, currentInvite)
+                : null;
 
             // 分流 1：连根拔起（删除后没有任何支撑节点了，最初发起提议也被连根拔起）
             if (!simulatedNextInvite) {
