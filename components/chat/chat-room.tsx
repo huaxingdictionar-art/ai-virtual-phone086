@@ -6587,6 +6587,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
 
         // 标记本次线下是由角色自主邀约赴约开启的
         kvSet(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id, "1");
+        if (activeOfflineInvite.theme) {
+            kvSet(OFFLINE_INVITE_ACTIVE_THEME_PREFIX + session.id, activeOfflineInvite.theme);
+        }
         updateActiveOfflineInvite(null);
         setIsOfflineInviteMinimized(false);
         kvRemove(PENDING_OFFLINE_INVITE_DECLINE_PREFIX + session.id);
@@ -9099,34 +9102,53 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             isRetrying={isRetryingOffline}
                         />
                     </div>
-                ) : (kvGet(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id) === "1" ? (
-                    <div className="chat-offline-invite-capsule-wrapper">
-                        <div
-                            onClick={() => doToggleOfflineMode(false)}
-                            className="w-fit max-w-[92%] mx-auto px-3.5 py-1.5 rounded-full bg-[var(--c-panel,#ffffff)]/95 backdrop-blur-md border border-[var(--c-panel-border,rgba(0,0,0,0.12))] shadow-md flex items-center gap-2 cursor-pointer select-none hover:scale-[1.02] active:scale-[0.98] transition-all"
-                            data-ui="offline-invite-capsule"
-                            title="点击返回面对面碰面"
-                        >
-                            <span className="relative inline-flex items-center justify-center h-2 w-2 shrink-0">
-                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[var(--c-primary,#2563eb)] opacity-75" />
-                                <span className="relative inline-flex rounded-full h-2 w-2 bg-[var(--c-primary,#2563eb)]" />
-                            </span>
-                            <span className="text-xs font-medium text-[var(--c-text-title,#111827)] truncate inline-flex items-center leading-none">
-                                ✨ 与 {character?.name || "对方"} 线下碰面中
-                            </span>
-                            <button
-                                type="button"
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    doToggleOfflineMode(false);
-                                }}
-                                className="text-[11px] bg-[var(--c-primary,#2563eb)] text-white font-semibold px-2.5 h-[22px] rounded-full hover:opacity-90 active:scale-95 transition-all shrink-0 cursor-pointer shadow-sm inline-flex items-center justify-center leading-none"
+                ) : (kvGet(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id) === "1" ? (() => {
+                    const activeMeetingTheme = kvGet(OFFLINE_INVITE_ACTIVE_THEME_PREFIX + session.id) || activeOfflineInvite?.theme || "default";
+                    const isMeetingForced = activeMeetingTheme === "forced";
+                    const isMeetingAlert = activeMeetingTheme === "alert" || isMeetingForced;
+                    const pingDotBg = isMeetingAlert ? "bg-[var(--c-danger,#FF3B30)]" : "bg-[var(--c-primary,#2563eb)]";
+                    const solidDotBg = isMeetingAlert
+                        ? `bg-[var(--c-danger,#FF3B30)] ${isMeetingForced ? "shadow-[0_0_8px_rgba(255,59,48,0.9)]" : ""}`
+                        : "bg-[var(--c-primary,#2563eb)]";
+                    const btnBg = isMeetingForced
+                        ? "bg-[var(--c-danger,#FF3B30)] shadow-[0_2px_12px_rgba(255,59,48,0.6)] hover:opacity-95 text-white"
+                        : isMeetingAlert
+                        ? "bg-[var(--c-danger,#FF3B30)] shadow-[0_2px_8px_rgba(255,59,48,0.38)] hover:opacity-95 text-white"
+                        : "bg-[var(--c-primary,#2563eb)] shadow-[0_2px_8px_rgba(37,99,235,0.35)] hover:opacity-90 text-white";
+
+                    return (
+                        <div className="chat-offline-invite-capsule-wrapper">
+                            <div
+                                onClick={() => doToggleOfflineMode(false)}
+                                className={`w-fit max-w-[92%] mx-auto px-3.5 py-1.5 rounded-full backdrop-blur-md shadow-md flex items-center gap-2 cursor-pointer select-none hover:scale-[1.02] active:scale-[0.98] transition-all ${
+                                    isMeetingForced
+                                        ? "offline-invite-capsule-forced"
+                                        : "bg-[var(--c-panel,#ffffff)]/95 border border-[var(--c-panel-border,rgba(0,0,0,0.12))]"
+                                }`}
+                                data-ui="offline-invite-capsule"
+                                title="点击返回面对面碰面"
                             >
-                                回到现场
-                            </button>
+                                <span className="relative inline-flex items-center justify-center h-2 w-2 shrink-0">
+                                    <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${pingDotBg}`} />
+                                    <span className={`relative inline-flex rounded-full h-2 w-2 ${solidDotBg}`} />
+                                </span>
+                                <span className={`text-xs font-medium truncate inline-flex items-center leading-none ${isMeetingForced ? "text-gray-100" : "text-[var(--c-text-title,#111827)]"}`}>
+                                    ✨ 与 {character?.name || "对方"} 线下碰面中
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        doToggleOfflineMode(false);
+                                    }}
+                                    className={`text-[11px] font-semibold px-2.5 h-[22px] rounded-full active:scale-95 transition-all shrink-0 cursor-pointer shadow-sm inline-flex items-center justify-center leading-none ${btnBg}`}
+                                >
+                                    回到现场
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                ) : null)
+                    );
+                })() : null)
             )}
 
             {/* Message List */}
