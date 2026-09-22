@@ -7850,9 +7850,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             )));
 
         if (isInviteTarget) {
-            // 保护机制：若当前处于活跃的线下碰面进行中，不可单删内部系统消息
+            // 保护机制：若当前处于活跃的线下碰面进行中，不可单删内部系统消息或邀约节点
             const isMeetingActive = !session.isGroup && kvGet(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id) === "1";
-            if (isMeetingActive && isOfflineInviteSystemMessage(targetMsg)) {
+            if (isMeetingActive && (isOfflineInviteSystemMessage(targetMsg) || isOfflineInviteRootMessage(targetMsg))) {
                 setPendingInviteDeleteConfirm({
                     title: "线下赴约进行中",
                     message: `当前正与${character?.name || "对方"}线下碰面中，若想回溯至线上状态，请重试对应消息。`,
@@ -8104,8 +8104,21 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             });
         };
 
-        // 场景 C：已返回线上后，删除以下截断了“双方已返回线上”结束记录
         const isMeetingActive = !session.isGroup && kvGet(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id) === "1";
+        // 保护机制：若当前处于活跃的线下碰面进行中，不可批量删除线下碰面记录与邀约节点
+        if (isMeetingActive && targetMessages.some(m => isOfflineInviteSystemMessage(m) || isOfflineInviteRootMessage(m))) {
+            setPendingInviteDeleteConfirm({
+                title: "线下赴约进行中",
+                message: `当前正与${character?.name || "对方"}线下碰面中，若想回溯至线上状态，请重试对应消息。`,
+                confirmLabel: "我知道了",
+                hideCancel: true,
+                variant: "default",
+                onConfirm: () => {},
+            });
+            return;
+        }
+
+        // 场景 C：已返回线上后，删除以下截断了“双方已返回线上”结束记录
         const truncatesEndMeetingNotice = targetMessages.some(m =>
             (m.role === "system" || m.mediaType === "offline_invite_system_notice") &&
             Boolean(m.content && m.content.includes("双方已返回线上"))
@@ -9773,20 +9786,28 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             </p>
                         </div>
                         <div className="modal-footer" data-ui="modal-footer">
+                            {!pendingInviteDeleteConfirm.hideCancel && (
+                                <button
+                                    type="button"
+                                    className="ui-btn"
+                                    onClick={() => setPendingInviteDeleteConfirm(null)}
+                                >
+                                    {pendingInviteDeleteConfirm.cancelLabel || "取消"}
+                                </button>
+                            )}
                             <button
                                 type="button"
-                                className="ui-btn"
-                                onClick={() => setPendingInviteDeleteConfirm(null)}
-                            >
-                                {pendingInviteDeleteConfirm.cancelLabel || "取消"}
-                            </button>
-                            <button
-                                type="button"
-                                className={`ui-btn ${pendingInviteDeleteConfirm.variant === "danger" ? "ui-btn-danger" : "ui-btn-primary"}`}
+                                className={`ui-btn ${
+                                    pendingInviteDeleteConfirm.hideCancel
+                                        ? "w-full ui-btn-primary"
+                                        : pendingInviteDeleteConfirm.variant === "danger"
+                                        ? "ui-btn-danger"
+                                        : "ui-btn-primary"
+                                }`}
                                 onClick={() => {
                                     const act = pendingInviteDeleteConfirm.onConfirm;
                                     setPendingInviteDeleteConfirm(null);
-                                    act();
+                                    if (act) act();
                                 }}
                             >
                                 {pendingInviteDeleteConfirm.confirmLabel || "删除"}

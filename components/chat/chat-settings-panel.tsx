@@ -841,10 +841,10 @@ export function ChatSettingsPanel({
     const handleToggleInvitePromptVersion = () => {
         if (isInviteCompact) {
             setOfflineInvitePromptDraft(DEFAULT_OFFLINE_INVITE_PROMPT);
-            triggerInvitePromptToast("已切换为默认完整版提示词（保存后生效）");
+            triggerInvitePromptToast("已切换为完整版7.3k字符（保存后生效）");
         } else {
             setOfflineInvitePromptDraft(DEFAULT_OFFLINE_INVITE_PROMPT_COMPACT);
-            triggerInvitePromptToast("已切换为默认精简版提示词（保存后生效）");
+            triggerInvitePromptToast("已切换为精简版3.1k字符（保存后生效）");
         }
     };
 
@@ -1827,7 +1827,7 @@ export function ChatSettingsPanel({
                                             type="button"
                                             className="chat-bilingual-prompt-reset"
                                             onClick={handleToggleInvitePromptVersion}
-                                            title={isInviteCompact ? "切换为完整版默认提示词" : "切换为精简版默认提示词"}
+                                            title={isInviteCompact ? "切换为完整版7.3k字符" : "切换为精简版3.1k字符"}
                                         >
                                             {isInviteCompact ? "切为完整版" : "切为精简版"}
                                         </button>
@@ -1837,7 +1837,7 @@ export function ChatSettingsPanel({
                                                 className="chat-bilingual-prompt-reset"
                                                 onClick={() => {
                                                     setOfflineInvitePromptDraft(DEFAULT_OFFLINE_INVITE_PROMPT);
-                                                    triggerInvitePromptToast("已还原为默认完整版提示词");
+                                                    triggerInvitePromptToast("已还原为完整版7.3k字符");
                                                 }}
                                             >
                                                 还原默认
