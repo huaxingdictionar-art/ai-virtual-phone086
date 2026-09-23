@@ -7544,4 +7544,33 @@
   }
 }
 
+/* ── 线下邀约与封禁附属项专属样式（从属浅灰底与精致细线） ── */
+.menu-item-sub {
+  background-color: color-mix(in srgb, var(--c-card-border) 32%, var(--c-panel));
+  position: relative;
+}
+
+.menu-item-sub-divider::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 16px;
+  right: 16px;
+  height: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--c-card-border) 45%, transparent);
+  pointer-events: none;
+}
+
+.menu-item-sub-top-divider::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 16px;
+  right: 16px;
+  height: 0;
+  border-top: 1px solid color-mix(in srgb, var(--c-card-border) 45%, transparent);
+  pointer-events: none;
+}
+
+
 

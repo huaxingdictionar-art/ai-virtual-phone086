@@ -1414,7 +1414,7 @@ export function ChatSettingsPanel({
                             </div>
                             {enableOfflineInvite && (
                                 <>
-                                    <div className="menu-item" style={{ background: "var(--c-page-body-bg)" }}>
+                                    <div className="menu-item menu-item-sub menu-item-sub-top-divider menu-item-sub-divider">
                                         <ChatInfoIcon icon={MessageSquare} color={BINDING_ACCENTS.voice} />
                                         <div className="menu-label-group">
                                             <span className="menu-label">进入线下角色主动开场</span>
@@ -1432,8 +1432,7 @@ export function ChatSettingsPanel({
                                     </div>
                                     <button
                                         type="button"
-                                        className="menu-item"
-                                        style={{ background: "var(--c-page-body-bg)" }}
+                                        className="menu-item menu-item-sub"
                                         onClick={openOfflineInvitePromptEditor}
                                     >
                                         <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.memory} />
@@ -1471,7 +1470,7 @@ export function ChatSettingsPanel({
                             </div>
                             {enableOfflineLock && (
                                 <>
-                                    <div className="menu-item" style={{ background: "var(--c-page-body-bg)" }}>
+                                    <div className="menu-item menu-item-sub menu-item-sub-top-divider menu-item-sub-divider">
                                         <ChatInfoIcon icon={MessageSquare} color={BINDING_ACCENTS.voice} />
                                         <div className="menu-label-group">
                                             <span className="menu-label">解封进入线下角色主动开场</span>
@@ -1489,8 +1488,7 @@ export function ChatSettingsPanel({
                                     </div>
                                     <button
                                         type="button"
-                                        className="menu-item"
-                                        style={{ background: "var(--c-page-body-bg)" }}
+                                        className="menu-item menu-item-sub"
                                         onClick={openOfflineLockPromptEditor}
                                     >
                                         <ChatInfoIcon icon={Lock} color={BINDING_ACCENTS.memory} />
