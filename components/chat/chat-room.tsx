@@ -8164,12 +8164,10 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 )
             );
 
-            // 【智能物理预演】：模拟若当前目标消息被删除，内存中的下一个状态机
             const simulatedRemaining = storedMsgs.filter(m => m.id !== targetMsg.id);
             const currentInvite = activeOfflineInviteRef.current;
-
-            // 【状态栏预处理钓鱼竿】：以删除后的剩余消息模拟计算下一个状态栏
-            const simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, currentInvite);
+            // 【状态栏预处理钓鱼竿】：以删除后的剩余消息模拟计算下一个状态栏（传入 null 客观物理推导，绝不携带旧状态残留）
+            const simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, null);
 
             // ---------------------------------------------------------------------
             // 🎯 分流判断：严格对齐华敲定的三大物理后果法则
@@ -8392,8 +8390,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         );
 
         if (currentInvite && isInviteRelated) {
-            // 【状态栏预处理钓鱼竿】：以删除后的剩余消息模拟计算下一个状态栏
-            const simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, currentInvite);
+            // 【状态栏预处理钓鱼竿】：以删除后的剩余消息模拟计算下一个状态栏（传入 null 客观物理推导，绝不携带旧状态残留）
+            const simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, null);
 
             // 分流 1：连根拔起（删除后状态栏没了，彻底清除本次线下赴约状态，对应 test-offline-modals.html 第 16 项）
             if (!simulatedNextInvite) {
@@ -10194,7 +10192,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
 
                         <div className="modal-body text-center" data-ui="modal-body">
                             <p className="leading-relaxed text-[13.5px] text-[var(--c-text,#4b5563)]">
-                                检测到您与角色当前正在线下赴约中。重试该消息将会回溯至当时的时间线，并直接结束当前的线下赴约。是否确认重试？
+                                当前正与{character?.name || "对方"}线下碰面中。重试该消息将删除后续记录并结束本次碰面，时间线将回溯至当时。是否确认重试？
                             </p>
                         </div>
 
