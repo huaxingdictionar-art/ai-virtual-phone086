@@ -844,7 +844,7 @@ export function ChatSettingsPanel({
             triggerInvitePromptToast("已切换为完整版7k+字符（保存后生效）");
         } else {
             setOfflineInvitePromptDraft(DEFAULT_OFFLINE_INVITE_PROMPT_COMPACT);
-            triggerInvitePromptToast("已切换为精简版4k+字符（保存后生效）");
+            triggerInvitePromptToast("已切换为精简版约3k字符（保存后生效）");
         }
     };
 
@@ -1827,7 +1827,7 @@ export function ChatSettingsPanel({
                                             type="button"
                                             className="chat-bilingual-prompt-reset"
                                             onClick={handleToggleInvitePromptVersion}
-                                            title={isInviteCompact ? "切换为完整版7k+字符" : "切换为精简版4k+字符"}
+                                            title={isInviteCompact ? "切换为完整版7k+字符" : "切换为精简版约3k字符"}
                                         >
                                             {isInviteCompact ? "切为完整版" : "切为精简版"}
                                         </button>
