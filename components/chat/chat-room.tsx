@@ -7842,6 +7842,23 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         }
     };
 
+    // 赴约状态倒退判定函数（供单删与删除以下预处理鱼竿共享）
+    const isInviteStateRegressed = (cur: OfflineInviteData | null, next: OfflineInviteData | null): boolean => {
+        if (!cur || !next) return false;
+        const rank = (status?: string) => {
+            if (status === "arrived") return 2;
+            if (status === "on_the_way") return 1;
+            return 0; // pending or other
+        };
+        const curRank = rank(cur.status);
+        const nextRank = rank(next.status);
+        if (nextRank < curRank) return true;
+        if (cur.isEarlyArrived && !next.isEarlyArrived) return true;
+        if (cur.place && next.place && cur.place !== next.place) return true;
+        if (cur.direction && next.direction && cur.direction !== next.direction) return true;
+        return false;
+    };
+
     const handleDeleteMessage = (msgId: string) => {
         if (isTransientMessage(msgId)) {
             removeTransientMessage(msgId);
@@ -8153,23 +8170,6 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
 
             // 【状态栏预处理钓鱼竿】：以删除后的剩余消息模拟计算下一个状态栏
             const simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, currentInvite);
-
-            // 状态倒退判定函数
-            const isInviteStateRegressed = (cur: OfflineInviteData | null, next: OfflineInviteData | null): boolean => {
-                if (!cur || !next) return false;
-                const rank = (status?: string) => {
-                    if (status === "arrived") return 2;
-                    if (status === "on_the_way") return 1;
-                    return 0; // pending or other
-                };
-                const curRank = rank(cur.status);
-                const nextRank = rank(next.status);
-                if (nextRank < curRank) return true;
-                if (cur.isEarlyArrived && !next.isEarlyArrived) return true;
-                if (cur.place && next.place && cur.place !== next.place) return true;
-                if (cur.direction && next.direction && cur.direction !== next.direction) return true;
-                return false;
-            };
 
             // ---------------------------------------------------------------------
             // 🎯 分流判断：严格对齐华敲定的三大物理后果法则
