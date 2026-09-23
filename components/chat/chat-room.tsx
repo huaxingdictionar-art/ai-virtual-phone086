@@ -7246,46 +7246,70 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
                     kvRemove(OFFLINE_INVITE_ACTIVE_THEME_PREFIX + session.id);
                 } else {
-                    // 检查回退后的 contextMessages 中是否包含未被终结的有效碰面记录
-                    let lastEndNoticeIdx = -1;
+                    // 🎯 核心时间线因果法则（华亲定）：从重试截断点往前看，最后发生的关键事件决定了那一刻的状态！
+                    let lastEvent: "terminated" | "meeting" | "invite_active" | "none" = "none";
+                    let meetingThemeFromMsg: string | undefined;
+
                     for (let i = contextMessages.length - 1; i >= 0; i--) {
                         const m = contextMessages[i];
+                        // 1. 若最后遇到的是终结事件（已返回线上 / 已取消 / 婉拒 / 线下封锁）：代表在那一刻赴约已彻底结束，自然毫无状态！
                         if (isOfflineInviteTerminatedMessage(m)) {
-                            lastEndNoticeIdx = i;
+                            lastEvent = "terminated";
                             break;
                         }
-                    }
-
-                    let contextHasActiveMeetingNotice = false;
-                    let meetingThemeFromMsg: string | undefined;
-                    for (let i = contextMessages.length - 1; i > lastEndNoticeIdx; i--) {
-                        const m = contextMessages[i];
+                        // 2. 若最后遇到的是碰面记录：代表在那一刻双方正处于面对面碰面中！
                         if ((m.role === "system" || m.mediaType === "offline_invite_system_notice") && Boolean(m.content && m.content.includes("线下碰面中"))) {
-                            contextHasActiveMeetingNotice = true;
+                            lastEvent = "meeting";
                             meetingThemeFromMsg = m.mediaData?.offlineInvite?.theme;
                             break;
                         }
+                        // 3. 若最后遇到的是赴约提议/动身/在途/到达节点：代表在那一刻处于当时的赴约进展中！
+                        if (
+                            m.mediaType === "offline_invite" ||
+                            m.mediaType === "offline_invite_change_place" ||
+                            m.mediaType === "offline_invite_early_arrive" ||
+                            m.mediaType === "offline_invite_arrive_notice" ||
+                            Boolean(m.mediaData?.offlineInvite) ||
+                            (m.role === "system" && m.content && (
+                                m.content.includes("你已同意赴约") ||
+                                (m.content.includes("向你发起了") && m.content.includes("线下赴约提议")) ||
+                                m.content.includes("正在动身赶往") ||
+                                m.content.includes("已直接动身") ||
+                                m.content.includes("正在重新赶往") ||
+                                m.content.includes("赴约地点已更改为") ||
+                                m.content.includes("已到达") ||
+                                m.content.includes("已提前到达") ||
+                                m.content.includes("就位等候")
+                            ))
+                        ) {
+                            lastEvent = "invite_active";
+                            break;
+                        }
                     }
 
-                    if (contextHasActiveMeetingNotice) {
-                        // 回溯至线下碰面中
+                    if (lastEvent === "terminated" || lastEvent === "none") {
+                        // 那一刻已终结或尚未发起任何赴约：彻底清理，保持纯净无状态
+                        kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
+                        kvRemove(OFFLINE_INVITE_ACTIVE_THEME_PREFIX + session.id);
+                        updateActiveOfflineInvite(null);
+                        setIsOfflineInviteMinimized(false);
+                    } else if (lastEvent === "meeting") {
+                        // 那一刻正处于线下碰面中：恢复碰面顶栏
                         kvSet(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id, "1");
                         if (meetingThemeFromMsg) {
                             kvSet(OFFLINE_INVITE_ACTIVE_THEME_PREFIX + session.id, meetingThemeFromMsg);
                         }
                         updateActiveOfflineInvite(null);
                         setIsOfflineInviteMinimized(false);
-                    } else {
-                        // 回溯至碰面前的赴约等候/在途状态，或保持碰面已结束的线上状态
+                    } else if (lastEvent === "invite_active") {
+                        // 那一刻正处于提议/在途/到达赴约中：回溯恢复当时的赴约卡片
                         kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
                         kvRemove(OFFLINE_INVITE_ACTIVE_THEME_PREFIX + session.id);
-                        // 无论当前 activeOfflineInvite 是否存在（如已返回线上为 null），只要回退后的上下文包含未终结的赴约提议，立即智能回溯复活！
                         const restoredInvite = restoreOfflineInviteFromMessages(contextMessages, currentInvite, targetRetryMsg);
                         if (restoredInvite) {
                             updateActiveOfflineInvite(restoredInvite);
-                            // 重试期间保持收起状态，避免遮挡“对方正在输入中”提示
                             setIsOfflineInviteMinimized(true);
-                        } else if (currentInvite) {
+                        } else {
                             updateActiveOfflineInvite(null);
                             setIsOfflineInviteMinimized(false);
                         }
