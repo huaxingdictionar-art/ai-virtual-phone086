@@ -599,15 +599,31 @@ function restoreOfflineInviteFromMessages(
     }
     const effectiveSearchStart = lastTerminationIdxInRound !== -1 ? lastTerminationIdxInRound + 1 : currentRoundFloor;
 
-    if (!baseInvite) {
+    if (baseInvite) {
+        const rootId = baseInvite.initialBatchId || baseInvite.sourceBatchId;
+        if (rootId) {
+            rootMsgIndex = historyMessages.findIndex(m =>
+                (m.responseBatchId && m.responseBatchId === rootId) ||
+                m.id === rootId ||
+                (m.mediaData?.offlineInvite && (m.mediaData.offlineInvite.initialBatchId === rootId || m.mediaData.offlineInvite.sourceBatchId === rootId))
+            );
+        }
+    }
+
+    // 若未传入 baseInvite，或者 baseInvite 携带的根节点在当前轮次有效区间之前（rootMsgIndex < effectiveSearchStart，即属于已被终结的历史旧轮次）：
+    // 必须从 effectiveSearchStart 往后重新搜寻当前轮次合法存续的生命之根！
+    if (!baseInvite || rootMsgIndex < effectiveSearchStart) {
+        let currentRoundRootIndex = -1;
+        let currentRoundBase: OfflineInviteData | null = null;
+
         for (let i = effectiveSearchStart; i < historyMessages.length; i++) {
             const m = historyMessages[i];
             if (m.mediaType === "offline_invite" || m.mediaData?.offlineInvite) {
                 const data = m.mediaData?.offlineInvite;
                 if (data) {
-                    rootMsgIndex = i;
+                    currentRoundRootIndex = i;
                     const isForced = data.theme === "forced" || data.status === "on_the_way";
-                    baseInvite = {
+                    currentRoundBase = {
                         direction: isForced ? "he_comes" : (data.direction || "he_comes"),
                         status: isForced ? "on_the_way" : (data.status === "arrived" ? "arrived" : "pending"),
                         theme: data.theme || (isForced ? "forced" : "default"),
@@ -626,7 +642,7 @@ function restoreOfflineInviteFromMessages(
                 }
             }
         }
-        if (!baseInvite) {
+        if (!currentRoundBase) {
             // 孤柱支撑兜底：若带结构化数据的节点被删，但历史中仍存有任何关键系统灰字记录（提议/动身/到达/碰面），依然认其为最后的生命之根！
             for (let i = effectiveSearchStart; i < historyMessages.length; i++) {
                 const m = historyMessages[i];
@@ -645,14 +661,14 @@ function restoreOfflineInviteFromMessages(
                     m.content.includes("就位等候") ||
                     m.content.includes("线下碰面中")
                 )) {
-                    rootMsgIndex = i;
+                    currentRoundRootIndex = i;
                     const placeMatch = m.content.match(/(?:赴约(?:提议)?地点已更改为|正在动身赶往|前往|正在重新赶往|已(?:提前|如约)?到达|已在)[「"“]([^」"”]+)[」"”]/) ||
                                        m.content.match(/[「"“]([^」"”]+)[」"”]/) ||
                                        m.content.match(/(你身边)/);
                     const parsedPlace = placeMatch?.[1]?.trim() || "约定地点";
                     const isForcedNotice = m.content.includes("已直接动身") || m.content.includes("强行动身");
                     const isIGo = !isForcedNotice && (m.content.includes("变更为由你") || m.content.includes("等候你碰面") || m.content.includes("就位等候"));
-                    baseInvite = {
+                    currentRoundBase = {
                         direction: isForcedNotice ? "he_comes" : (isIGo ? "i_go" : "he_comes"),
                         status: isForcedNotice ? "on_the_way" : "pending",
                         theme: isForcedNotice ? "forced" : "default",
@@ -667,23 +683,24 @@ function restoreOfflineInviteFromMessages(
                 }
             }
         }
-        if (!baseInvite) {
+        if (!currentRoundBase) {
             return null;
         }
-    } else {
-        const rootId = baseInvite.initialBatchId || baseInvite.sourceBatchId;
-        if (rootId) {
-            rootMsgIndex = historyMessages.findIndex(m =>
-                (m.responseBatchId && m.responseBatchId === rootId) ||
-                m.id === rootId ||
-                (m.mediaData?.offlineInvite && (m.mediaData.offlineInvite.initialBatchId === rootId || m.mediaData.offlineInvite.sourceBatchId === rootId))
-            );
+
+        rootMsgIndex = currentRoundRootIndex;
+        if (baseInvite) {
+            // 已有 baseInvite 但根属于旧轮次：更新根锚点为当前轮次新根，其余定制数据保留
+            baseInvite.initialBatchId = currentRoundBase.initialBatchId;
+            baseInvite.sourceBatchId = currentRoundBase.sourceBatchId;
+        } else {
+            baseInvite = currentRoundBase;
         }
     }
 
     // 终结事件硬约束：若在发起提议的节点之后出现了取消、婉拒、返回线上或关闭入口等终结事件，
     // 且终止后并未重新发起新的邀约，则本次邀约已彻底终结，绝不可作为活跃邀约恢复！
-    const terminationSearchStart = rootMsgIndex >= 0 ? rootMsgIndex + 1 : effectiveSearchStart;
+    // 严防倒流：搜索起始点绝不能小于 effectiveSearchStart，绝不可翻查历史已被覆盖的前朝终结记录！
+    const terminationSearchStart = Math.max(effectiveSearchStart, rootMsgIndex >= 0 ? rootMsgIndex + 1 : effectiveSearchStart);
     for (let i = terminationSearchStart; i < historyMessages.length; i++) {
         if (isOfflineInviteTerminatedMessage(historyMessages[i])) {
             return null;
@@ -827,7 +844,7 @@ function restoreOfflineInviteFromMessages(
 
     // 3. 核心因果链修复：状态判定必须以本次邀约根节点之后的事件为准！
     // 坚决杜绝历史上早已结束的旧到达记录污染当前新邀约的在途/待答应状态！
-    const searchFloor = Math.max(0, rootMsgIndex);
+    const searchFloor = Math.max(effectiveSearchStart, rootMsgIndex >= 0 ? rootMsgIndex : effectiveSearchStart);
     let lastArriveIdx = -1;
     for (let i = historyMessages.length - 1; i >= searchFloor; i--) {
         const m = historyMessages[i];
@@ -1973,6 +1990,12 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             // 终结事件校验：若历史消息显示该邀约已被取消/婉拒/终结，彻底清除 KV 残留，坚决杜绝幽灵胶囊！
             const validated = restoreOfflineInviteFromMessages(currentMsgs, parsed);
             if (!validated) {
+                // 自愈兜底：若带 parsed 校验未通过，尝试以干净消息流自愈推导，防止陈旧 rootId 误清空合法邀约
+                const selfHealed = restoreOfflineInviteFromMessages(currentMsgs, null);
+                if (selfHealed) {
+                    kvSet(ACTIVE_OFFLINE_INVITE_PREFIX + session.id, JSON.stringify(selfHealed));
+                    return selfHealed;
+                }
                 kvRemove(ACTIVE_OFFLINE_INVITE_PREFIX + session.id);
                 return null;
             }
@@ -2664,11 +2687,17 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 }
                 const restored = restoreOfflineInviteFromMessages(stored, currentInvite);
                 if (!restored) {
-                    updateActiveOfflineInvite(null);
-                    setIsOfflineInviteMinimized(false);
-                    if (remindExpandTimerRef.current) {
-                        clearTimeout(remindExpandTimerRef.current);
-                        remindExpandTimerRef.current = null;
+                    // 自愈兜底：若传入 currentInvite 恢复失败，尝试以干净消息流自愈推导，防止陈旧状态造成 1-0-1-0 翻转
+                    const selfHealed = restoreOfflineInviteFromMessages(stored, null);
+                    if (selfHealed) {
+                        updateActiveOfflineInvite(selfHealed);
+                    } else {
+                        updateActiveOfflineInvite(null);
+                        setIsOfflineInviteMinimized(false);
+                        if (remindExpandTimerRef.current) {
+                            clearTimeout(remindExpandTimerRef.current);
+                            remindExpandTimerRef.current = null;
+                        }
                     }
                 } else if (
                     restored.status !== currentInvite.status ||
