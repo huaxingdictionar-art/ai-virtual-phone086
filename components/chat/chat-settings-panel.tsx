@@ -1394,9 +1394,15 @@ export function ChatSettingsPanel({
 
                 {!session.isGroup && (
                     <>
+                        <style>{`
+                            .diy-offline-header:not(:last-child)::after {
+                                border-bottom-color: color-mix(in srgb, var(--c-text) 22%, transparent) !important;
+                            }
+                        `}</style>
+
                         {/* 板块一：角色自主线下邀约 */}
                         <div className="menu-group">
-                            <div className="menu-item">
+                            <div className="menu-item diy-offline-header">
                                 <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.preset} />
                                 <div className="menu-label-group">
                                     <span className="menu-label">角色自主线下邀约</span>
@@ -1414,12 +1420,6 @@ export function ChatSettingsPanel({
                             </div>
                             {enableOfflineInvite && (
                                 <>
-                                    <div
-                                        className="mx-4 h-px -mt-px relative z-10"
-                                        style={{
-                                            backgroundColor: "color-mix(in srgb, var(--c-text) 20%, var(--c-panel))",
-                                        }}
-                                    />
                                     <div className="menu-item">
                                         <ChatInfoIcon icon={MessageSquare} color={BINDING_ACCENTS.voice} />
                                         <div className="menu-label-group">
@@ -1458,7 +1458,7 @@ export function ChatSettingsPanel({
 
                         {/* 板块二：角色自主线下封禁 */}
                         <div className="menu-group">
-                            <div className="menu-item">
+                            <div className="menu-item diy-offline-header">
                                 <ChatInfoIcon icon={Lock} color={BINDING_ACCENTS.preset} />
                                 <div className="menu-label-group">
                                     <span className="menu-label">角色自主线下封禁</span>
@@ -1476,12 +1476,6 @@ export function ChatSettingsPanel({
                             </div>
                             {enableOfflineLock && (
                                 <>
-                                    <div
-                                        className="mx-4 h-px -mt-px relative z-10"
-                                        style={{
-                                            backgroundColor: "color-mix(in srgb, var(--c-text) 20%, var(--c-panel))",
-                                        }}
-                                    />
                                     <div className="menu-item">
                                         <ChatInfoIcon icon={MessageSquare} color={BINDING_ACCENTS.voice} />
                                         <div className="menu-label-group">
