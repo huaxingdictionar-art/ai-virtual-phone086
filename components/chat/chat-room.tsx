@@ -8282,31 +8282,6 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             const isDeclineOrCancelNoticeSelf = (targetMsg.role === "system" || targetMsg.mediaType === "offline_invite_system_notice") &&
                 Boolean(targetMsg.content && (/(?:你婉拒了[\s\S]*线下(?:邀约|赴约)提议|已取消线下邀约提议|已取消本次线下赴约)/.test(targetMsg.content)));
 
-            // 收集当前轮次内伴随该提议产生的关联系统小灰字（在连根拔起时一同连带清理，不留孤儿记录）
-            const associatedNotices = currentRoundMsgs.filter(m =>
-                m.id !== targetMsg.id && (
-                    (m.role === "system" || m.mediaType === "offline_invite_system_notice") && Boolean(m.content && (
-                        m.content.includes("赴约地点已更改为") ||
-                        m.content.includes("赴约提议地点已更改为") ||
-                        m.content.includes("碰头方式已变更为") ||
-                        m.content.includes("赴约提议已变更为") ||
-                        /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
-                        /你婉拒了.*线下(?:邀约|赴约)提议/.test(m.content) ||
-                        m.content.includes("已取消线下邀约提议") ||
-                        m.content.includes("已取消本次线下赴约") ||
-                        m.content.includes("你已同意赴约") ||
-                        m.content.includes("已直接动身赶往") ||
-                        m.content.includes("已直接动身") ||
-                        m.content.includes("正在动身赶往") ||
-                        m.content.includes("正在重新赶往") ||
-                        m.content.includes("已如约到达") ||
-                        m.content.includes("“如约”到达") ||
-                        m.content.includes("已提前到达") ||
-                        (m.content.includes("已在") && m.content.includes("就位等候"))
-                    ))
-                )
-            );
-
             const simulatedRemaining = storedMsgs.filter(m => m.id !== targetMsg.id);
             const currentInvite = activeOfflineInviteRef.current;
             // 【状态栏预处理钓鱼竿】：以删除后的剩余消息模拟计算下一个状态栏（传入 null 客观物理推导，绝不携带旧状态残留）
@@ -8340,16 +8315,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             remindExpandTimerRef.current = null;
                         }
 
-                        // 2. 连带清理伴随系统小灰字与目标消息
-                        const allToDelete = [targetMsg, ...associatedNotices];
-                        if (allToDelete.length > 1) {
-                            void deleteWeixinCloudBeforeLocal(allToDelete, () => {
-                                deleteChatMessagesByIds(session.id, allToDelete.map(m => m.id));
-                                syncMessagesFromStorage();
-                            });
-                        } else {
-                            executeDelete();
-                        }
+                        // 2. 单删铁律：严格只删除目标消息本身，绝不连坐删除其他历史记录！
+                        executeDelete();
                     },
                 });
                 return;
