@@ -297,6 +297,7 @@ function ChatInfoIcon({ icon: Icon, color }: { icon: LucideIcon; color: string }
     );
 }
 
+
 export function ChatSettingsPanel({
     session,
     onClose,
@@ -411,8 +412,8 @@ export function ChatSettingsPanel({
     // 流式生成：按会话区分（线上/线下），存 ChatSession 字段，默认关
     const [streamOnline, setStreamOnline] = useState(session.streamOnline === true);
     const [streamOffline, setStreamOffline] = useState(session.streamOffline === true);
-    const [enableOfflineInvite, setEnableOfflineInvite] = useState(session.enableOfflineInvite === true);
-    const [enableOfflineLock, setEnableOfflineLock] = useState(session.enableOfflineLock === true);
+    const [enableOfflineInvite, setEnableOfflineInvite] = useState(session.enableOfflineInvite !== false);
+    const [enableOfflineLock, setEnableOfflineLock] = useState(session.enableOfflineLock !== false);
     const [offlineInvitePrompt, setOfflineInvitePrompt] = useState(session.offlineInvitePrompt || DEFAULT_OFFLINE_INVITE_PROMPT);
     const [offlineInvitePromptDraft, setOfflineInvitePromptDraft] = useState(session.offlineInvitePrompt || DEFAULT_OFFLINE_INVITE_PROMPT);
     const [editingOfflineInvitePrompt, setEditingOfflineInvitePrompt] = useState(false);
@@ -839,13 +840,40 @@ export function ChatSettingsPanel({
     };
 
     const handleToggleInvitePromptVersion = () => {
-        if (isInviteCompact) {
+        if (isInviteCompact || isInviteCustom) {
             setOfflineInvitePromptDraft(DEFAULT_OFFLINE_INVITE_PROMPT);
             triggerInvitePromptToast("已切换为完整版7k+字符（保存后生效）");
         } else {
             setOfflineInvitePromptDraft(DEFAULT_OFFLINE_INVITE_PROMPT_COMPACT);
             triggerInvitePromptToast("已切换为精简版约3k字符（保存后生效）");
         }
+    };
+
+    const getOfflineInvitePromptStatusText = () => {
+        const isBaseFull = !offlineInvitePrompt || offlineInvitePrompt === DEFAULT_OFFLINE_INVITE_PROMPT;
+        const isBaseCompact = offlineInvitePrompt === DEFAULT_OFFLINE_INVITE_PROMPT_COMPACT;
+        const isOtherDefault =
+            (!offlineMeetingPrompt || offlineMeetingPrompt === DEFAULT_OFFLINE_MEETING_PROMPT) &&
+            (!offlineDeclinePrompt || offlineDeclinePrompt === DEFAULT_OFFLINE_DECLINE_PROMPT) &&
+            (!offlineOralDeclinePrompt || offlineOralDeclinePrompt === DEFAULT_OFFLINE_ORAL_DECLINE_PROMPT) &&
+            (!offlineReturnOnlinePrompt || offlineReturnOnlinePrompt === DEFAULT_OFFLINE_RETURN_ONLINE_PROMPT) &&
+            (!offlineMeetingInitiativePrompt || offlineMeetingInitiativePrompt === DEFAULT_OFFLINE_MEETING_INITIATIVE_PROMPT) &&
+            (!offlineInviteMemoryPrompt || offlineInviteMemoryPrompt === DEFAULT_OFFLINE_INVITE_MEMORY_PROMPT);
+
+        if (isBaseFull && isOtherDefault) return "默认";
+        if (isBaseCompact && isOtherDefault) return "精简版";
+        return "已自定义";
+    };
+
+    const getOfflineLockPromptStatusText = () => {
+        const isDefault =
+            (!offlineLockPrompt || offlineLockPrompt === DEFAULT_OFFLINE_LOCK_PROMPT) &&
+            (!offlineLockInvitePrompt || offlineLockInvitePrompt === DEFAULT_OFFLINE_LOCK_INVITE_PROMPT) &&
+            (!offlineKnockPrompt || offlineKnockPrompt === DEFAULT_OFFLINE_KNOCK_PROMPT) &&
+            (!offlineLockMeetingPrompt || offlineLockMeetingPrompt === DEFAULT_OFFLINE_LOCK_MEETING_PROMPT) &&
+            (!offlineLockMemoryPrompt || offlineLockMemoryPrompt === DEFAULT_OFFLINE_LOCK_MEMORY_PROMPT);
+
+        return isDefault ? "默认" : "已自定义";
     };
 
     const openOfflineLockPromptEditor = () => {
@@ -1361,7 +1389,13 @@ export function ChatSettingsPanel({
                                 />
                             </div>
                         </div>
-                        {!session.isGroup && (
+                    </>
+                </div>
+
+                {!session.isGroup && (
+                    <>
+                        {/* 板块一：角色自主线下邀约 */}
+                        <div className="menu-group">
                             <div className="menu-item">
                                 <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.preset} />
                                 <div className="menu-label-group">
@@ -1378,56 +1412,47 @@ export function ChatSettingsPanel({
                                     />
                                 </div>
                             </div>
-                        )}
-                        {!session.isGroup && enableOfflineInvite && (
-                            <>
-                                <div className="menu-item">
-                                    <ChatInfoIcon icon={MessageSquare} color={BINDING_ACCENTS.voice} />
-                                    <div className="menu-label-group">
-                                        <span className="menu-label">进入线下角色主动开场</span>
-                                        <span className="menu-desc">开启后进入面对面角色主动说第一句话；关闭后等待你主动发送第一句</span>
+                            {enableOfflineInvite && (
+                                <>
+                                    <div className="menu-item" style={{ background: "var(--c-page-body-bg)" }}>
+                                        <ChatInfoIcon icon={MessageSquare} color={BINDING_ACCENTS.voice} />
+                                        <div className="menu-label-group">
+                                            <span className="menu-label">进入线下角色主动开场</span>
+                                            <span className="menu-desc">开启后进入面对面角色主动说第一句话；关闭后等待你主动发送第一句</span>
+                                        </div>
+                                        <div className="menu-right">
+                                            <Toggle
+                                                checked={offlineInviteAutoFirstSpeech}
+                                                onChange={c => {
+                                                    setOfflineInviteAutoFirstSpeech(c);
+                                                    updateSession({ offlineInviteAutoFirstSpeech: c });
+                                                }}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="menu-right">
-                                        <Toggle
-                                            checked={offlineInviteAutoFirstSpeech}
-                                            onChange={c => {
-                                                setOfflineInviteAutoFirstSpeech(c);
-                                                updateSession({ offlineInviteAutoFirstSpeech: c });
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                                <button className="menu-item" onClick={openOfflineInvitePromptEditor}>
-                                    <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.memory} />
-                                    <div className="menu-label-group">
-                                        <span className="menu-label">角色自主线下邀约提示词</span>
-                                    </div>
-                                    <div className="menu-right">
-                                        <span className="menu-desc mr-1">
-                                            {(!offlineInvitePrompt || offlineInvitePrompt === DEFAULT_OFFLINE_INVITE_PROMPT) &&
-                                            (!offlineMeetingPrompt || offlineMeetingPrompt === DEFAULT_OFFLINE_MEETING_PROMPT) &&
-                                            (!offlineDeclinePrompt || offlineDeclinePrompt === DEFAULT_OFFLINE_DECLINE_PROMPT) &&
-                                            (!offlineOralDeclinePrompt || offlineOralDeclinePrompt === DEFAULT_OFFLINE_ORAL_DECLINE_PROMPT) &&
-                                            (!offlineReturnOnlinePrompt || offlineReturnOnlinePrompt === DEFAULT_OFFLINE_RETURN_ONLINE_PROMPT) &&
-                                            (!offlineMeetingInitiativePrompt || offlineMeetingInitiativePrompt === DEFAULT_OFFLINE_MEETING_INITIATIVE_PROMPT) &&
-                                            (!offlineInviteMemoryPrompt || offlineInviteMemoryPrompt === DEFAULT_OFFLINE_INVITE_MEMORY_PROMPT)
-                                                ? "默认"
-                                                : offlineInvitePrompt === DEFAULT_OFFLINE_INVITE_PROMPT_COMPACT &&
-                                                  (!offlineMeetingPrompt || offlineMeetingPrompt === DEFAULT_OFFLINE_MEETING_PROMPT) &&
-                                                  (!offlineDeclinePrompt || offlineDeclinePrompt === DEFAULT_OFFLINE_DECLINE_PROMPT) &&
-                                                  (!offlineOralDeclinePrompt || offlineOralDeclinePrompt === DEFAULT_OFFLINE_ORAL_DECLINE_PROMPT) &&
-                                                  (!offlineReturnOnlinePrompt || offlineReturnOnlinePrompt === DEFAULT_OFFLINE_RETURN_ONLINE_PROMPT) &&
-                                                  (!offlineMeetingInitiativePrompt || offlineMeetingInitiativePrompt === DEFAULT_OFFLINE_MEETING_INITIATIVE_PROMPT) &&
-                                                  (!offlineInviteMemoryPrompt || offlineInviteMemoryPrompt === DEFAULT_OFFLINE_INVITE_MEMORY_PROMPT)
-                                                ? "精简版"
-                                                : "已自定义"}
-                                        </span>
-                                        <ChevronRight size={16} />
-                                    </div>
-                                </button>
-                            </>
-                        )}
-                        {!session.isGroup && (
+                                    <button
+                                        type="button"
+                                        className="menu-item"
+                                        style={{ background: "var(--c-page-body-bg)" }}
+                                        onClick={openOfflineInvitePromptEditor}
+                                    >
+                                        <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.memory} />
+                                        <div className="menu-label-group">
+                                            <span className="menu-label">角色自主线下邀约提示词</span>
+                                        </div>
+                                        <div className="menu-right">
+                                            <span className="menu-desc mr-1">
+                                                {getOfflineInvitePromptStatusText()}
+                                            </span>
+                                            <ChevronRight size={16} />
+                                        </div>
+                                    </button>
+                                </>
+                            )}
+                        </div>
+
+                        {/* 板块二：角色自主线下封禁 */}
+                        <div className="menu-group">
                             <div className="menu-item">
                                 <ChatInfoIcon icon={Lock} color={BINDING_ACCENTS.preset} />
                                 <div className="menu-label-group">
@@ -1444,57 +1469,60 @@ export function ChatSettingsPanel({
                                     />
                                 </div>
                             </div>
-                        )}
-                        {!session.isGroup && enableOfflineLock && (
-                            <>
-                                <div className="menu-item">
-                                    <ChatInfoIcon icon={MessageSquare} color={BINDING_ACCENTS.voice} />
-                                    <div className="menu-label-group">
-                                        <span className="menu-label">解封进入线下角色主动开场</span>
-                                        <span className="menu-desc">开启后解封前往面对面角色主动说第一句话；关闭后等待你主动发送第一句</span>
+                            {enableOfflineLock && (
+                                <>
+                                    <div className="menu-item" style={{ background: "var(--c-page-body-bg)" }}>
+                                        <ChatInfoIcon icon={MessageSquare} color={BINDING_ACCENTS.voice} />
+                                        <div className="menu-label-group">
+                                            <span className="menu-label">解封进入线下角色主动开场</span>
+                                            <span className="menu-desc">开启后解封前往面对面角色主动说第一句话；关闭后等待你主动发送第一句</span>
+                                        </div>
+                                        <div className="menu-right">
+                                            <Toggle
+                                                checked={offlineLockAutoFirstSpeech}
+                                                onChange={c => {
+                                                    setOfflineLockAutoFirstSpeech(c);
+                                                    updateSession({ offlineLockAutoFirstSpeech: c });
+                                                }}
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="menu-right">
-                                        <Toggle
-                                            checked={offlineLockAutoFirstSpeech}
-                                            onChange={c => {
-                                                setOfflineLockAutoFirstSpeech(c);
-                                                updateSession({ offlineLockAutoFirstSpeech: c });
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                                <button className="menu-item" onClick={openOfflineLockPromptEditor}>
-                                    <ChatInfoIcon icon={Lock} color={BINDING_ACCENTS.memory} />
-                                    <div className="menu-label-group">
-                                        <span className="menu-label">角色自主线下封禁提示词</span>
-                                    </div>
-                                    <div className="menu-right">
-                                        <span className="menu-desc mr-1">
-                                            {(!offlineLockPrompt || offlineLockPrompt === DEFAULT_OFFLINE_LOCK_PROMPT) &&
-                                            (!offlineLockInvitePrompt || offlineLockInvitePrompt === DEFAULT_OFFLINE_LOCK_INVITE_PROMPT) &&
-                                            (!offlineKnockPrompt || offlineKnockPrompt === DEFAULT_OFFLINE_KNOCK_PROMPT) &&
-                                            (!offlineLockMeetingPrompt || offlineLockMeetingPrompt === DEFAULT_OFFLINE_LOCK_MEETING_PROMPT) &&
-                                            (!offlineLockMemoryPrompt || offlineLockMemoryPrompt === DEFAULT_OFFLINE_LOCK_MEMORY_PROMPT)
-                                                ? "默认"
-                                                : "已自定义"}
-                                        </span>
-                                        <ChevronRight size={16} />
-                                    </div>
-                                </button>
-                            </>
-                        )}
-                        <button className="menu-item" onClick={() => setShowScreenEffects(true)}>
-                            <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.preset} />
-                            <div className="menu-label-group">
-                                <span className="menu-label">全屏特效</span>
-                                <span className="menu-desc">消息包含触发词时播放表情雨/礼花，全局生效</span>
-                            </div>
-                            <div className="menu-right">
-                                <ChevronRight size={16} />
-                            </div>
-                        </button>
+                                    <button
+                                        type="button"
+                                        className="menu-item"
+                                        style={{ background: "var(--c-page-body-bg)" }}
+                                        onClick={openOfflineLockPromptEditor}
+                                    >
+                                        <ChatInfoIcon icon={Lock} color={BINDING_ACCENTS.memory} />
+                                        <div className="menu-label-group">
+                                            <span className="menu-label">角色自主线下封禁提示词</span>
+                                        </div>
+                                        <div className="menu-right">
+                                            <span className="menu-desc mr-1">
+                                                {getOfflineLockPromptStatusText()}
+                                            </span>
+                                            <ChevronRight size={16} />
+                                        </div>
+                                    </button>
+                                </>
+                            )}
+                        </div>
                     </>
+                )}
+
+                <div className="menu-group">
+                    <button className="menu-item" onClick={() => setShowScreenEffects(true)}>
+                        <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.preset} />
+                        <div className="menu-label-group">
+                            <span className="menu-label">全屏特效</span>
+                            <span className="menu-desc">消息包含触发词时播放表情雨/礼花，全局生效</span>
+                        </div>
+                        <div className="menu-right">
+                            <ChevronRight size={16} />
+                        </div>
+                    </button>
                 </div>
+
 
                 {/* Backgrounds & UI */}
                 <div className="menu-group">
@@ -1827,22 +1855,10 @@ export function ChatSettingsPanel({
                                             type="button"
                                             className="chat-bilingual-prompt-reset"
                                             onClick={handleToggleInvitePromptVersion}
-                                            title={isInviteCompact ? "切换为完整版7k+字符" : "切换为精简版约3k字符"}
+                                            title={isInviteCompact || isInviteCustom ? "切换为完整版7k+字符" : "切换为精简版约3k字符"}
                                         >
-                                            {isInviteCompact ? "切为完整版" : "切为精简版"}
+                                            {isInviteCompact || isInviteCustom ? "切为完整版" : "切为精简版"}
                                         </button>
-                                        {isInviteCustom && (
-                                            <button
-                                                type="button"
-                                                className="chat-bilingual-prompt-reset"
-                                                onClick={() => {
-                                                    setOfflineInvitePromptDraft(DEFAULT_OFFLINE_INVITE_PROMPT);
-                                                    triggerInvitePromptToast("已还原为完整版7k+字符");
-                                                }}
-                                            >
-                                                还原默认
-                                            </button>
-                                        )}
                                         <button
                                             type="button"
                                             className="chat-bilingual-prompt-reset"

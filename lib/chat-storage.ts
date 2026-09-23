@@ -354,6 +354,18 @@ export function isSessionStreamingEnabled(session: Pick<ChatSession, "streamOnli
     return online ? session.streamOnline === true : session.streamOffline === true;
 }
 
+/** 会话是否开启角色自主线下邀约（默认常驻开启；群聊不生效；仅显式设为 false 时关闭） */
+export function isSessionOfflineInviteEnabled(session: Pick<ChatSession, "enableOfflineInvite" | "isGroup"> | null | undefined): boolean {
+    if (!session || session.isGroup) return false;
+    return session.enableOfflineInvite !== false;
+}
+
+/** 会话是否开启角色自主线下封禁（默认常驻开启；群聊不生效；仅显式设为 false 时关闭） */
+export function isSessionOfflineLockEnabled(session: Pick<ChatSession, "enableOfflineLock" | "isGroup"> | null | undefined): boolean {
+    if (!session || session.isGroup) return false;
+    return session.enableOfflineLock !== false;
+}
+
 export const CHAT_APP_SETTINGS_UPDATED_EVENT = "chat-app-settings-updated";
 export const CHAT_MESSAGE_PUSHED_EVENT = "chat-message-pushed";
 export const CHAT_MESSAGES_DELETED_EVENT = "chat-messages-deleted";
@@ -704,9 +716,26 @@ function normalizeChatSessions(sessions: ChatSession[]): NormalizedSessionList {
             changed = true;
             continue;
         }
-        const item = id === session.id && contactId === session.contactId
+        let item = id === session.id && contactId === session.contactId
             ? session
             : { ...session, id, contactId };
+        if (!item.isGroup) {
+            let enriched = false;
+            let nextInvite = item.enableOfflineInvite;
+            let nextLock = item.enableOfflineLock;
+            if (nextInvite === undefined) {
+                nextInvite = true;
+                enriched = true;
+            }
+            if (nextLock === undefined) {
+                nextLock = true;
+                enriched = true;
+            }
+            if (enriched) {
+                item = { ...item, enableOfflineInvite: nextInvite, enableOfflineLock: nextLock };
+                changed = true;
+            }
+        }
         const existing = byId.get(id);
         if (!existing) {
             byId.set(id, item);
@@ -1140,6 +1169,8 @@ export function createOrGetSession(contactId: string): ChatSession {
         bilingualTranslationEnabled: true,
         collapseBilingualTranslation: true,
         visionImagePromptLimit: DEFAULT_VISION_IMAGE_PROMPT_LIMIT,
+        enableOfflineInvite: true,
+        enableOfflineLock: true,
     };
     saveChatSessions([newSession, ...sessions]); // Prepend new session
     return newSession;
