@@ -1396,7 +1396,7 @@ export function ChatSettingsPanel({
                     <>
                         <style>{`
                             .diy-offline-header:not(:last-child)::after {
-                                border-bottom-color: color-mix(in srgb, var(--c-text) 10%, transparent) !important;
+                                border-bottom-color: color-mix(in srgb, var(--c-text) 10%, var(--c-panel)) !important;
                             }
                         `}</style>
 
