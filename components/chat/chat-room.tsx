@@ -7081,19 +7081,34 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             )
         );
 
-        // 若当前正处于线下赴约中（用户切回线上），弹窗提供回溯方式选择
+        // 若当前正处于线下碰面中（用户切回线上发悄悄话）：
+        // 关键判定：只有当重试截断了“双方正在xx线下碰面中”系统记录（即重试碰面之前的历史消息），才需要弹窗确认结束碰面并回溯！
+        // 若重试的消息发生在“双方正在xx线下碰面中”之后（即碰面进行中的悄悄话对话），
+        // 属于碰面现场的当场重抽，绝不弹窗、绝不结束线下，顶栏【回到现场】胶囊严格保持不变，直接放行重试！
         const isMeetingActive = !session.isGroup && kvGet(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id) === "1";
         if (isMeetingActive) {
-            setActiveMessageId(null);
-            setOfflineRetryConfirm({
-                msgId,
-                targetMsg: targetRetryMsg,
-                msgIndex,
-                truncatedMessages,
-                truncatesInitialRoot,
-                contextMessages,
-            });
-            return;
+            let lastMeetingNoticeIdx = -1;
+            for (let i = messages.length - 1; i >= 0; i--) {
+                const m = messages[i];
+                if ((m.role === "system" || m.mediaType === "offline_invite_system_notice") && Boolean(m.content && m.content.includes("线下碰面中"))) {
+                    lastMeetingNoticeIdx = i;
+                    break;
+                }
+            }
+
+            const truncatesMeetingNotice = lastMeetingNoticeIdx === -1 || msgIndex <= lastMeetingNoticeIdx;
+            if (truncatesMeetingNotice) {
+                setActiveMessageId(null);
+                setOfflineRetryConfirm({
+                    msgId,
+                    targetMsg: targetRetryMsg,
+                    msgIndex,
+                    truncatedMessages,
+                    truncatesInitialRoot,
+                    contextMessages,
+                });
+                return;
+            }
         }
 
         const executeRetry = async () => {
