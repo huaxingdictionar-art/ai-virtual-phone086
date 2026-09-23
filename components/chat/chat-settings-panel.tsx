@@ -1413,12 +1413,13 @@ export function ChatSettingsPanel({
                                 </div>
                             </div>
                             {enableOfflineInvite && (
-                                <>
-                                    <div className="mx-4 h-px bg-[var(--c-card-border)]/60" />
-                                    <div
-                                        className="menu-item"
-                                        style={{ backgroundColor: "color-mix(in srgb, var(--c-text) 7%, var(--c-panel))" }}
-                                    >
+                                <div
+                                    className="w-full"
+                                    style={{
+                                        backgroundColor: "color-mix(in srgb, var(--c-text) 12%, var(--c-panel))",
+                                    }}
+                                >
+                                    <div className="menu-item" style={{ background: "transparent" }}>
                                         <ChatInfoIcon icon={MessageSquare} color={BINDING_ACCENTS.voice} />
                                         <div className="menu-label-group">
                                             <span className="menu-label">进入线下角色主动开场</span>
@@ -1434,11 +1435,10 @@ export function ChatSettingsPanel({
                                             />
                                         </div>
                                     </div>
-                                    <div className="mx-4 h-px bg-[var(--c-card-border)]/60" />
                                     <button
                                         type="button"
                                         className="menu-item"
-                                        style={{ backgroundColor: "color-mix(in srgb, var(--c-text) 7%, var(--c-panel))" }}
+                                        style={{ background: "transparent" }}
                                         onClick={openOfflineInvitePromptEditor}
                                     >
                                         <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.memory} />
@@ -1452,7 +1452,7 @@ export function ChatSettingsPanel({
                                             <ChevronRight size={16} />
                                         </div>
                                     </button>
-                                </>
+                                </div>
                             )}
                         </div>
 
@@ -1475,12 +1475,13 @@ export function ChatSettingsPanel({
                                 </div>
                             </div>
                             {enableOfflineLock && (
-                                <>
-                                    <div className="mx-4 h-px bg-[var(--c-card-border)]/60" />
-                                    <div
-                                        className="menu-item"
-                                        style={{ backgroundColor: "color-mix(in srgb, var(--c-text) 7%, var(--c-panel))" }}
-                                    >
+                                <div
+                                    className="w-full"
+                                    style={{
+                                        backgroundColor: "color-mix(in srgb, var(--c-text) 12%, var(--c-panel))",
+                                    }}
+                                >
+                                    <div className="menu-item" style={{ background: "transparent" }}>
                                         <ChatInfoIcon icon={MessageSquare} color={BINDING_ACCENTS.voice} />
                                         <div className="menu-label-group">
                                             <span className="menu-label">解封进入线下角色主动开场</span>
@@ -1496,11 +1497,10 @@ export function ChatSettingsPanel({
                                             />
                                         </div>
                                     </div>
-                                    <div className="mx-4 h-px bg-[var(--c-card-border)]/60" />
                                     <button
                                         type="button"
                                         className="menu-item"
-                                        style={{ backgroundColor: "color-mix(in srgb, var(--c-text) 7%, var(--c-panel))" }}
+                                        style={{ background: "transparent" }}
                                         onClick={openOfflineLockPromptEditor}
                                     >
                                         <ChatInfoIcon icon={Lock} color={BINDING_ACCENTS.memory} />
@@ -1514,7 +1514,7 @@ export function ChatSettingsPanel({
                                             <ChevronRight size={16} />
                                         </div>
                                     </button>
-                                </>
+                                </div>
                             )}
                         </div>
                     </>
