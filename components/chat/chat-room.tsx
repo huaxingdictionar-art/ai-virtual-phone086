@@ -4745,12 +4745,19 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                         responseBatchId,
                     ].filter(Boolean) as string[]));
 
+                    // 华确立的单向情绪递进铁律：未决赴约中，情绪只升不降（default -> alert -> forced），绝不突然消气降级！
+                    const resolveEscalatedTheme = (inc?: "default" | "alert" | "forced", cur?: "default" | "alert" | "forced"): "default" | "alert" | "forced" => {
+                        if (inc === "forced" || cur === "forced") return "forced";
+                        if (inc === "alert" || cur === "alert") return "alert";
+                        return "default";
+                    };
+
                     if (newDirection === "i_go") {
                         // 切换为 / 保持【我去】：角色处于现场等候，旧的【他来】所有在途报备、在途心语、到达呼唤、到达心语全部彻底作废！
                         const newReason = incoming.reason?.trim() || (wasPending ? curInvite.reason : "");
                         const updatedInvite: OfflineInviteData = {
                             direction: "i_go",
-                            theme: incoming.theme || curInvite.theme || "default",
+                            theme: resolveEscalatedTheme(incoming.theme, curInvite.theme),
                             place: newPlace,
                             reason: newReason,
                             status: "pending",
@@ -4763,10 +4770,10 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                         updateActiveOfflineInvite(updatedInvite);
                         setIsOfflineInviteMinimized(true);
 
-                        const isThemeChanged = Boolean(incoming.theme && incoming.theme !== (curInvite.theme || "default"));
+                        const isThemeChanged = Boolean(updatedInvite.theme && updatedInvite.theme !== (curInvite.theme || "default"));
                         if (isDirectionChanged || isPlaceChanged || isThemeChanged) {
                             let noticeContent = "";
-                            if (incoming.theme === "alert" && curInvite.theme !== "alert") {
+                            if (updatedInvite.theme === "alert" && curInvite.theme !== "alert") {
                                 noticeContent = `${charName} “邀请你”前往${placeStr}与Ta见面`;
                             } else if (isDirectionChanged) {
                                 if (wasOnTheWay) {
@@ -4805,7 +4812,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
 
                             const updatedInvite: OfflineInviteData = {
                                 direction: "he_comes",
-                                theme: incoming.theme || curInvite.theme || "default",
+                                theme: resolveEscalatedTheme(incoming.theme, curInvite.theme),
                                 place: newPlace,
                                 reason: incoming.reason?.trim() || curInvite.reason,
                                 status: "on_the_way",
@@ -4838,7 +4845,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                             const updatedInvite: OfflineInviteData = {
                                 ...curInvite,
                                 direction: "he_comes",
-                                theme: incoming.theme || curInvite.theme || "default",
+                                theme: resolveEscalatedTheme(incoming.theme, curInvite.theme),
                                 place: newPlace,
                                 transitCardMessage: newTransitCardMessage,
                                 arrivedMessage: newArrivedMessage,
@@ -4900,7 +4907,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                 const updatedInvite: OfflineInviteData = {
                                     ...curInvite,
                                     direction: "he_comes",
-                                    theme: incoming.theme || curInvite.theme || "default",
+                                    theme: resolveEscalatedTheme(incoming.theme, curInvite.theme),
                                     place: newPlace,
                                     reason: incoming.reason?.trim() || curInvite.reason,
                                     onTheWayMessage: sanitizedOnTheWay,
@@ -4917,10 +4924,10 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                 };
                                 updateActiveOfflineInvite(updatedInvite);
 
-                                const isThemeChanged = Boolean(incoming.theme && incoming.theme !== (curInvite.theme || "default"));
+                                const isThemeChanged = Boolean(updatedInvite.theme && updatedInvite.theme !== (curInvite.theme || "default"));
                                 if (isDirectionChanged || isPlaceChanged || isThemeChanged) {
                                     let noticeContent = "";
-                                    if (incoming.theme === "alert" && curInvite.theme !== "alert") {
+                                    if (updatedInvite.theme === "alert" && curInvite.theme !== "alert") {
                                         noticeContent = `${charName} “请求”前往${placeStr === "你身边" ? "你身边" : placeStr}找你碰面`;
                                     } else if (isDirectionChanged) {
                                         noticeContent = "赴约提议已变更为由对方前来找你";
