@@ -6685,7 +6685,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         const declineReason = activeOfflineInvite.reason || "";
         const declineDirection = activeOfflineInvite.direction || "he_comes";
 
-        const currentDeclineCount = Math.min(7, parseInt(kvGet(OFFLINE_INVITE_DECLINE_COUNT_PREFIX + session.id) || "0", 10) + 1);
+        const currentDeclineCount = parseInt(kvGet(OFFLINE_INVITE_DECLINE_COUNT_PREFIX + session.id) || "0", 10) + 1;
         kvSet(OFFLINE_INVITE_DECLINE_COUNT_PREFIX + session.id, String(currentDeclineCount));
 
         const declineContext: OfflineInviteDeclineContext = {
@@ -6714,7 +6714,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         }
         kvSet(PENDING_OFFLINE_INVITE_DECLINE_PREFIX + session.id, JSON.stringify(declineContext));
 
-        // 华亲自设计的拉扯命运胶囊：第1次无弹窗；2~6次换行排版递进（角色名无空格，末尾不带干瘪句号）；6次罢工谢幕；7次及以后系统彻底静默闭麦，但后台仍暗中真实计数并告密给角色
+        // 华亲自设计的拉扯命运胶囊：第1次无弹窗；2~5次换行排版递进（角色名无空格，末尾不带干瘪句号）；第6次及以后计数器累瘫罢工（第6次、第7次、第8次...持续弹出罢工弹窗，后台暗中真实累加，直到去见Ta碰面才停止并生成记忆）
         let declineToastText: string | null = null;
         if (currentDeclineCount === 2) {
             declineToastText = `这是你第 2 次婉拒了${charName}的线下见面`;
@@ -6724,7 +6724,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             declineToastText = `这是你第 4 次婉拒了${charName}的线下见面\n你到底还要推开Ta多少次？`;
         } else if (currentDeclineCount === 5) {
             declineToastText = `这是你第 5 次婉拒了${charName}的线下见面\n计数器快数不过来了……`;
-        } else if (currentDeclineCount === 6) {
+        } else if (currentDeclineCount >= 6) {
             declineToastText = `计数器已累瘫罢工\n但${charName}依旧把你每一次的推开刻在心上……`;
         }
 
@@ -7206,7 +7206,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
 
             let retryDeclineContext: OfflineInviteDeclineContext | undefined;
             if (isRetryingDeclineReply) {
-                const retryCount = Math.min(7, Math.max(1, parseInt(kvGet(OFFLINE_INVITE_DECLINE_COUNT_PREFIX + session.id) || "1", 10)));
+                const retryCount = Math.max(1, parseInt(kvGet(OFFLINE_INVITE_DECLINE_COUNT_PREFIX + session.id) || "1", 10));
                 const refInvite = activeOfflineInviteRef.current;
                 retryDeclineContext = {
                     theme: refInvite?.theme || "default",
