@@ -648,6 +648,10 @@ function restoreOfflineInviteFromMessages(
                 const m = historyMessages[i];
                 if (m.role === "system" && m.content && (
                     m.content.includes("线下赴约提议") ||
+                    m.content.includes("“请求”前往") ||
+                    m.content.includes("“邀请你”前往") ||
+                    m.content.includes("请求前往") ||
+                    m.content.includes("邀请你前往") ||
                     m.content.includes("你已同意赴约") ||
                     m.content.includes("动身赶往") ||
                     m.content.includes("已直接动身") ||
@@ -667,11 +671,12 @@ function restoreOfflineInviteFromMessages(
                                        m.content.match(/(你身边)/);
                     const parsedPlace = placeMatch?.[1]?.trim() || "约定地点";
                     const isForcedNotice = m.content.includes("已直接动身") || m.content.includes("强行动身");
+                    const isAlertNotice = m.content.includes("“请求”前往") || m.content.includes("“邀请你”前往") || m.content.includes("请求前往") || m.content.includes("邀请你前往");
                     const isIGo = !isForcedNotice && (m.content.includes("变更为由你") || m.content.includes("等候你碰面") || m.content.includes("就位等候"));
                     currentRoundBase = {
                         direction: isForcedNotice ? "he_comes" : (isIGo ? "i_go" : "he_comes"),
                         status: isForcedNotice ? "on_the_way" : "pending",
-                        theme: isForcedNotice ? "forced" : "default",
+                        theme: isForcedNotice ? "forced" : (isAlertNotice ? "alert" : "default"),
                         place: parsedPlace,
                         reason: "",
                         durationMinutes: 15,
@@ -894,17 +899,24 @@ function restoreOfflineInviteFromMessages(
     );
     const hasDepartedInHistory = hasAcceptedInHistory || hasForcedDeparture;
 
-    // 检查历史中是否存在有效的提议记录（普通提议或紧急提议）
-    const proposalMsg = relevantMsgs.find(m =>
-        (m.role === "system" || m.mediaType === "offline_invite_system_notice") &&
-        m.content && (
-            /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
-            /“请求”前往|“邀请你”前往/.test(m.content) ||
-            m.content.includes("线下赴约提议")
-        )
-    );
+    // 检查历史中是否存在有效的提议记录（普通提议或紧急提议）：倒序查找以最新提议为准！
+    let proposalMsg: ChatMessage | null = null;
+    for (let i = relevantMsgs.length - 1; i >= 0; i--) {
+        const m = relevantMsgs[i];
+        if (
+            (m.role === "system" || m.mediaType === "offline_invite_system_notice") &&
+            m.content && (
+                /向你发起了.*线下(?:赴约|邀约)提议/.test(m.content) ||
+                /“请求”前往|“邀请你”前往|请求前往|邀请你前往/.test(m.content) ||
+                m.content.includes("线下赴约提议")
+            )
+        ) {
+            proposalMsg = m;
+            break;
+        }
+    }
     const hasProposalInHistory = Boolean(proposalMsg);
-    const isProposalAlert = Boolean(proposalMsg?.content && /“请求”前往|“邀请你”前往/.test(proposalMsg.content));
+    const isProposalAlert = Boolean(proposalMsg?.content && /“请求”前往|“邀请你”前往|请求前往|邀请你前往/.test(proposalMsg.content));
 
     // 到达防重：检查到达记录后是否有明确改地点重新出发的记录
     let hasExplicitReDepartureAfterArrive = false;
@@ -7977,6 +7989,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         if (cur.isEarlyArrived && !next.isEarlyArrived) return true;
         if (cur.place && next.place && cur.place !== next.place) return true;
         if (cur.direction && next.direction && cur.direction !== next.direction) return true;
+        if (cur.theme && next.theme && cur.theme !== next.theme) return true;
         return false;
     };
 
@@ -8369,6 +8382,9 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 confirmLabel: "确认删除",
                 variant: "default",
                 onConfirm: () => {
+                    if (simulatedNextInvite) {
+                        updateActiveOfflineInvite(simulatedNextInvite);
+                    }
                     executeDelete();
                 },
             });
