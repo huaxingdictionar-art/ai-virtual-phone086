@@ -4353,7 +4353,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         let shouldAutoExpandInviteModalAfterTyping = false;
         let shouldAutoExpandUnlockModalAfterTyping = false;
         let pendingOfflineLockNotice: { text: string; lockData: OfflineLockData } | null = null;
-        let pendingOfflineUnlockNotice: { text: string } | null = null;
+        let pendingOfflineUnlockNotice: { text: string; totalKnocks?: number } | null = null;
         let pendingOfflineInviteNotice: { content: string; inviteData: OfflineInviteData } | null = null;
 
         // 黄金边界铁律：严格检测同一轮中是否【同时触发】解除封禁与线下邀约（碰撞场景）
@@ -4405,15 +4405,34 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             // 顺位铁律（同一轮同时触发时）：
             // 气泡下方严格按因果逻辑顺位展示：先展示解除封禁，再展示发起线下赴约提议！
             if (pendingOfflineUnlockNotice) {
+                const unlockNoticeData = pendingOfflineUnlockNotice;
                 const sysMsg = pushChatMessage({
                     sessionId: session.id,
                     role: "system",
-                    content: pendingOfflineUnlockNotice.text,
+                    content: unlockNoticeData.text,
                     mediaType: "offline_unlock_system_notice",
                     responseBatchId,
                 });
                 setMessages(prev => [...prev, sysMsg]);
                 pendingOfflineUnlockNotice = null;
+
+                // 叩门破防长期记忆沉淀：若本次被封禁期间用户曾执着叩门申请（totalKnocks > 0），在角色解封提示落库后触发记忆提炼
+                if (unlockNoticeData.totalKnocks && unlockNoticeData.totalKnocks > 0) {
+                    const uName = userIdentity?.name?.trim() || "你";
+                    const cName = charN;
+                    const fallbackContent = `「${cName}封禁线下与${uName}的叩门申请记录」：此前因矛盾情绪一度封锁了线下入口拒绝相见，${uName} 不顾被拒、坚持不懈地连续按下了整整 ${unlockNoticeData.totalKnocks} 次见面申请；心墙最终被对方的执着叩动并解除封禁，两人正式和好。`;
+                    const allMsgs = loadChatMessages(session.id);
+                    void summarizeAndSaveOfflineBondMemory({
+                        characterId: session.contactId,
+                        characterName: cName,
+                        userName: uName,
+                        eventType: "lock_knock",
+                        count: unlockNoticeData.totalKnocks,
+                        allStoredMessages: allMsgs,
+                        fallbackContent,
+                        customStylePrompt: session.offlineLockMemoryPrompt,
+                    });
+                }
             }
             if (pendingOfflineInviteNotice) {
                 const sysMsg = pushChatMessage({
@@ -4531,12 +4550,23 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             if (p.mediaType === "offline_unlock") {
                 // 角色解除封禁：恢复线下入口，打上待前往标记，当前大事件翻篇
                 if (session.enableOfflineLock && !session.isGroup) {
+                    // 若此前处于封禁中且用户曾叩门，在清除 KV 前提取累计叩门次数供解封时提炼长期记忆
+                    let totalKnocks = 0;
+                    const lockedRaw = kvGet(OFFLINE_LOCK_PREFIX + session.id);
+                    if (lockedRaw) {
+                        try {
+                            const lockedData: OfflineLockData = JSON.parse(lockedRaw);
+                            totalKnocks = lockedData.stageKnocks || lockedData.knockCount || 0;
+                        } catch {}
+                    }
+
                     const { noticeText } = applyOfflineUnlockDirective(session.id, charN);
                     setOfflineLockData(null);
                     offlineLockDataRef.current = null;
 
                     pendingOfflineUnlockNotice = {
                         text: noticeText,
+                        totalKnocks,
                     };
                     // 弹窗让位法则：若同一轮同时触发了线下赴约，解封确认小弹窗完全给赴约大卡片让位！
                     shouldAutoExpandUnlockModalAfterTyping = !isConcurrentUnlockAndInviteCandidate;
