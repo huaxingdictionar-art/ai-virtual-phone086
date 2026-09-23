@@ -672,7 +672,7 @@ function restoreOfflineInviteFromMessages(
                     const parsedPlace = placeMatch?.[1]?.trim() || "约定地点";
                     const isForcedNotice = m.content.includes("已直接动身") || m.content.includes("强行动身");
                     const isAlertNotice = m.content.includes("“请求”前往") || m.content.includes("“邀请你”前往") || m.content.includes("请求前往") || m.content.includes("邀请你前往");
-                    const isIGo = !isForcedNotice && (m.content.includes("变更为由你") || m.content.includes("等候你碰面") || m.content.includes("就位等候"));
+                    const isIGo = !isForcedNotice && (m.content.includes("变更为由你") || m.content.includes("等候你碰面") || m.content.includes("就位等候") || m.content.includes("“邀请你”前往") || m.content.includes("邀请你前往"));
                     currentRoundBase = {
                         direction: isForcedNotice ? "he_comes" : (isIGo ? "i_go" : "he_comes"),
                         status: isForcedNotice ? "on_the_way" : "pending",
@@ -803,9 +803,9 @@ function restoreOfflineInviteFromMessages(
 
         // 兜底：从系统小灰字记录中精准提取当时的碰头地点与方向！
         if (msg.role === "system" && msg.content) {
-            if (msg.content.includes("变更为由你") || msg.content.includes("等候你碰面")) {
+            if (msg.content.includes("变更为由你") || msg.content.includes("等候你碰面") || msg.content.includes("“邀请你”前往") || msg.content.includes("邀请你前往")) {
                 restored.direction = "i_go";
-            } else if (msg.content.includes("重新赶往") || msg.content.includes("动身赶往") || msg.content.includes("直接动身")) {
+            } else if (msg.content.includes("变更为由对方") || msg.content.includes("“请求”前往") || msg.content.includes("请求前往") || msg.content.includes("重新赶往") || msg.content.includes("动身赶往") || msg.content.includes("直接动身") || msg.content.includes("线下赴约提议")) {
                 restored.direction = "he_comes";
             }
             const placeMatch = msg.content.match(/(?:赴约(?:提议)?地点已更改为|正在动身赶往|前往|正在重新赶往|已(?:提前|如约)?到达|已在)[「"“]([^」"”]+)[」"”]/) ||
@@ -958,14 +958,15 @@ function restoreOfflineInviteFromMessages(
         if (restored.direction === "i_go") {
             const hasIGoNotice = relevantMsgs.some(m =>
                 (m.role === "system" || m.mediaType === "offline_invite_system_notice") &&
-                m.content && (m.content.includes("变更为由你") || m.content.includes("等候你碰面") || m.content.includes("就位等候"))
+                m.content && (m.content.includes("变更为由你") || m.content.includes("等候你碰面") || m.content.includes("就位等候") || m.content.includes("“邀请你”前往") || m.content.includes("邀请你前往"))
             );
             if (!hasIGoNotice && !hasProposalInHistory) {
                 return null;
             }
             restored.status = "pending";
             restored.startTime = undefined;
-            restored.theme = isProposalAlert ? "alert" : (baseInvite?.theme === "forced" ? "default" : (baseInvite?.theme || "default"));
+            const latestExplicitTheme = (restored.theme && restored.theme !== "forced") ? restored.theme : undefined;
+            restored.theme = latestExplicitTheme || (isProposalAlert ? "alert" : "default");
         } else if (hasDepartedInHistory && restored.direction === "he_comes") {
             restored.status = "on_the_way";
             if (hasForcedDeparture && !hasAcceptedInHistory) {
@@ -1119,7 +1120,8 @@ function restoreOfflineInviteFromMessages(
             // 且主题严格恢复为前置提议原本的主题（alert 或 default），绝不保留 forced！
             restored.status = "pending";
             restored.startTime = undefined;
-            restored.theme = isProposalAlert ? "alert" : (baseInvite?.theme === "forced" ? "default" : (baseInvite?.theme || "default"));
+            const latestExplicitTheme = (restored.theme && restored.theme !== "forced") ? restored.theme : undefined;
+            restored.theme = latestExplicitTheme || (isProposalAlert ? "alert" : "default");
         }
     }
 
