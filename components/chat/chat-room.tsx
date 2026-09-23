@@ -832,10 +832,13 @@ function restoreOfflineInviteFromMessages(
     for (let i = historyMessages.length - 1; i >= searchFloor; i--) {
         const m = historyMessages[i];
         if (
-            m.mediaType === "offline_invite_early_arrive" ||
-            m.mediaType === "offline_invite_arrive_notice" ||
-            m.mediaData?.offlineInvite?.status === "arrived" ||
-            (m.role === "system" && m.content && (m.content.includes("已提前到达") || m.content.includes("已如约到达") || m.content.includes("“如约”到达") || (m.content.includes("已在") && m.content.includes("就位等候"))))
+            (m.role === "system" || m.mediaType === "offline_invite_system_notice") &&
+            Boolean(m.content && (
+                m.content.includes("已提前到达") ||
+                m.content.includes("已如约到达") ||
+                m.content.includes("“如约”到达") ||
+                (m.content.includes("已在") && m.content.includes("就位等候"))
+            ))
         ) {
             lastArriveIdx = i;
             break;
@@ -1987,11 +1990,12 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 if (tripStartTime > 0 && msgTime < tripStartTime - 2000) {
                     return false;
                 }
-                return m.mediaType === "offline_invite_arrive_notice" ||
-                    (m.role === "system" && m.content && (
+                return (m.role === "system" || m.mediaType === "offline_invite_system_notice") &&
+                    Boolean(m.content && (
                         m.content.includes("已如约到达") ||
                         m.content.includes("已提前到达") ||
-                        m.content.includes("“如约”到达")
+                        m.content.includes("“如约”到达") ||
+                        (m.content.includes("已在") && m.content.includes("就位等候"))
                     ));
             });
             if (hasArriveNoticeInHistory) {
@@ -2002,7 +2006,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     if (tripStartTime > 0 && msgTime < tripStartTime - 2000) {
                         break;
                     }
-                    if (m.mediaType === "offline_invite_arrive_notice" || (m.role === "system" && m.content && (m.content.includes("已如约到达") || m.content.includes("已提前到达")))) {
+                    if ((m.role === "system" || m.mediaType === "offline_invite_system_notice") && Boolean(m.content && (m.content.includes("已如约到达") || m.content.includes("已提前到达") || m.content.includes("“如约”到达") || (m.content.includes("已在") && m.content.includes("就位等候"))))) {
                         break;
                     }
                     if (m.mediaType === "offline_invite_change_place" || (m.role === "system" && m.content && (m.content.includes("正在重新赶往") || m.content.includes("赴约地点已更改为")))) {
@@ -2246,11 +2250,12 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     if (tripStartTime > 0 && msgTime < tripStartTime - 2000) {
                         return false;
                     }
-                    return m.mediaType === "offline_invite_arrive_notice" ||
-                        (m.role === "system" && m.content && (
+                    return (m.role === "system" || m.mediaType === "offline_invite_system_notice") &&
+                        Boolean(m.content && (
                             m.content.includes("已如约到达") ||
                             m.content.includes("已提前到达") ||
-                            m.content.includes("“如约”到达")
+                            m.content.includes("“如约”到达") ||
+                            (m.content.includes("已在") && m.content.includes("就位等候"))
                         ));
                 });
                 if (hasAlreadyArrivedNotice) {
