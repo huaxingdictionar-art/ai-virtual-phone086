@@ -8395,12 +8395,12 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             // 【状态栏预处理钓鱼竿】：以删除后的剩余消息模拟计算下一个状态栏
             const simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, currentInvite);
 
-            // 分流 1：连根拔起（删除后状态栏没了，彻底清除本次线下赴约状态）
+            // 分流 1：连根拔起（删除后状态栏没了，彻底清除本次线下赴约状态，对应 test-offline-modals.html 第 16 项）
             if (!simulatedNextInvite) {
                 setPendingInviteDeleteConfirm({
-                    title: "删除邀约记录？",
-                    message: "删除该记录及后续消息将清除本次线下赴约状态。是否确认删除？",
-                    confirmLabel: "确认删除",
+                    title: "删除以下消息？",
+                    message: "删除的内容中包含本次线下赴约的发起消息，删除后将直接清除当前的赴约状态。若只想回退赴约状态，请取消并尝试删除其他。",
+                    confirmLabel: "删除",
                     variant: "danger",
                     onConfirm: () => {
                         // 确认批量删除包含邀约根节点的内容：清空赴约状态与活跃标记，结束线下赴约
@@ -8420,17 +8420,24 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 return;
             }
 
-            // 分流 2：状态倒带 / 撤销回溯（生命之根依然健在，撤销对应进展，赴约状态同步回溯）
-            setPendingInviteDeleteConfirm({
-                title: "删除变动记录？",
-                message: "删除该记录及后续消息将撤销对应进展，赴约状态将同步回溯。是否确认删除？",
-                confirmLabel: "确认删除",
-                variant: "danger",
-                onConfirm: () => {
-                    updateActiveOfflineInvite(simulatedNextInvite);
-                    executeDeleteFrom();
-                },
-            });
+            // 分流 2：状态倒带 / 撤销回溯（状态确实发生倒退回溯，对应 test-offline-modals.html 第 15 项）
+            const isRegressed = isInviteStateRegressed(currentInvite, simulatedNextInvite);
+            if (isRegressed) {
+                setPendingInviteDeleteConfirm({
+                    title: "删除以下消息？",
+                    message: "删除的内容中包含本次线下赴约的后续变动记录，删除后赴约将回溯至当时的状态。是否确认删除？",
+                    confirmLabel: "确认删除",
+                    variant: "danger",
+                    onConfirm: () => {
+                        updateActiveOfflineInvite(simulatedNextInvite);
+                        executeDeleteFrom();
+                    },
+                });
+                return;
+            }
+
+            // 分流 3：状态不变（虽包含小灰字但状态栏纹丝不动，或纯聊天记录），静默直接删除，绝不误弹变动
+            executeDeleteFrom();
             return;
         }
 
