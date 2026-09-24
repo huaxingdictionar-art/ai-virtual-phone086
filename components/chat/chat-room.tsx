@@ -1130,7 +1130,7 @@ function restoreOfflineInviteFromMessages(
     const validRelated = (baseInvite.relatedBatchIds || []).filter(id => historyBatchIds.has(id));
     restored.relatedBatchIds = validRelated;
 
-    // 🚨 红黑强制赴约终极不变式防御：绝对杜绝任何待答应或我去状态
+    // 红黑强制赴约不变式：仅允许在途与到达状态，禁止待答应或我去状态
     if (restored.theme === "forced") {
         if (restored.direction !== "he_comes" || (restored.status !== "on_the_way" && restored.status !== "arrived")) {
             return null;
@@ -4487,7 +4487,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     }
 
                     // 封锁线下入口时彻底清理掉可能残留的待答应、在途或到达邀约卡片与胶囊，防止幽灵悬挂
-                    // 🛡️ 华的因果铁律三级防御：不仅依赖 ref，还向 KV 和历史消息多重核验，确保取消邀约记录 100% 绝不漏发！
+                    // 因果一致性防御：不仅依赖 ref，还向 KV 和历史消息多重核验，确保取消邀约记录可靠入库
                     let curPendingInvite = activeOfflineInviteRef.current;
                     if (!curPendingInvite) {
                         try {
@@ -4509,7 +4509,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                         setIsOfflineInviteMinimized(false);
                         kvRemove(OFFLINE_INVITE_DECLINE_COUNT_PREFIX + session.id);
 
-                        // 华提出的因果铁律：封禁前先留下取消赴约的小灰字，让时间线因果清晰自洽
+                        // 因果时序保障：封禁前先留下取消赴约记录，保证时间线因果清晰自洽
                         const wasArrived = curPendingInvite.status === "arrived";
                         const cancelNoticeText = wasArrived ? `${charN} 已取消本次线下赴约` : `${charN} 已取消线下邀约提议`;
                         const cancelMsg = pushChatMessage({
@@ -4745,7 +4745,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                         responseBatchId,
                     ].filter(Boolean) as string[]));
 
-                    // 华确立的单向情绪递进铁律：未决赴约中，情绪只升不降（default -> alert -> forced），绝不突然消气降级！
+                    // 单向情绪递进规则：未决赴约中，情绪只升不降（default -> alert -> forced），避免突兀降级
                     const resolveEscalatedTheme = (inc?: "default" | "alert" | "forced", cur?: "default" | "alert" | "forced"): "default" | "alert" | "forced" => {
                         if (inc === "forced" || cur === "forced") return "forced";
                         if (inc === "alert" || cur === "alert") return "alert";
@@ -6799,7 +6799,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         }
         kvSet(PENDING_OFFLINE_INVITE_DECLINE_PREFIX + session.id, JSON.stringify(declineContext));
 
-        // 华亲自设计的拉扯命运胶囊：第1次无弹窗；2~5次换行排版递进（角色名无空格，末尾不带干瘪句号）；第6次及以后计数器累瘫罢工（第6次、第7次、第8次...持续弹出罢工弹窗，后台暗中真实累加，直到去见Ta碰面才停止并生成记忆）
+        // 拒绝拉扯多级弹窗：第1次无弹窗；2~5次阶段性递进展示；第6次及以后进入常驻罢工状态，后台暗中真实累加直至碰面提炼记忆
         let declineToastText: string | null = null;
         if (currentDeclineCount === 2) {
             declineToastText = `这是你第 2 次婉拒了${charName}的线下见面`;
@@ -7267,7 +7267,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     kvRemove(OFFLINE_INVITE_ACTIVE_SESSION_PREFIX + session.id);
                     kvRemove(OFFLINE_INVITE_ACTIVE_THEME_PREFIX + session.id);
                 } else {
-                    // 🎯 核心时间线因果法则（华亲定）：从重试截断点往前看，最后发生的关键事件决定了那一刻的状态！
+                    // 时间线因果回溯：以截断点为基准向历史追溯，由最近发生的有效关键事件决定回溯状态
                     let lastEvent: "terminated" | "meeting" | "invite_active" | "none" = "none";
                     let meetingThemeFromMsg: string | undefined;
 
@@ -8025,7 +8025,13 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         };
 
         // =========================================================================
-        // 🎣【钓鱼佬一号聚集地】线下封禁系统·删除拦截
+        // 【致未来阅读代码的你】：
+        // 此处“钓鱼佬、预处理鱼竿与代码鱼”是弹窗集中解耦的核心架构设计：
+        // 为避免几十个拦截弹窗零散分布在业务流各处难以维护，我们将其统一收拢至岸边，
+        // 岸上的【钓鱼佬】是交互弹窗，深海里的【代码鱼】是真正执行功能与状态转移的底层代码；
+        // 而连接两者的【预处理鱼竿】，则在物理执行前提前探出状态走向，实现集中调度与精准拦截。
+        // =========================================================================
+        // 【钓鱼佬一号聚集地】线下封禁系统·删除拦截
         // =========================================================================
 
         // 1. 封禁源头系统记录（生命之根·连根拔起法则）
@@ -8172,11 +8178,11 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         }
 
         // =========================================================================
-        // 🎣【钓鱼佬二号聚集地】角色主动发起线下赴约系统·删除拦截
+        // 【钓鱼佬二号聚集地】角色主动发起线下赴约系统·删除拦截
         // 统一基于内存物理预演的“三大类结果法则”：
-        // 1. 🟢 大类 A【状态不变 · 纯删记录】：删除历史记录？ / 确认删除（温和灰框）
-        // 2. 🟡 大类 B【状态倒带 · 撤销回溯】：删除变动记录？ / 确认删除（危险红框）
-        // 3. 🔴 大类 C【连根拔起 · 苦苦支撑的柱子被拔】：删除邀约记录？ / 确认删除（危险红框）
+        // 1. 大类 A【状态不变 · 纯删记录】：删除历史记录？ / 确认删除（温和灰框）
+        // 2. 大类 B【状态倒带 · 撤销回溯】：删除变动记录？ / 确认删除（危险红框）
+        // 3. 大类 C【连根拔起 · 唯一支柱被拔】：删除邀约记录？ / 确认删除（危险红框）
         // =========================================================================
 
         const isInviteTarget =
@@ -8229,7 +8235,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             // 场景 0-B：若当前并无活跃赴约，且目标记录处于早前已结束的历史碰面轮次中（非结束提示本身）
             const hasActiveInvite = Boolean(activeOfflineInviteRef.current || isMeetingActive);
             if (!hasActiveInvite && isTargetBeforeEndNotice && !isEndNoticeSelf) {
-                // 🟢 大类 A：历史记录清理，状态保持不变
+                // 大类 A：历史记录清理，状态保持不变
                 setPendingInviteDeleteConfirm({
                     title: "删除历史记录？",
                     message: "该记录为早前的提示，删除后将从聊天记录中移除，当前赴约进度保持不变。是否确认删除？",
@@ -8249,7 +8255,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     Boolean(m.content && m.content.includes("双方已返回线上"))
                 );
                 if (hasActiveInvite || hasLaterEndNotice) {
-                    // 🟢 大类 A：后续已有新赴约或更晚结束记录，删除早前记录当前赴约保持不变
+                    // 大类 A：后续已有新赴约或更晚结束记录，删除早前记录当前赴约保持不变
                     setPendingInviteDeleteConfirm({
                         title: "删除历史记录？",
                         message: "该记录为早前的提示，删除后将从聊天记录中移除，当前赴约进度保持不变。是否确认删除？",
@@ -8261,7 +8267,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     });
                     return;
                 }
-                // 🟡 大类 B：撤销结束决定，恢复碰面状态
+                // 大类 B：撤销结束决定，恢复碰面状态
                 setPendingInviteDeleteConfirm({
                     title: "删除变动记录？",
                     message: "删除该记录将撤销对应进展，赴约状态将同步回溯。是否确认删除？",
@@ -8288,15 +8294,15 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             const simulatedNextInvite = restoreOfflineInviteFromMessages(simulatedRemaining, null);
 
             // ---------------------------------------------------------------------
-            // 🎯 分流判断：严格对齐华敲定的三大物理后果法则
+            // 分流判断：根据记录所处生命周期阶段判定操作后果（大类 A/B/C）
             // ---------------------------------------------------------------------
 
             // 分流 1：连根拔起（无任何支撑节点，彻底清除本次线下赴约状态）
-            // 触发条件：当前处于活跃邀约中，但删除该节点后，再无任何提议、动身或到达支撑节点（苦苦支撑的最后一根柱子被拔除）
+            // 触发条件：当前处于活跃邀约中，但删除该节点后，再无任何提议、动身或到达支撑节点（唯一支撑节点被拔除）
             const isTornDownToNull = Boolean(currentInvite) && !simulatedNextInvite;
 
             if (isTornDownToNull) {
-                // 🔴 大类 C：连根拔起 · 清除本次线下赴约状态
+                // 大类 C：连根拔起 · 清除本次线下赴约状态
                 setPendingInviteDeleteConfirm({
                     title: "删除邀约记录？",
                     message: "删除该记录将清除本次线下赴约状态。是否确认删除？",
@@ -8330,7 +8336,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             const isDeclineRevival = isDeclineOrCancelNoticeSelf && !currentInvite && Boolean(simulatedNextInvite);
 
             if (isRegressedActive || isDeclineRevival) {
-                // 🟡 大类 B：状态倒带 · 撤销回溯
+                // 大类 B：状态倒带 · 撤销回溯
                 setPendingInviteDeleteConfirm({
                     title: "删除变动记录？",
                     message: "删除该记录将撤销对应进展，赴约状态将同步回溯。是否确认删除？",
@@ -8351,7 +8357,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             // A. 赴约早已被终结，删除早前历史变动、旧提议或孤儿婉拒记录；
             // B. 当前活跃进行中，删除了已被后续节点覆盖的早期提示（例如到达后删动身、更新地点后删旧地点）；
             // C. 当前轮次生命周期中其他不影响进度的普通系统小灰字
-            // 🟢 大类 A：状态不变 · 纯删记录
+            // 大类 A：状态不变 · 纯删记录
             setPendingInviteDeleteConfirm({
                 title: "删除历史记录？",
                 message: "该记录为早前的提示，删除后将从聊天记录中移除，当前赴约进度保持不变。是否确认删除？",
