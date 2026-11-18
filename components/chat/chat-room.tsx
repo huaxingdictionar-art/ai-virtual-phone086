@@ -1927,6 +1927,20 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         const chars = loadCharacters();
         return chars.find(c => c.id === session.contactId) || null;
     });
+
+    // 监听角色换头像实时决议事件：一旦角色同意换头像，聊天室顶栏与气泡秒级无缝呈现新头像
+    useEffect(() => {
+        const handleAvatarChange = (e: Event) => {
+            const detail = (e as CustomEvent).detail;
+            if (detail?.sessionId === session.id && detail?.accepted) {
+                const chars = loadCharacters();
+                const updated = chars.find(c => c.id === session.contactId) || null;
+                if (updated) setCharacter(updated);
+            }
+        };
+        window.addEventListener("chat-avatar-recommendation-resolved", handleAvatarChange);
+        return () => window.removeEventListener("chat-avatar-recommendation-resolved", handleAvatarChange);
+    }, [session.id, session.contactId]);
     const [isGenerating, setIsGenerating] = useState(false);
     const [offlineMode, setOfflineMode] = useState(false);
     const [theaterMode, setTheaterMode] = useState(() => kvGet(CHAT_THEATER_MODE_PREFIX + session.id) === "1");

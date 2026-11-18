@@ -479,11 +479,19 @@ function resolvePendingAvatarRecommendation(message: ChatMessage): void {
         const characters = loadCharacters();
         const index = characters.findIndex(character => character.id === session.contactId);
         if (index >= 0) {
-            characters[index] = {
-                ...characters[index],
-                avatar: recommendation.mediaUrl,
+            const char = characters[index];
+            const updates: Partial<Character> = {
                 updatedAt: new Date().toISOString(),
             };
+            // 智能分流：若该角色开启了聊天专用头像，则仅更换聊天APP头像，不污染角色卡原立绘；
+            // 若未开启，则直接更新角色卡主头像，并同步更新 chatAvatar，确保聊天室与全系统一致。
+            if (char.chatAvatarEnabled) {
+                updates.chatAvatar = recommendation.mediaUrl;
+            } else {
+                updates.avatar = recommendation.mediaUrl;
+                updates.chatAvatar = recommendation.mediaUrl;
+            }
+            characters[index] = { ...char, ...updates };
             saveCharacters(characters);
         }
     }
