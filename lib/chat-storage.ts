@@ -429,10 +429,11 @@ export function resolveChatSoundConfig(
     const channel = soundProfile[kind] || { enabled: true, audios: [] };
     const activeAudio = channel.audios?.find(a => a.id === channel.activeAudioId) || channel.audios?.[0];
 
+    const effectiveValue = activeAudio?.dataUrl || activeAudio?.value;
     const profileConfig: ChatSoundConfig = {
         enabled: masterEnabled && channel.enabled !== false,
         sourceType: activeAudio && activeAudio.sourceType !== "builtin" ? activeAudio.sourceType : undefined,
-        value: activeAudio && activeAudio.sourceType !== "builtin" ? activeAudio.value : undefined,
+        value: activeAudio && activeAudio.sourceType !== "builtin" ? effectiveValue : undefined,
         muteActiveChat: channel.muteActiveChat,
         notifyOncePerBurst: channel.notifyOncePerBurst,
     };

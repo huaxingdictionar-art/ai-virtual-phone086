@@ -146,7 +146,7 @@ const PRIMARY_DATA_MODULES: DataModuleDefinition[] = [
   {
     id: "desktop",
     label: "桌面与主题",
-    description: "桌面布局、小组件、主题、图标、自定义 CSS 和社交展示资料",
+    description: "桌面布局、小组件、主题音效、图标、自定义 CSS 和社交展示资料",
     variant: "success",
     critical: true,
     sources: [

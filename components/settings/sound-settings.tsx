@@ -163,8 +163,8 @@ export function SoundSettings() {
             return;
         }
 
-        let playUrl = item.value;
-        if (item.sourceType === "file") {
+        let playUrl = item.dataUrl || item.value;
+        if (!item.dataUrl && item.sourceType === "file") {
             const dataUrl = await getChatAudioFromIndexedDB(item.value);
             if (!dataUrl) {
                 setPlayingAudioId(null);
@@ -257,11 +257,24 @@ export function SoundSettings() {
         try {
             const assetId = await saveChatAudioToIndexedDB(file);
             const fileName = file.name.replace(/\.[^/.]+$/, "") || "自定义音频";
+
+            // 小于 300KB 的小型提示音同时内嵌 DataURL，双重保险：即使仅备份设置，音频也永不丢失
+            let inlineDataUrl: string | undefined;
+            if (file.size <= 300 * 1024) {
+                inlineDataUrl = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => resolve(String(reader.result || ""));
+                    reader.onerror = () => reject(reader.error);
+                    reader.readAsDataURL(file);
+                }).catch(() => undefined);
+            }
+
             const newAudio: SoundAudioItem = {
                 id: `audio_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
                 name: fileName,
                 sourceType: "file",
                 value: assetId,
+                dataUrl: inlineDataUrl,
             };
 
             updateProfile(prev => {

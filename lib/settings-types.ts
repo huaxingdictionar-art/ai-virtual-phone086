@@ -254,6 +254,8 @@ export type SoundAudioItem = {
     name: string;
     sourceType: "builtin" | "file" | "url";
     value: string;
+    /** 小型音频直接内嵌 DataURL（小于300KB），无论如何备份与迁移均100%跟随配置 */
+    dataUrl?: string;
 };
 
 export type SoundChannelConfig = {
