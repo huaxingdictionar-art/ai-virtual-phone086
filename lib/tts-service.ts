@@ -25,6 +25,7 @@ export function resolveVoiceConfig(characterId: string, appId?: ContentAppId): V
  * Supported providers:
  * - Minimax: REST API → hex-encoded mp3
  * - OpenAI: REST API → binary audio blob
+ * - FishAudio: proxied REST API → binary audio blob
  */
 export async function synthesizeSpeech(
     text: string,
@@ -43,7 +44,33 @@ export async function synthesizeSpeech(
         return synthesizeOpenAI(text, voiceConfig);
     }
 
+    if (provider === "FishAudio" || provider === "Fish Audio" || provider === "ElevenLabs") {
+        return synthesizeExternalVoice(text, voiceConfig);
+    }
+
     return null;
+}
+
+async function synthesizeExternalVoice(text: string, config: VoiceApiConfig): Promise<Blob | null> {
+    if (!config.apiKey) throw new Error(`${config.provider} API Key 未配置`);
+    const response = await fetchWithTimeout("/api/voice/synthesize", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+            provider: config.provider,
+            apiKey: config.apiKey,
+            text,
+            voiceId: config.defaultVoice,
+            model: config.model,
+            speechSpeed: config.speechSpeed,
+        }),
+    });
+    if (!response.ok) {
+        const data = await response.json().catch(() => ({})) as { message?: string; error?: string };
+        throw new Error(data.message || data.error || `${config.provider} API 请求失败 (${response.status})`);
+    }
+    const blob = await response.blob();
+    return new Blob([await blob.arrayBuffer()], { type: response.headers.get("content-type") || "audio/mpeg" });
 }
 
 // A stalled TTS request (TCP connected but no response — cold start, rate-limit
