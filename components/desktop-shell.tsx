@@ -135,6 +135,7 @@ import { parseAIResponse } from "@/lib/rich-message-parser";
 import { requestBackgroundChatReply, scheduleFollowUp } from "@/lib/follow-up-service";
 import { CHAT_MESSAGE_NOTICE_EVENT, CHAT_OPEN_SESSION_EVENT, type ChatMessageNoticeDetail } from "@/lib/chat-notification-events";
 import { startIncomingCallVibration } from "@/lib/call-vibration";
+import { installChatSoundListener, setMiniChatSoundSessionId } from "@/lib/chat-sound";
 import { setMascotContext } from "@/lib/mascot-context";
 import { DESKTOP_WIDGETS_CHANGED_EVENT } from "@/lib/mascot-events";
 import { useWeixinBridge } from "@/lib/use-weixin-bridge";
@@ -1096,6 +1097,8 @@ export function DesktopShell({ initialThemeProfile, initialThemeAssets }: Deskto
     if (!incomingCall) return;
     return startIncomingCallVibration();
   }, [incomingCall]);
+  // 全局聊天提示音（新消息 + 发送消息）：监听消息落库事件，开箱自带清脆发送音与双音和弦叮咚
+  useEffect(() => installChatSoundListener(), []);
   const [chatMessageNotice, setChatMessageNotice] = useState<{
     sessionId: string;
     title: string;
@@ -2416,9 +2419,13 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:#121110;color:rgb
   const [showMiniChat, setShowMiniChat] = useState(false);
   const [miniSharePayload, setMiniSharePayload] = useState<ChatSharePayload | null>(null);
   const miniSessionRef = useRef<ChatSession | null>(null);
-  const handleMiniChatClose = useCallback(() => setShowMiniChat(false), []);
+  const handleMiniChatClose = useCallback(() => {
+    setShowMiniChat(false);
+    setMiniChatSoundSessionId(null);
+  }, []);
   const handleMiniChatSessionChange = useCallback((session: ChatSession | null) => {
     miniSessionRef.current = session;
+    setMiniChatSoundSessionId(session?.id ?? null);
   }, []);
   const handleMiniShareDone = useCallback(() => setMiniSharePayload(null), []);
   const handleMiniChatExpand = useCallback(() => {

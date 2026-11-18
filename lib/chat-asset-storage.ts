@@ -12,3 +12,11 @@ export async function saveChatImageToIndexedDB(blob: Blob): Promise<string> {
 export async function getChatImageFromIndexedDB(id: string): Promise<string | null> {
     return getThemeAssetDataUrl(id);
 }
+
+export async function saveChatAudioToIndexedDB(blob: Blob): Promise<string> {
+    return saveThemeAssetFromBlob(blob, "chat_sound" as ThemeAssetType);
+}
+
+export async function getChatAudioFromIndexedDB(id: string): Promise<string | null> {
+    return getThemeAssetDataUrl(id);
+}

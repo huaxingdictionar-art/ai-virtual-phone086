@@ -48,7 +48,7 @@ import {
 import { clearChatOfflineTurns } from "@/lib/chat-offline-storage";
 import { removeChatSessionCompletely } from "@/lib/chat-session-remove";
 import { triggerDeleteFriendReaction } from "@/lib/friend-request-engine";
-import { loadCharacters } from "@/lib/character-storage";
+import { loadCharacters, saveCharacters } from "@/lib/character-storage";
 import { isAgentComputerConfigured } from "@/lib/agent-computer";
 import { CharacterComputerPage } from "./character-computer-page";
 import { resolveUserIdentity, loadBindingConfig, loadPresets, resolveBinding } from "@/lib/settings-storage";
@@ -64,6 +64,8 @@ import CSSSchemeBar from "@/components/ui/css-scheme-picker";
 import { ConfirmDialog } from "@/components/ui/modal";
 import { CHAT_SESSION_CSS_EXAMPLE } from "@/lib/css-examples";
 import { Toggle, Input } from "@/components/ui/form";
+import { SessionChatSoundsSection } from "@/components/chat/session-chat-sounds";
+import { resolveChatCharacterAvatar, resolveChatUserAvatar, CHAT_REQUEST_REPLY_EVENT } from "@/lib/chat-storage";
 import { PageShell } from "@/components/ui/page-shell";
 
 // 自定义状态栏预填模板：微博主页（契约=「状态栏」章节整段正文，含【逻辑】【格式】与包裹要求）
@@ -298,6 +300,29 @@ function ChatInfoIcon({ icon: Icon, color }: { icon: LucideIcon; color: string }
     );
 }
 
+
+function fileToAvatarDataUrl(file: File, maxSize = 640, quality = 0.86): Promise<string> {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = reject;
+        reader.onload = () => {
+            const image = new Image();
+            image.onerror = reject;
+            image.onload = () => {
+                const scale = Math.min(maxSize / image.width, maxSize / image.height, 1);
+                const canvas = document.createElement("canvas");
+                canvas.width = Math.max(1, Math.round(image.width * scale));
+                canvas.height = Math.max(1, Math.round(image.height * scale));
+                const context = canvas.getContext("2d");
+                if (!context) { reject(new Error("无法处理图片")); return; }
+                context.drawImage(image, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL("image/webp", quality));
+            };
+            image.src = String(reader.result || "");
+        };
+        reader.readAsDataURL(file);
+    });
+}
 
 export function ChatSettingsPanel({
     session,
@@ -591,6 +616,75 @@ export function ChatSettingsPanel({
         ? (session.participantIds || []).map(id => characters.find(c => c.id === id)).filter(Boolean)
         : [];
     const userIdentity = resolveUserIdentity(undefined, session.isGroup ? "group_chat" : "chat");
+
+    const [showAvatarDialog, setShowAvatarDialog] = useState(false);
+    const [, setAvatarRevision] = useState(0);
+    const ownAvatarInputRef = useRef<HTMLInputElement | null>(null);
+    const characterAvatarInputRef = useRef<HTMLInputElement | null>(null);
+
+    const effectiveCharacterAvatar = resolveChatCharacterAvatar(character);
+    const characterChatAvatarOnly = character?.chatAvatarEnabled === true;
+    const effectiveUserAvatar = resolveChatUserAvatar(session, userIdentity?.avatarUrl);
+    const [notifyAvatarChange, setNotifyAvatarChange] = useState(session.notifyCharacterOnUserAvatarChange !== false);
+
+    const updateOwnAvatar = async (file: File) => {
+        const avatarUrl = await fileToAvatarDataUrl(file);
+        updateSession({ userAvatarOverride: avatarUrl });
+        if (notifyAvatarChange) {
+            const occurredAt = new Date();
+            const eventTime = occurredAt.toLocaleString("zh-CN", { hour12: false });
+            const userLabel = userIdentity?.name || "用户";
+            pushChatMessage({
+                sessionId: session.id,
+                role: "system",
+                mediaType: "system_instruction",
+                mediaData: { compactSystemInstruction: true, shortTermMemoryEvent: true },
+                content: `${userLabel}更换了头像\n<hidden-system>私聊头像更新：时间：${eventTime}；${userLabel}更换了当前私聊头像，并希望${character?.name || characterName}对此做出反应。这是需要保留的近期私聊事件。</hidden-system>`,
+            });
+            window.setTimeout(() => {
+                window.dispatchEvent(new CustomEvent(CHAT_REQUEST_REPLY_EVENT, { detail: { sessionId: session.id } }));
+            }, 0);
+        }
+        setAvatarRevision(value => value + 1);
+    };
+
+    const updateCharacterAvatar = async (file: File) => {
+        const avatar = await fileToAvatarDataUrl(file);
+        const latest = loadCharacters();
+        saveCharacters(latest.map(item => item.id === session.contactId
+            ? { ...item, chatAvatar: avatar, chatAvatarEnabled: true }
+            : item));
+        setAvatarRevision(value => value + 1);
+    };
+
+    const setCharacterChatAvatarOnly = (enabled: boolean) => {
+        const latest = loadCharacters();
+        saveCharacters(latest.map(item => item.id === session.contactId
+            ? { ...item, chatAvatarEnabled: enabled }
+            : item));
+        setAvatarRevision(value => value + 1);
+    };
+
+    const clearCharacterChatAvatar = () => {
+        const latest = loadCharacters();
+        saveCharacters(latest.map(item => item.id === session.contactId
+            ? { ...item, chatAvatar: null, chatAvatarEnabled: false }
+            : item));
+        setAvatarRevision(value => value + 1);
+    };
+
+    const handleAvatarInput = async (event: React.ChangeEvent<HTMLInputElement>, action: "own" | "character") => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (!file) return;
+        try {
+            if (action === "own") await updateOwnAvatar(file);
+            else await updateCharacterAvatar(file);
+        } catch (error) {
+            console.error("Failed to update avatar", error);
+            alert("头像图片处理失败，请换一张图片重试");
+        }
+    };
 
     // ── Group member management ──
     const [, setRosterVersion] = useState(0); // bump to re-render after admin actions
@@ -1573,6 +1667,56 @@ export function ChatSettingsPanel({
                     </button>
                 </div>
 
+
+                {!session.isGroup && (
+                    <>
+                        <div className="px-4 pt-3 pb-2 ts-12 font-medium text-[var(--c-text-title)] opacity-80">角色专属提示音</div>
+                        <SessionChatSoundsSection session={session} accent={BINDING_ACCENTS.voice} onUpdate={updateSession} />
+                    </>
+                )}
+
+                {/* 头像与个性化设置 */}
+                {!session.isGroup && (
+                    <div className="menu-group">
+                        <button
+                            type="button"
+                            className="menu-item justify-between"
+                            onClick={() => setShowAvatarDialog(true)}
+                        >
+                            <div className="flex items-center gap-3">
+                                <ChatInfoIcon icon={Camera} color={BINDING_ACCENTS.preset} />
+                                <div className="menu-label-group">
+                                    <span className="menu-label">设置头像</span>
+                                    <span className="menu-desc">我的私聊专属头像 · 对方聊天APP专用头像</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <div className="flex -space-x-1.5 overflow-hidden">
+                                    <div className="h-6 w-6 rounded-full border border-[var(--c-card-bg)] bg-[var(--c-input)] overflow-hidden">
+                                        {effectiveUserAvatar ? <img src={effectiveUserAvatar} className="h-full w-full object-cover" alt="我的头像" /> : <ChatFallbackAvatar />}
+                                    </div>
+                                    <div className="h-6 w-6 rounded-full border border-[var(--c-card-bg)] bg-[var(--c-input)] overflow-hidden">
+                                        {effectiveCharacterAvatar ? <img src={effectiveCharacterAvatar} className="h-full w-full object-cover" alt="角色头像" /> : <ChatFallbackAvatar />}
+                                    </div>
+                                </div>
+                                <ChevronRight size={16} className="opacity-40" />
+                            </div>
+                        </button>
+                        <div className="menu-item justify-between">
+                            <div className="flex items-center gap-3">
+                                <ChatInfoIcon icon={Camera} color={BINDING_ACCENTS.character} />
+                                <div>
+                                    <span className="menu-label">发图自主更换头像</span>
+                                    <span className="menu-desc">发图并提议时，角色结合人设自主决定是否换上头像</span>
+                                </div>
+                            </div>
+                            <Toggle
+                                checked={session.avatarChangeAllowed !== false}
+                                onChange={checked => updateSession({ avatarChangeAllowed: checked })}
+                            />
+                        </div>
+                    </div>
+                )}
 
                 {/* Backgrounds & UI */}
                 <div className="menu-group">
@@ -2591,6 +2735,91 @@ export function ChatSettingsPanel({
                             ))}
                         </div>
                         <button type="button" className="ui-btn ui-btn-ghost w-full" onClick={() => setShowChineseThinkingSettings(false)}>完成</button>
+                    </div>
+                </div>
+            )}
+            {/* 隐藏的文件上传 input */}
+            <input ref={ownAvatarInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleAvatarInput(e, "own")} />
+            <input ref={characterAvatarInputRef} type="file" accept="image/*" className="hidden" onChange={e => handleAvatarInput(e, "character")} />
+
+            {/* 头像设置弹窗 */}
+            {showAvatarDialog && !session.isGroup && (
+                <div className="fixed inset-0 z-[10035] flex items-end justify-center bg-black/45 sm:items-center" role="dialog" aria-modal="true" aria-label="设置头像" onClick={() => setShowAvatarDialog(false)}>
+                    <div className="w-full max-w-md overflow-hidden rounded-t-[24px] bg-[var(--c-page-body-bg)] px-4 pb-[max(20px,env(safe-area-inset-bottom))] pt-4 text-[var(--c-text)] shadow-2xl sm:rounded-[24px]" onClick={event => event.stopPropagation()}>
+                        <div className="mb-4 flex items-center justify-between px-1">
+                            <div>
+                                <div className="ts-17 font-semibold text-[var(--c-text-title)]">设置头像</div>
+                                <div className="mt-1 ts-12 opacity-55">自定义双方在当前私聊中的头像</div>
+                            </div>
+                            <button type="button" className="modal-header-btn modal-header-btn-muted" aria-label="关闭" onClick={() => setShowAvatarDialog(false)}><X size={18} /></button>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                            <button type="button" className="rounded-2xl bg-[var(--c-card-bg)] p-4 text-left shadow-sm transition-transform active:scale-[0.98]" onClick={() => ownAvatarInputRef.current?.click()}>
+                                <div className="mx-auto h-16 w-16 overflow-hidden rounded-full bg-[var(--c-input)] shadow-inner">
+                                    {effectiveUserAvatar ? <img src={effectiveUserAvatar} className="h-full w-full object-cover" alt="我的头像" /> : <ChatFallbackAvatar />}
+                                </div>
+                                <div className="mt-3 text-center ts-14 font-medium text-[var(--c-text-title)]">我的头像</div>
+                                <div className="mt-1 text-center ts-11 opacity-55">仅当前私聊生效</div>
+                            </button>
+
+                            <button type="button" className="rounded-2xl bg-[var(--c-card-bg)] p-4 text-left shadow-sm transition-transform active:scale-[0.98]" onClick={() => characterAvatarInputRef.current?.click()}>
+                                <div className="mx-auto h-16 w-16 overflow-hidden rounded-full bg-[var(--c-input)] shadow-inner">
+                                    {effectiveCharacterAvatar ? <img src={effectiveCharacterAvatar} className="h-full w-full object-cover" alt="角色头像" /> : <ChatFallbackAvatar />}
+                                </div>
+                                <div className="mt-3 text-center ts-14 font-medium text-[var(--c-text-title)]">对方头像</div>
+                                <div className="mt-1 text-center ts-11 opacity-55">{characterChatAvatarOnly ? "已启用聊天APP专用头像" : "跟随角色卡原头像"}</div>
+                            </button>
+                        </div>
+
+                        <div className="mt-4 rounded-2xl bg-[var(--c-card-bg)] p-3">
+                            <label className="flex items-center justify-between py-1 text-left">
+                                <div>
+                                    <div className="ts-13 font-medium text-[var(--c-text-title)]">换头像时在聊天中提醒对方</div>
+                                    <div className="mt-0.5 ts-11 opacity-55">更换我的头像后，角色会对此做出自然反应</div>
+                                </div>
+                                <Toggle
+                                    checked={notifyAvatarChange}
+                                    onChange={checked => {
+                                        setNotifyAvatarChange(checked);
+                                        updateSession({ notifyCharacterOnUserAvatarChange: checked });
+                                    }}
+                                />
+                            </label>
+                            {character?.chatAvatar && (
+                                <div className="mt-3 border-t border-[var(--c-border)]/20 pt-3">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <div className="ts-13 font-medium text-[var(--c-text-title)]">仅在聊天APP中使用专用头像</div>
+                                            <div className="mt-0.5 ts-11 opacity-55">关闭后不修改聊天头像，恢复跟随角色卡</div>
+                                        </div>
+                                        <Toggle
+                                            checked={characterChatAvatarOnly}
+                                            onChange={checked => setCharacterChatAvatarOnly(checked)}
+                                        />
+                                    </div>
+                                    <button
+                                        type="button"
+                                        className="mt-3 w-full rounded-xl py-2 text-center ts-12 text-red-400 transition-colors hover:bg-red-500/10 active:scale-[0.99]"
+                                        onClick={clearCharacterChatAvatar}
+                                    >
+                                        清除角色专用头像（恢复角色卡默认）
+                                    </button>
+                                </div>
+                            )}
+                            {session.userAvatarOverride && (
+                                <button
+                                    type="button"
+                                    className="mt-3 w-full rounded-xl border-t border-[var(--c-border)]/20 pt-3 text-center ts-12 text-red-400 transition-colors hover:bg-red-500/10 active:scale-[0.99]"
+                                    onClick={() => {
+                                        updateSession({ userAvatarOverride: undefined });
+                                        setAvatarRevision(v => v + 1);
+                                    }}
+                                >
+                                    恢复我的全局默认头像
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </div>
             )}

@@ -45,6 +45,10 @@ import {
     resolveUserIdentity,
 } from "./settings-storage";
 import { buildChineseThinkingPrompt, withChineseThinkingPrompt } from "./chinese-thinking-prompt";
+import {
+    applyWithProtectedAvatarDecisionMarkers,
+    findUserAvatarChangeIntent,
+} from "./chat-avatar-intent";
 import { assemblePromptPayload, applyOutputRegex, type LLMMessage, type LLMContentPart } from "./llm-prompt-assembler";
 import { MacroEngine, postProcessTrim } from "./macro-engine";
 import { getStatusRegionConfig, resolveStatusRegionSection, resolveStatusRegionExampleLine, resolveStatusRegionComposition, resolveStatusRegionFullExample } from "./chat-status-region";
@@ -893,7 +897,10 @@ export async function sendLLMStreamRequest(
                 appTags: options?.appTags,
                 followUpCount: options?.followUpCount,
             });
-            rawOutput = applyOutputRegex(rawOutput, regexes, { macroEngine, activeTags });
+            rawOutput = applyWithProtectedAvatarDecisionMarkers(
+                rawOutput,
+                protectedText => applyOutputRegex(protectedText, regexes, { macroEngine, activeTags }),
+            );
         }
         return { content: rawOutput, rawResponse, providerKind: request.providerKind };
     } catch (error: unknown) {
@@ -1072,7 +1079,10 @@ export async function sendLLMRequest(
             appTags: options?.appTags,
             followUpCount: options?.followUpCount,
         });
-        return applyOutputRegex(rawOutput, regexes, { macroEngine, activeTags });
+        return applyWithProtectedAvatarDecisionMarkers(
+            rawOutput,
+            protectedText => applyOutputRegex(protectedText, regexes, { macroEngine, activeTags }),
+        );
     } catch (error: unknown) {
         if (error instanceof DOMException && (error as DOMException).name === "AbortError") {
             throw new ChatEngineError("AI 回复超时（500秒），请重试。");
@@ -1387,7 +1397,10 @@ export async function sendLLMToolRequest(
                 appTags: options?.appTags,
                 followUpCount: options?.followUpCount,
             });
-            rawOutput = applyOutputRegex(rawOutput, regexes, { macroEngine, activeTags });
+            rawOutput = applyWithProtectedAvatarDecisionMarkers(
+                rawOutput,
+                protectedText => applyOutputRegex(protectedText, regexes, { macroEngine, activeTags }),
+            );
         }
 
         return {
@@ -2020,6 +2033,21 @@ export async function buildChatPromptMessages(
                 [character.name],
                 session.chineseThinkingPromptLength,
             ),
+        });
+    }
+    const avatarChangeIntent = !session.isGroup && session.avatarChangeAllowed !== false
+        ? findUserAvatarChangeIntent(historyForPrompt, session.id, character.id)
+        : null;
+    if (avatarChangeIntent) {
+        llmMessages.push({
+            role: "system",
+            content: [
+                "用户在本轮发送了图片，并表达或暗示希望你把它换成自己的头像 / The user sent an image in this turn and suggested or implied using it as your avatar/pfp.",
+                "请结合你的人设与彼此关系自主决定是否更换，不要机械接受 / Decide autonomously based on your persona, personality, and relationship whether to accept it; do not accept mechanically.",
+                "如果愿意采用，必须在本次自然回复的末尾输出且只输出一次控制标记：[接受头像推荐] 或 [Accept Avatar] / If you accept, you MUST append either [接受头像推荐] or [Accept Avatar] at the very end of your response.",
+                "如果不愿采用，必须在回复末尾输出：[拒绝头像推荐] 或 [Decline Avatar] / If you decline, you MUST append either [拒绝头像推荐] or [Decline Avatar] at the end.",
+                "控制标记不会展示给用户；不要解释标记，也不要把标记放进代码块中 / The control marker will be stripped automatically and hidden from the user; do not explain or quote the marker.",
+            ].join("\n"),
         });
     }
     // 当前状态用一条直白提示兜底；具体拉黑/解除事件已写入私聊短期记忆。

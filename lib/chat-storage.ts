@@ -8,7 +8,14 @@ import {
     dbReplaceContacts, dbReplaceSessions,
 } from "./chat-db";
 import { resolveUserIdentity } from "./settings-storage";
-import { loadCharacters } from "./character-storage";
+import { loadCharacters, saveCharacters } from "./character-storage";
+import {
+    AVATAR_ACCEPT_RE,
+    AVATAR_DECLINE_RE,
+    findUserAvatarChangeIntent,
+    inferAvatarDecisionFromReply,
+    stripAvatarDecisionMarkers,
+} from "./chat-avatar-intent";
 import { kvGet, kvSet, kvRemove, registerKvMigration } from "./kv-db";
 import { emitChatPluginEvent, runChatPluginTransformSync } from "./chat-plugin-hooks";
 import { parseAIResponse } from "./rich-message-parser";
@@ -47,6 +54,14 @@ export type ChatSession = {
     videoBackground?: string;
     voiceBackground?: string;
     isBlacklisted?: boolean;
+    /** 允许通过聊天发图更换头像（默认开启，关闭则忽略发图换头像意图） */
+    avatarChangeAllowed?: boolean;
+    /** 角色专属提示音配置 */
+    sounds?: ChatSoundsConfig;
+    /** 私聊用户头像覆盖 */
+    userAvatarOverride?: string;
+    /** 用户更换私聊头像时是否在聊天流中提示角色（默认开） */
+    notifyCharacterOnUserAvatarChange?: boolean;
     customCSS?: string;
     isMuted?: boolean;
     bilingualTranslationEnabled?: boolean;
@@ -349,7 +364,136 @@ export type ChatAppSettings = {
     callVibrationEnabled?: boolean; // 语音/视频来电等待接听时循环振动（默认开；iOS 网页不支持振动则无效果）
     maxToolRounds?: number; // 单条消息的工具循环轮数上限（默认 5；每轮=一次模型请求，轮内调用条数不限）
     floatingDockEnabled?: boolean; // 悬浮球贴边半隐藏收拢模式（默认关）
+    /** 全局聊天提示音配置（新消息/发送消息/来电/致电/挂断） */
+    globalChatSounds?: ChatSoundsConfig;
+    /** 全局聊天用户头像覆盖（私聊与群聊默认使用） */
+    globalChatUserAvatar?: string;
+    /** 全局聊天背景图片 */
+    globalChatBackgroundImage?: string;
 };
+
+// ── 聊天提示音配置 ────────────────────────────────────────────────
+export type ChatSoundKind = "newMessage" | "sendMessage" | "incomingCall" | "outgoingCall" | "hangup";
+
+export type ChatSoundConfig = {
+    /** 是否开启该提示音 */
+    enabled?: boolean;
+    /** 音频来源："file"=用户上传的音频文件（IndexedDB 资产 id）；"url"=音频 URL */
+    sourceType?: "file" | "url";
+    /** sourceType="file" 时为资产 id；sourceType="url" 时为音频地址 */
+    value?: string;
+    /** （仅新消息音效）开启后当前正打开该聊天时，角色新消息不播放音效 */
+    muteActiveChat?: boolean;
+    /** （仅新消息音效）开启后同一角色连续多条消息只播一次音效 */
+    notifyOncePerBurst?: boolean;
+};
+
+export type ChatSoundsConfig = {
+    newMessage?: ChatSoundConfig;
+    sendMessage?: ChatSoundConfig;
+    incomingCall?: ChatSoundConfig;
+    outgoingCall?: ChatSoundConfig;
+    hangup?: ChatSoundConfig;
+};
+
+/**
+ * 提示音配置解析：私聊角色专属（单独会话 sounds）＞ 全局聊天信息（globalChatSounds）。
+ * 会话里显式设置的字段覆盖全局，其余继承全局。
+ */
+export function resolveChatSoundConfig(
+    kind: ChatSoundKind,
+    session: Pick<ChatSession, "sounds"> | null | undefined,
+): ChatSoundConfig {
+    const merged: ChatSoundConfig = { ...(loadChatAppSettings().globalChatSounds?.[kind] ?? {}) };
+    const own = session?.sounds?.[kind];
+    if (own) {
+        for (const [key, value] of Object.entries(own)) {
+            if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
+        }
+    }
+    return merged;
+}
+
+let _activeChatSessionId: string | null = null;
+
+/** 告诉共享消息层当前真正显示在前台的聊天室，供未读计数与提示音静音统一判断。 */
+export function setActiveChatSessionId(sessionId: string | null): void {
+    _activeChatSessionId = sessionId;
+}
+
+/** 当前显示在前台的聊天室 id（没有打开任何聊天室时为 null）。 */
+export function getActiveChatSessionId(): string | null {
+    return _activeChatSessionId;
+}
+
+/** 按 id 从会话缓存取会话（提示音等同步读取路径用；找不到时返回 null） */
+export function findChatSessionById(sessionId: string): ChatSession | null {
+    return _sessionsCache.find(s => s.id === sessionId) ?? null;
+}
+
+/** 聊天用户头像：私聊专属覆盖 ＞ 全局聊天用户头像 ＞ 用户身份头像 */
+export function resolveChatUserAvatar(
+    session: Pick<ChatSession, "userAvatarOverride" | "isGroup"> | null | undefined,
+    identityAvatar?: string | null,
+): string {
+    const privateChatAvatar = session?.isGroup ? "" : session?.userAvatarOverride;
+    return privateChatAvatar || loadChatAppSettings().globalChatUserAvatar || identityAvatar || "";
+}
+
+/** 聊天 APP 内角色头像：专用聊天头像 ＞ 角色卡头像；其他 APP 仍直接读取角色卡头像。 */
+export function resolveChatCharacterAvatar(
+    character: Pick<Character, "avatar" | "chatAvatar" | "chatAvatarEnabled"> | null | undefined,
+): string {
+    if (character?.chatAvatarEnabled && character.chatAvatar) return character.chatAvatar;
+    return character?.avatar || "";
+}
+
+function resolvePendingAvatarRecommendation(message: ChatMessage): void {
+    if (message.role !== "assistant" || !message.rawResponseText) return;
+
+    const session = _sessionsCache.find(item => item.id === message.sessionId);
+    if (!session || session.isGroup || session.avatarChangeAllowed === false) return;
+
+    const explicitAccepted = AVATAR_ACCEPT_RE.test(message.rawResponseText);
+    const explicitDeclined = AVATAR_DECLINE_RE.test(message.rawResponseText);
+    const inferredDecision = !explicitAccepted && !explicitDeclined
+        ? inferAvatarDecisionFromReply(`${message.rawResponseText}\n${message.content}`)
+        : null;
+
+    const accepted = explicitAccepted || inferredDecision === "accepted";
+    const declined = explicitDeclined || inferredDecision === "declined";
+    if (!accepted && !declined) return;
+
+    const intentInfo = findUserAvatarChangeIntent(_messagesCache, message.sessionId, session.contactId);
+    const recommendation = intentInfo?.image;
+    if (!recommendation || !recommendation.mediaUrl) return;
+
+    recommendation.mediaData = {
+        ...recommendation.mediaData,
+        avatarRecommendationForCharacterId: session.contactId,
+        avatarRecommendationStatus: accepted ? "accepted" : "declined",
+    };
+    dbPutMessage(recommendation);
+
+    if (accepted && recommendation.mediaUrl) {
+        const characters = loadCharacters();
+        const index = characters.findIndex(character => character.id === session.contactId);
+        if (index >= 0) {
+            characters[index] = {
+                ...characters[index],
+                avatar: recommendation.mediaUrl,
+                updatedAt: new Date().toISOString(),
+            };
+            saveCharacters(characters);
+        }
+    }
+
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("chat-avatar-recommendation-resolved", {
+            detail: { sessionId: message.sessionId, accepted },
+        }));
+    }
+}
 
 /** 单条消息工具循环轮数上限（默认 5，夹在 1–20 之间） */
 export function getMaxToolRounds(): number {
@@ -1334,10 +1478,18 @@ export function pushChatMessage(msg: Omit<ChatMessage, "id" | "createdAt" | "sta
         if (sessionForBlock && !sessionForBlock.isGroup && sessionForBlock.isBlacklisted) {
             newMsg.status = "rejected";
         }
+        // 剔除换头像隐形控制标记，保持正文自然整洁
+        if (newMsg.content) {
+            newMsg.content = stripAvatarDecisionMarkers(newMsg.content);
+        }
     }
 
     _messagesCache.push(newMsg);
     dbPutMessage(newMsg);
+
+    if (newMsg.role === "assistant") {
+        resolvePendingAvatarRecommendation(newMsg);
+    }
 
     // Auto update session last message only for records that can produce a list preview.
     // 优化：直接增量更新内存会话缓存并异步写单条，避免每次发送都走 loadChatSessions +

@@ -8,7 +8,7 @@ import { ChatRoom } from "./chat-room";
 import { MascotChatRoom } from "./mascot-chat-room";
 import { UserProfilePanel } from "./user-profile-panel";
 import { MessageCircle, Users, Aperture, UserRound } from "lucide-react";
-import { ChatSession, loadChatSessions, pushChatMessage, hydrateChatStorage } from "@/lib/chat-storage";
+import { ChatSession, loadChatSessions, pushChatMessage, hydrateChatStorage, setActiveChatSessionId } from "@/lib/chat-storage";
 import { notifyMascotPageContext } from "@/lib/mascot-events";
 import { loadCharacters } from "@/lib/character-storage";
 import { SessionCustomCSS } from "@/components/ui/session-custom-css";
@@ -216,6 +216,13 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
         setActiveMascot(true);
         setActiveTab("messages");
     };
+
+    useEffect(() => {
+        const sessionId = activeSession?.id ?? null;
+        setActiveChatSessionId(sessionId);
+    }, [activeSession?.id]);
+
+    useEffect(() => () => setActiveChatSessionId(null), []);
 
     // Listen for CSS updates from settings panel
     useEffect(() => {
