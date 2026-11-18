@@ -3,10 +3,13 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
+  BookmarkIcon,
   BookOpenIcon,
+  CheckIcon,
   PaintBrushIcon,
   PaperAirplaneIcon,
   StopIcon,
+  TrashIcon,
   XMarkIcon,
 } from "@heroicons/react/24/solid";
 
@@ -64,6 +67,7 @@ import { SessionCustomCSS } from "@/components/ui/session-custom-css";
 import { STORY_CSS_EXAMPLE } from "@/lib/css-examples";
 import { applyEditOutputRegex } from "@/lib/llm-prompt-assembler";
 import { MacroEngine } from "@/lib/macro-engine";
+import { addStoryFavorite } from "@/lib/favorites-storage";
 
 type StoryAppProps = {
   onClose: () => void;
@@ -290,6 +294,9 @@ export function StoryApp({ onClose }: StoryAppProps) {
   const dragStartXRef = useRef<number | null>(null);
   const dragDeltaXRef = useRef(0);
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
+  const [storyMultiSelect, setStoryMultiSelect] = useState(false);
+  const [selectedStoryMessageIds, setSelectedStoryMessageIds] = useState<Set<string>>(() => new Set());
+  const [storyNotice, setStoryNotice] = useState("");
   const [contextMenuPoint, setContextMenuPoint] = useState<{ x: number; y: number } | null>(null);
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingContent, setEditingContent] = useState("");
@@ -756,6 +763,56 @@ export function StoryApp({ onClose }: StoryAppProps) {
     if (longPressTimerRef.current) { clearTimeout(longPressTimerRef.current); longPressTimerRef.current = null; }
   }
 
+  const showStoryNotice = useCallback((text: string) => {
+    setStoryNotice(text);
+    window.setTimeout(() => setStoryNotice(""), 1600);
+  }, []);
+
+  function cancelStoryMultiSelect() {
+    setStoryMultiSelect(false);
+    setSelectedStoryMessageIds(new Set());
+  }
+
+  function startStoryMultiSelect(messageId: string) {
+    setActiveMessageId(null);
+    setStoryMultiSelect(true);
+    setSelectedStoryMessageIds(new Set([messageId]));
+  }
+
+  function toggleStoryMultiSelect(messageId: string) {
+    setSelectedStoryMessageIds(previous => {
+      const next = new Set(previous);
+      if (next.has(messageId)) next.delete(messageId);
+      else next.add(messageId);
+      return next;
+    });
+  }
+
+  async function favoriteStoryMessages(messageIds: string[]) {
+    if (!currentSession) return;
+    const targets = new Set(messageIds);
+    const storedMessages = loadStoryMessages(currentSession.id).filter(message => targets.has(message.id));
+    if (!storedMessages.length) {
+      showStoryNotice("没有找到可收藏的剧情消息");
+      return;
+    }
+    try {
+      await addStoryFavorite({ session: currentSession, messages: storedMessages });
+      showStoryNotice(storedMessages.length > 1 ? `已收藏 ${storedMessages.length} 条剧情消息` : "已收藏");
+    } catch (error) {
+      showStoryNotice(error instanceof Error ? error.message : "收藏失败");
+    }
+  }
+
+  function deleteSelectedStoryMessages() {
+    const ids = Array.from(selectedStoryMessageIds);
+    for (const id of ids) deleteStoryMessage(id);
+    setMessages(previous => previous.filter(message => !selectedStoryMessageIds.has(message.id)));
+    setStorageVersion(version => version + 1);
+    cancelStoryMultiSelect();
+    showStoryNotice(`已删除 ${ids.length} 条剧情消息`);
+  }
+
   function handleStoryDelete(msgId: string) {
     deleteStoryMessage(msgId);
     setMessages(prev => prev.filter(m => m.id !== msgId));
@@ -934,6 +991,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
                 className="story-character-chip"
                 data-active={character.id === activeCharacterId ? "true" : undefined}
                 onClick={() => {
+                  cancelStoryMultiSelect();
                   setActiveCharacterId(character.id);
                   setDrawerOpen(false);
                 }}
@@ -1100,6 +1158,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
                   </button>
                 ) : null}
                 {visibleMessages.map((message) => {
+                  const storyMessageSelected = selectedStoryMessageIds.has(message.id);
                   const speakerName = message.role === "user"
                     ? (userIdentity?.name?.trim() || "我")
                     : message.role === "assistant"
@@ -1115,16 +1174,25 @@ export function StoryApp({ onClose }: StoryAppProps) {
                       key={message.id}
                       className="story-row"
                       data-role={message.role}
-                      onPointerDown={(e) => handleMsgPointerDown(e, message.id)}
-                      onPointerMove={handleMsgPointerMove}
-                      onPointerUp={handleMsgPointerUp}
-                      onPointerCancel={handleMsgPointerCancel}
+                      data-selected={storyMessageSelected ? "1" : "0"}
+                      data-story-message-id={message.id}
+                      onClick={storyMultiSelect ? (e) => { e.preventDefault(); e.stopPropagation(); toggleStoryMultiSelect(message.id); } : undefined}
+                      onPointerDown={storyMultiSelect ? undefined : (e) => handleMsgPointerDown(e, message.id)}
+                      onPointerMove={storyMultiSelect ? undefined : handleMsgPointerMove}
+                      onPointerUp={storyMultiSelect ? undefined : handleMsgPointerUp}
+                      onPointerCancel={storyMultiSelect ? undefined : handleMsgPointerCancel}
                       onContextMenu={(e) => {
                         e.preventDefault();
+                        if (storyMultiSelect) { toggleStoryMultiSelect(message.id); return; }
                         setContextMenuPoint(getClampedContextMenuPoint(e.clientX, e.clientY));
                         setActiveMessageId(message.id);
                       }}
                     >
+                      {storyMultiSelect ? (
+                        <span className="story-multi-select-check" data-selected={storyMessageSelected ? "1" : "0"}>
+                          {storyMessageSelected ? <CheckIcon width={13} height={13} /> : null}
+                        </span>
+                      ) : null}
                       {message.role !== "system" ? (
                         <div className="story-msg-head">
                           <div className="story-avatar-wrap">
@@ -1185,6 +1253,8 @@ export function StoryApp({ onClose }: StoryAppProps) {
                                 )}
                               </div>
                               <div style={{ display: "flex" }}>
+                                <button onClick={() => { setActiveMessageId(null); void favoriteStoryMessages([message.id]); }} className="story-ctx-btn">收藏</button>
+                                <button onClick={() => startStoryMultiSelect(message.id)} className="story-ctx-btn">多选</button>
                                 <button onClick={() => handleStoryDelete(message.id)} className="story-ctx-btn story-ctx-btn-danger">删除</button>
                                 <button onClick={() => handleStoryDeleteFrom(message.id)} className="story-ctx-btn story-ctx-btn-danger">删除以下</button>
                               </div>
@@ -1209,13 +1279,39 @@ export function StoryApp({ onClose }: StoryAppProps) {
         </div>
       </div>
 
-      <StoryComposer
-        characterName={currentCharacter.name}
-        isGenerating={isGenerating}
-        appendRequest={composerAppendRequest}
-        onSend={(text) => { void handleSend(text); }}
-        onStop={handleStopGeneration}
-      />
+      {storyNotice ? (
+        <div className="story-voice-notice" role="status">{storyNotice}</div>
+      ) : null}
+
+      {storyMultiSelect ? (
+        <div className="story-multi-select-bar">
+          <button type="button" className="story-multi-select-icon" onClick={cancelStoryMultiSelect} aria-label="退出多选">
+            <XMarkIcon width={20} height={20} />
+          </button>
+          <strong>已选 {selectedStoryMessageIds.size} 条</strong>
+          <button
+            type="button"
+            disabled={selectedStoryMessageIds.size === 0}
+            onClick={async () => {
+              await favoriteStoryMessages(Array.from(selectedStoryMessageIds));
+              cancelStoryMultiSelect();
+            }}
+          >
+            <BookmarkIcon width={17} height={17} />收藏
+          </button>
+          <button type="button" className="is-danger" disabled={selectedStoryMessageIds.size === 0} onClick={deleteSelectedStoryMessages}>
+            <TrashIcon width={17} height={17} />删除
+          </button>
+        </div>
+      ) : (
+        <StoryComposer
+          characterName={currentCharacter.name}
+          isGenerating={isGenerating}
+          appendRequest={composerAppendRequest}
+          onSend={(text) => { void handleSend(text); }}
+          onStop={handleStopGeneration}
+        />
+      )}
 
       {/* CSS Style Modal */}
       {cssModalOpen && (

@@ -56,7 +56,7 @@ import { cancelBailoutKey } from "@/lib/push-bailout-client";
 import { PENDING_REPLY_PREFIX } from "@/lib/friend-request-engine";
 import { OfflineInviteModal, OfflineInviteCapsule, getRemainingMinutes, type OfflineInviteData } from "./offline-invite-modal";
 import type { UserIdentity } from "@/components/settings/user-identity";
-import { AlertCircle, Blocks, Check, Trash2, Unlock, User, ChevronLeft, ChevronRight, ChevronsDown, Clapperboard, Clock, Gift, Languages, Loader2, Lock, MoreHorizontal, X } from "lucide-react";
+import { AlertCircle, Blocks, Bookmark, Check, Trash2, Unlock, User, ChevronLeft, ChevronRight, ChevronsDown, Clapperboard, Clock, Gift, Languages, Loader2, Lock, MoreHorizontal, X } from "lucide-react";
 import { setDebugChatState } from "@/lib/debug-store";
 import { SessionCustomCSS } from "@/components/ui/session-custom-css";
 import { setChatActive } from "@/lib/music-action-queue";
@@ -92,6 +92,7 @@ import { extractTextToolDirectiveText } from "@/lib/text-tool-protocol";
 import { emitChatPluginEvent, getChatPluginHookBus, runChatPluginTransform } from "@/lib/chat-plugin-hooks";
 import { CHAT_PLUGIN_TOAST_EVENT, getChatPluginRuntime } from "@/lib/chat-plugin-runtime";
 import { ChatPluginSlot } from "@/components/chat/chat-plugin-slot";
+import { addChatFavorite } from "@/lib/favorites-storage";
 
 // ── Call system message detection ──────────────────────────
 // Call messages are stored with user/assistant role for correct prompt alternation,
@@ -8685,6 +8686,21 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
         return "displaySourceId" in msg && msg.displaySourceId ? msg.displaySourceId : msg.id;
     };
 
+    const favoriteStoredMessages = async (messageIds: string[]) => {
+        const targets = new Set(messageIds);
+        const storedMessages = loadChatMessages(session.id).filter(message => targets.has(message.id));
+        if (storedMessages.length === 0) {
+            showChatToast("没有找到可收藏的消息");
+            return;
+        }
+        try {
+            await addChatFavorite({ session, messages: storedMessages });
+            showChatToast(storedMessages.length > 1 ? `已收藏 ${storedMessages.length} 条消息` : "已收藏");
+        } catch (error) {
+            showChatToast(error instanceof Error ? error.message : "收藏失败");
+        }
+    };
+
     /** Reusable context menu for user/assistant bubbles */
     const renderBubbleContextMenu = (m: ChatMessage, options?: { allowMultiSelect?: boolean }) => {
         const storedMessageId = getStoredActionMessageId(m);
@@ -8741,6 +8757,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                 </div>
                 <div className="flex">
                     <button onClick={() => { setQuotingMessage(m); setActiveMessageId(null); }} className="ctx-menu-btn">引用</button>
+                    <button onClick={() => { setActiveMessageId(null); void favoriteStoredMessages([storedMessageId]); }} className="ctx-menu-btn">收藏</button>
                     {options?.allowMultiSelect !== false && (
                         <button onClick={() => startMultiSelectFromMessage(m)} className="ctx-menu-btn">多选</button>
                     )}
@@ -9984,6 +10001,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                                 groupSize={session.isGroup ? (session.participantIds?.length || 0) + (session.isSpectator ? 0 : 1) : undefined}
                                                 onShowDetail={setMediaDetailMsg}
                                                 characterId={msg.senderCharacterId || session.contactId}
+                                                onFavoriteMedia={() => void favoriteStoredMessages([getStoredActionMessageId(msg)])}
                                                 onUpdate={(updated) => setMessages(prev => prev.map(m => m.id === updated.id ? updated : m))}
                                                 onSystemMessage={(text) => {
                                                     const sysMsg = pushChatMessage({
@@ -10179,6 +10197,18 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                 : `实际删除 ${multiDeleteTargetIds.length} 条`}
                         </span>
                     </div>
+                    <button
+                        type="button"
+                        className="chat-multi-select-delete-btn chat-multi-select-favorite-btn"
+                        disabled={selectedMessageIds.size === 0}
+                        onClick={async () => {
+                            await favoriteStoredMessages(Array.from(selectedMessageIds));
+                            cancelMultiSelect();
+                        }}
+                    >
+                        <Bookmark size={18} strokeWidth={1.8} />
+                        收藏
+                    </button>
                     <button
                         type="button"
                         className="chat-multi-select-delete-btn"

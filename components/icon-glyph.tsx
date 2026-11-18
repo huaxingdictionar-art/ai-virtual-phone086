@@ -50,6 +50,7 @@ type IconGlyphProps = {
 const MDI_PATHS: Record<IconId, string> = {
   settings: mdiCogOutline,
   chat: mdiMessageProcessing,
+  favorites: mdiBookmark,
   diary: mdiBookOpenPageVariant,
   music: mdiMusic,
   reading: mdiBookOpenVariant,

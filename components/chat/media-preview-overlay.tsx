@@ -23,6 +23,7 @@ export function MediaPreviewOverlay({
     imageUrl,
     description,
     saveFilename,
+    onFavorite,
     onRegenerate,
     regenerating,
     onClose,
@@ -30,6 +31,7 @@ export function MediaPreviewOverlay({
     imageUrl?: string | null;
     description?: string;
     saveFilename?: string;
+    onFavorite?: () => void | Promise<void>;
     onRegenerate?: () => void;
     regenerating?: boolean;
     onClose: () => void;
@@ -53,6 +55,18 @@ export function MediaPreviewOverlay({
                 </div>
             ) : null}
             <div style={{ display: "flex", gap: 12 }} onClick={e => e.stopPropagation()}>
+                {onFavorite && (
+                    <button
+                        onPointerDown={e => e.stopPropagation()}
+                        onClick={async e => {
+                            e.stopPropagation();
+                            await onFavorite();
+                        }}
+                        style={ACTION_BUTTON_STYLE}
+                    >
+                        收藏
+                    </button>
+                )}
                 {imageUrl && saveFilename && (
                     <button
                         onPointerDown={e => e.stopPropagation()}
