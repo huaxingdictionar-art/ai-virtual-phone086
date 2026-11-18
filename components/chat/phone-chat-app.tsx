@@ -40,6 +40,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
     const [visitedSessions, setVisitedSessions] = useState<Map<string, ChatSession>>(new Map());
     const [dbReady, setDbReady] = useState(false);
     const [hideTabBar, setHideTabBar] = useState(false);
+    const [contactProfileOpen, setContactProfileOpen] = useState(false);
 
     // Hydrate IndexedDB → in-memory caches on mount
     useEffect(() => {
@@ -237,7 +238,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
         <div
             className="chat-app absolute inset-0 flex flex-col overflow-hidden z-10"
             {...(activeSession || activeMascot ? { "data-room-active": "" } : {})}
-            {...(hideTabBar ? { "data-tabbar-hidden": "" } : {})}
+            {...(hideTabBar || contactProfileOpen ? { "data-tabbar-hidden": "" } : {})}
         >
             {/* Chat app-level custom CSS (lower priority than per-session CSS) */}
             {chatAppCSS && <SessionCustomCSS css={chatAppCSS} scope=".chat-app" />}
@@ -248,6 +249,8 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
                     <ChatContactsList
                         onCloseApp={onClose}
                         onSelectSession={handleSelectContact}
+                        selectForShare={Boolean(sharePayload)}
+                        onSubpageChange={setContactProfileOpen}
                         onSelectMascot={handleSelectMascot}
                         pendingAddContactId={pendingAddContactId}
                         onPendingAddContactConsumed={() => setPendingAddContactId(null)}
@@ -267,7 +270,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
             </div>
 
             {/* Bottom Navigation Bar — hide when inside a chat room */}
-            <nav className="chat-tab-bar chat-bottom-glass-bar" data-ui="nav" style={{ display: activeSession || activeMascot || hideTabBar ? "none" : undefined }}>
+            <nav className="chat-tab-bar chat-bottom-glass-bar" data-ui="nav" style={{ display: activeSession || activeMascot || hideTabBar || contactProfileOpen ? "none" : undefined }}>
                 <button
                     className={`chat-tab ${activeTab === "messages" ? "chat-tab-active" : ""}`}
                     onClick={() => setActiveTab("messages")}

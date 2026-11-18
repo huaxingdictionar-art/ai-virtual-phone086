@@ -68,6 +68,7 @@ import { STORY_CSS_EXAMPLE } from "@/lib/css-examples";
 import { applyEditOutputRegex } from "@/lib/llm-prompt-assembler";
 import { MacroEngine } from "@/lib/macro-engine";
 import { addStoryFavorite } from "@/lib/favorites-storage";
+import { useStoryInputDraft } from "./use-story-input-draft";
 
 type StoryAppProps = {
   onClose: () => void;
@@ -150,6 +151,7 @@ function resizeStoryComposerTextarea(el: HTMLTextAreaElement) {
 type StoryComposerAppendRequest = {
   id: number;
   text: string;
+  sessionId: string;
 };
 
 const STORY_GENERATION_STATUS = ["整理场景", "续写剧情", "打磨对白", "写入故事"];
@@ -199,33 +201,42 @@ function StoryGeneratingIndicator({
 }
 
 const StoryComposer = memo(function StoryComposer({
+  sessionId,
   characterName,
   isGenerating,
   appendRequest,
+  onAppendConsumed,
   onSend,
   onStop,
 }: {
+  sessionId: string;
   characterName: string;
   isGenerating: boolean;
   appendRequest: StoryComposerAppendRequest | null;
+  onAppendConsumed?: (id: number) => void;
   onSend: (text: string) => void;
   onStop: () => void;
 }) {
-  const [draft, setDraft] = useState("");
+  const { draft, setDraft, flush } = useStoryInputDraft(sessionId);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
   const lastAppendIdRef = useRef<number | null>(null);
 
+  useLayoutEffect(() => {
+    if (textareaRef.current) resizeStoryComposerTextarea(textareaRef.current);
+  }, []);
+
   useEffect(() => {
-    if (!appendRequest || appendRequest.id === lastAppendIdRef.current) return;
+    if (!appendRequest || appendRequest.sessionId !== sessionId || appendRequest.id === lastAppendIdRef.current) return;
     lastAppendIdRef.current = appendRequest.id;
     setDraft(prev => prev + appendRequest.text);
+    onAppendConsumed?.(appendRequest.id);
     requestAnimationFrame(() => {
       const textarea = textareaRef.current;
       if (!textarea) return;
       resizeStoryComposerTextarea(textarea);
       textarea.focus();
     });
-  }, [appendRequest]);
+  }, [appendRequest, onAppendConsumed, sessionId, setDraft]);
 
   const submit = () => {
     if (isGenerating) {
@@ -249,6 +260,7 @@ const StoryComposer = memo(function StoryComposer({
         rows={1}
         value={draft}
         onFocus={(event) => resizeStoryComposerTextarea(event.currentTarget)}
+        onBlur={flush}
         onChange={(event) => {
           setDraft(event.target.value);
           resizeStoryComposerTextarea(event.currentTarget);
@@ -508,7 +520,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
 
   const handleOptionSelect = useCallback((text: string) => {
     composerAppendIdRef.current += 1;
-    setComposerAppendRequest({ id: composerAppendIdRef.current, text });
+    setComposerAppendRequest({ id: composerAppendIdRef.current, text, sessionId: activeSessionIdRef.current });
   }, []);
 
   // Close context menu when clicking outside (delay to avoid the opening tap closing it)
@@ -1305,9 +1317,12 @@ export function StoryApp({ onClose }: StoryAppProps) {
         </div>
       ) : (
         <StoryComposer
+          key={activeSessionId}
+          sessionId={activeSessionId}
           characterName={currentCharacter.name}
           isGenerating={isGenerating}
           appendRequest={composerAppendRequest}
+          onAppendConsumed={id => setComposerAppendRequest(current => current?.id === id ? null : current)}
           onSend={(text) => { void handleSend(text); }}
           onStop={handleStopGeneration}
         />

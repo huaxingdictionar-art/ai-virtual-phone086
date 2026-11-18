@@ -20,6 +20,7 @@ import { pinyin } from "pinyin-pro";
 import { kvSet } from "@/lib/kv-db";
 import { scrollElementWithinContainer } from "@/lib/dom-scroll";
 import { ChatFallbackAvatar } from "./chat-fallback-avatar";
+import { ContactProfilePage } from "./contact-profile-page";
 import {
     DEFAULT_MASCOT_AVATAR,
     getMascotSettingsSnapshot,
@@ -32,6 +33,9 @@ type ChatContactsListProps = {
     onCloseApp: () => void;
     onSelectSession: (session: ChatSession | null) => void;
     onSelectMascot: () => void;
+    onStartCall?: (session: ChatSession, type: "voice" | "video") => void;
+    onSubpageChange?: (open: boolean) => void;
+    selectForShare?: boolean;
     /** 名片点击「加好友」：切到本 tab 后待打开添加页的角色 id */
     pendingAddContactId?: string | null;
     onPendingAddContactConsumed?: () => void;
@@ -39,7 +43,8 @@ type ChatContactsListProps = {
     onPendingAddContactBack?: () => void;
 };
 
-export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, pendingAddContactId, onPendingAddContactConsumed, onPendingAddContactBack }: ChatContactsListProps) {
+export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, onStartCall, onSubpageChange, selectForShare = false, pendingAddContactId, onPendingAddContactConsumed, onPendingAddContactBack }: ChatContactsListProps) {
+    const [profileCharacterId, setProfileCharacterId] = useState<string | null>(null);
     const [contacts, setContacts] = useState<(ChatContact & { char?: Character })[]>([]);
     const [contactFilter, setContactFilter] = useState("");
     const [latestPost, setLatestPost] = useState<Record<string, string>>({});
@@ -62,6 +67,12 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
     const deferredContactFilter = useDeferredValue(contactFilter);
     const bodyRef = useRef<HTMLDivElement>(null);
     const sectionRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+    useEffect(() => {
+        onSubpageChange?.(Boolean(profileCharacterId));
+        return () => onSubpageChange?.(false);
+    }, [profileCharacterId, onSubpageChange]);
+    useEffect(() => { setProfileCharacterId(null); }, [selectForShare, pendingAddContactId]);
 
     useEffect(() => {
         let cancelled = false;
@@ -181,6 +192,23 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
     const getCharForRequest = (req: FriendRequest) =>
         chars.find(c => c.id === req.characterId);
 
+    const profileCharacter = contacts.find(contact => contact.characterId === profileCharacterId)?.char;
+    if (profileCharacter) {
+        return (
+            <ContactProfilePage
+                key={profileCharacter.id}
+                character={profileCharacter}
+                onBack={() => setProfileCharacterId(null)}
+                onMessage={() => onSelectSession(createOrGetSession(profileCharacter.id))}
+                onCall={type => {
+                    const session = createOrGetSession(profileCharacter.id);
+                    if (onStartCall) onStartCall(session, type);
+                    else onSelectSession(session);
+                }}
+            />
+        );
+    }
+
     return (
         <div className="relative flex-1 h-full">
             <PageShell
@@ -275,8 +303,11 @@ export function ChatContactsList({ onCloseApp, onSelectSession, onSelectMascot, 
                                         <div
                                             key={c.id}
                                             onClick={() => {
-                                                const sess = createOrGetSession(char.id);
-                                                onSelectSession(sess);
+                                                if (selectForShare) {
+                                                    onSelectSession(createOrGetSession(char.id));
+                                                } else {
+                                                    setProfileCharacterId(char.id);
+                                                }
                                             }}
                                             className="minimal-list-item"
                                         >

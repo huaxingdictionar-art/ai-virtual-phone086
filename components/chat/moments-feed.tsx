@@ -3,6 +3,13 @@
 import { useState, useEffect, useCallback, useLayoutEffect, useRef } from "react";
 import { getAllPosts, deleteMomentPost, getUnreadMomentsNotifications, saveMomentsLastSeen, addMomentComment } from "@/lib/moments-storage";
 import { loadChatContacts } from "@/lib/chat-storage";
+import { loadCharacters } from "@/lib/character-storage";
+import {
+    CHARACTER_MOMENTS_PROFILE_UPDATED,
+    getCharacterMomentPosts,
+    loadCharacterMomentsProfile,
+    saveCharacterMomentsProfile,
+} from "@/lib/character-moments-profile";
 import { resolveUserIdentity } from "@/lib/settings-storage";
 import { saveChatImageToIndexedDB, getChatImageFromIndexedDB } from "@/lib/chat-asset-storage";
 import type { MomentComment, MomentPost } from "@/lib/moments-types";
@@ -39,9 +46,13 @@ type ActiveMomentComposer = {
 
 type MomentsFeedProps = {
     onCloseApp: () => void;
+    compact?: boolean;
+    onUserPublished?: (post: MomentPost) => void;
+    profileCharacterId?: string;
 };
 
-export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
+export function MomentsFeed({ onCloseApp, compact = false, onUserPublished, profileCharacterId }: MomentsFeedProps) {
+    const profileCharacter = profileCharacterId ? loadCharacters().find(c => c.id === profileCharacterId) : undefined;
     const [posts, setPosts] = useState<MomentPost[]>([]);
     const [showCompose, setShowCompose] = useState(false);
     const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
@@ -60,9 +71,13 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
     const [editingSignature, setEditingSignature] = useState(false);
     const sigInputRef = useRef<HTMLInputElement>(null);
     const handleSignatureSubmit = (val: string) => {
-        const trimmed = val.trim() || "make every day count (●ˇ∀ˇ●)";
+        const trimmed = val.trim() || (profileCharacterId ? "" : "make every day count (●ˇ∀ˇ●)");
         setSignature(trimmed);
-        kvSet("moments_signature", trimmed);
+        if (profileCharacterId) {
+            saveCharacterMomentsProfile(profileCharacterId, { signature: trimmed });
+        } else {
+            kvSet("moments_signature", trimmed);
+        }
         setEditingSignature(false);
     };
 
@@ -99,10 +114,15 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
     useEffect(() => stopLoadMoreAnchorTracking, [stopLoadMoreAnchorTracking]);
 
     const refreshPosts = useCallback(() => {
+        if (profileCharacterId) {
+            setPosts(getCharacterMomentPosts(getAllPosts(), profileCharacterId));
+            setUnreadNotifs([]);
+            return;
+        }
         const contactIds = new Set(loadChatContacts().map(c => c.characterId));
         setPosts(getAllPosts().filter(p => p.authorType === "user" || contactIds.has(p.authorId)));
         setUnreadNotifs(getUnreadMomentsNotifications());
-    }, []);
+    }, [profileCharacterId]);
 
     const captureScrollAnchor = useCallback((): MomentScrollAnchorSnapshot | null => {
         const el = getScrollElement();
@@ -300,18 +320,42 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
         window.addEventListener(MOMENT_PHOTO_GENERATION_FAILED_EVENT, photoFailureHandler);
 
         // Load saved cover image
-        const savedId = kvGet(COVER_ASSET_KEY);
+        const characterProfile = profileCharacterId ? loadCharacterMomentsProfile(profileCharacterId) : undefined;
+        if (profileCharacterId) {
+            setSignature(characterProfile?.signature || "");
+        } else {
+            setSignature(kvGet("moments_signature") || "make every day count (●ˇ∀ˇ●)");
+        }
+        const savedId = profileCharacterId ? characterProfile?.coverAssetId : kvGet(COVER_ASSET_KEY);
+        setCoverUrl(null);
         if (savedId) {
             getChatImageFromIndexedDB(savedId).then(url => {
                 if (url) setCoverUrl(url);
             });
         }
 
+        const profileUpdateHandler = (event: Event) => {
+            if (!profileCharacterId) return;
+            const updatedId = (event as CustomEvent<{ characterId?: string }>).detail?.characterId;
+            if (updatedId && updatedId !== profileCharacterId) return;
+            const updated = loadCharacterMomentsProfile(profileCharacterId);
+            setSignature(updated.signature || "");
+            if (updated.coverAssetId) {
+                getChatImageFromIndexedDB(updated.coverAssetId).then(url => {
+                    if (url) setCoverUrl(url);
+                });
+            } else {
+                setCoverUrl(null);
+            }
+        };
+        window.addEventListener(CHARACTER_MOMENTS_PROFILE_UPDATED, profileUpdateHandler);
+
         return () => {
             window.removeEventListener("moments-updated", handler);
             window.removeEventListener(MOMENT_PHOTO_GENERATION_FAILED_EVENT, photoFailureHandler);
+            window.removeEventListener(CHARACTER_MOMENTS_PROFILE_UPDATED, profileUpdateHandler);
         };
-    }, [refreshPosts]);
+    }, [profileCharacterId, refreshPosts]);
 
     // Hide tab bar only when the full compose page is open.
     useEffect(() => {
@@ -359,7 +403,11 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
                 URL.revokeObjectURL(objectUrl);
                 if (!blob) return;
                 saveChatImageToIndexedDB(blob).then(assetId => {
-                    kvSet(COVER_ASSET_KEY, assetId);
+                    if (profileCharacterId) {
+                        saveCharacterMomentsProfile(profileCharacterId, { coverAssetId: assetId });
+                    } else {
+                        kvSet(COVER_ASSET_KEY, assetId);
+                    }
                     getChatImageFromIndexedDB(assetId).then(url => {
                         if (url) setCoverUrl(url);
                     });
@@ -380,9 +428,9 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
             />
         )}
         <PageShell
-            title="动态"
+            title={profileCharacterId ? "朋友圈" : "动态"}
             onBack={onCloseApp}
-            rightAction={
+            rightAction={profileCharacterId ? undefined : (
                 <button
                     onClick={() => setShowCompose(true)}
                     className="page-back-btn"
@@ -396,8 +444,8 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
                         <path d="M8 6l1-3h6l1 3" />
                     </svg>
                 </button>
-            }
-            className={`moments-feed-page ${headerScrolled ? "is-scrolled" : ""} ${activeComposer ? "has-comment-modal" : ""}`}
+            )}
+            className={`moments-feed-page ${profileCharacterId ? "contact-moments-page" : ""} ${compact ? "moments-feed-compact" : ""} ${headerScrolled ? "is-scrolled" : ""} ${activeComposer ? "has-comment-modal" : ""}`}
             bodyRef={scrollRef}
             footer={showCompose ? (
                 <MomentsCompose
@@ -459,79 +507,113 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
             ) : undefined}
         >
                 {/* Cover card + avatar wrapper */}
-                <div className="feed-cover-shell w-full relative mb-4">
-                    
-                    {/* Background Absolute Cover */}
-                    <div
-                        onClick={() => coverInputRef.current?.click()}
-                        className="feed-cover-bg absolute inset-0 w-full h-full bg-[var(--c-input)] cursor-pointer z-0"
-                        style={{ 
-                            maskImage: "linear-gradient(to bottom, black 40%, transparent 100%)",
-                            WebkitMaskImage: "linear-gradient(to bottom, black 40%, transparent 100%)"
-                        }}
-                    >
-                        {coverUrl && (
-                            <img
-                                src={coverUrl}
-                                alt=""
-                                className="feed-cover-image w-full h-full object-cover"
-                            />
-                        )}
-                    </div>
-                    <input
-                        ref={coverInputRef}
-                        type="file"
-                        accept="image/*"
-                        onChange={handleCoverUpload}
-                        className="hidden"
-                    />
-
-                    {/* Content Container (Layered above absolute bg) */}
-                    <div
-                        className="feed-profile relative w-full px-5 pb-5 pointer-events-none"
-                        style={{ paddingTop: "calc(var(--page-header-safe-top, 48px) + var(--page-header-content-height, 54px) + 160px)" }}
-                    >
-                        {/* Avatar */}
-                        <div className="feed-profile-avatar w-[72px] h-[72px] rounded-full border-[3px] border-[var(--c-page-body-bg)] bg-[var(--c-input)] overflow-hidden flex items-center justify-center translate-x-[2px] pointer-events-auto">
-                            {userIdentity?.avatarUrl ? (
-                                <img src={userIdentity.avatarUrl} alt="" className="feed-profile-avatar-image w-full h-full object-cover" />
-                            ) : (
-                                <span className="feed-profile-avatar-fallback ts-24 text-[var(--c-icon)] font-bold">{(userIdentity?.name ?? "我")[0]}</span>
-                            )}
-                        </div>
-                        
-                        {/* Name and Flex Data */}
-                        <div className="feed-profile-info flex flex-col gap-1 mt-3 ml-[6px] pointer-events-auto">
-                            <span className="feed-profile-name ts-20 font-bold text-[var(--c-text-title)]">{userIdentity?.name ?? "我"}</span>
-                            <div className="feed-profile-stats flex gap-4 ts-13 text-[var(--c-icon)] font-medium mt-[2px]">
-                                <span className="feed-profile-stat"><strong className="feed-profile-stat-value text-[var(--c-text-title)]">128</strong> 关注</span>
-                                <span className="feed-profile-stat"><strong className="feed-profile-stat-value text-[var(--c-text-title)]">12.4K</strong> 粉丝</span>
-                                <span className="feed-profile-stat"><strong className="feed-profile-stat-value text-[var(--c-text-title)]">8.2M</strong> 获赞与收藏</span>
-                            </div>
-                            
-                            {/* Signature */}
-                            <div className="feed-profile-signature mt-[2px] text-left text-[var(--c-text)]">
-                                {editingSignature ? (
-                                    <input
-                                        ref={sigInputRef}
-                                        defaultValue={signature}
-                                        autoFocus
-                                        className="feed-profile-signature-input bg-transparent outline-none ts-14 text-[var(--c-text)] w-full border-b border-[var(--c-action-blue)] pb-1"
-                                        onBlur={(e) => handleSignatureSubmit(e.target.value)}
-                                        onKeyDown={(e) => { if (e.key === "Enter") handleSignatureSubmit((e.target as HTMLInputElement).value); }}
-                                    />
+                {profileCharacterId ? (
+                    <section className="contact-moments-header">
+                        <button type="button" className="contact-moments-cover" aria-label="更换角色朋友圈封面" onClick={() => coverInputRef.current?.click()}>
+                            {coverUrl ? <img src={coverUrl} alt="朋友圈封面" /> : <span>轻触设置朋友圈封面</span>}
+                        </button>
+                        <input ref={coverInputRef} type="file" accept="image/*" className="hidden" onChange={handleCoverUpload} />
+                        <div className="contact-moments-identity">
+                            <strong>{profileCharacter?.name || "角色"}</strong>
+                            <div className="contact-profile-avatar">
+                                {profileCharacter?.avatar ? (
+                                    <img src={profileCharacter.avatar} alt={profileCharacter?.name || "角色"} />
                                 ) : (
-                                    <span className="feed-profile-signature-text cursor-pointer ts-14 opacity-90 leading-[1.6]" onClick={() => setEditingSignature(true)}>
-                                        {signature || "编写你的个性签名..."}
-                                    </span>
+                                    <span>{profileCharacter?.name?.[0] || "角"}</span>
                                 )}
                             </div>
                         </div>
+                        <div className="contact-moments-signature">
+                            {editingSignature ? (
+                                <input
+                                    ref={sigInputRef}
+                                    autoFocus
+                                    aria-label="角色朋友圈个性签名"
+                                    defaultValue={signature}
+                                    onBlur={event => handleSignatureSubmit(event.target.value)}
+                                    onKeyDown={event => { if (event.key === "Enter") event.currentTarget.blur(); }}
+                                />
+                            ) : (
+                                <button type="button" onClick={() => setEditingSignature(true)}>
+                                    {signature || "添加个性签名"}
+                                </button>
+                            )}
+                        </div>
+                    </section>
+                ) : (
+                    <div className="feed-cover-shell w-full relative mb-4">
+                        {/* Background Absolute Cover */}
+                        <div
+                            onClick={() => coverInputRef.current?.click()}
+                            className="feed-cover-bg absolute inset-0 w-full h-full bg-[var(--c-input)] cursor-pointer z-0"
+                            style={{ 
+                                maskImage: "linear-gradient(to bottom, black 40%, transparent 100%)",
+                                WebkitMaskImage: "linear-gradient(to bottom, black 40%, transparent 100%)"
+                            }}
+                        >
+                            {coverUrl && (
+                                <img
+                                    src={coverUrl}
+                                    alt=""
+                                    className="feed-cover-image w-full h-full object-cover"
+                                />
+                            )}
+                        </div>
+                        <input
+                            ref={coverInputRef}
+                            type="file"
+                            accept="image/*"
+                            onChange={handleCoverUpload}
+                            className="hidden"
+                        />
+
+                        {/* Content Container (Layered above absolute bg) */}
+                        <div
+                            className="feed-profile relative w-full px-5 pb-5 pointer-events-none"
+                            style={{ paddingTop: "calc(var(--page-header-safe-top, 48px) + var(--page-header-content-height, 54px) + 160px)" }}
+                        >
+                            {/* Avatar */}
+                            <div className="feed-profile-avatar w-[72px] h-[72px] rounded-full border-[3px] border-[var(--c-page-body-bg)] bg-[var(--c-input)] overflow-hidden flex items-center justify-center translate-x-[2px] pointer-events-auto">
+                                {userIdentity?.avatarUrl ? (
+                                    <img src={userIdentity.avatarUrl} alt="" className="feed-profile-avatar-image w-full h-full object-cover" />
+                                ) : (
+                                    <span className="feed-profile-avatar-fallback ts-24 text-[var(--c-icon)] font-bold">{(userIdentity?.name ?? "我")[0]}</span>
+                                )}
+                            </div>
+                            
+                            {/* Name and Flex Data */}
+                            <div className="feed-profile-info flex flex-col gap-1 mt-3 ml-[6px] pointer-events-auto">
+                                <span className="feed-profile-name ts-20 font-bold text-[var(--c-text-title)]">{userIdentity?.name ?? "我"}</span>
+                                <div className="feed-profile-stats flex gap-4 ts-13 text-[var(--c-icon)] font-medium mt-[2px]">
+                                    <span className="feed-profile-stat"><strong className="feed-profile-stat-value text-[var(--c-text-title)]">128</strong> 关注</span>
+                                    <span className="feed-profile-stat"><strong className="feed-profile-stat-value text-[var(--c-text-title)]">12.4K</strong> 粉丝</span>
+                                    <span className="feed-profile-stat"><strong className="feed-profile-stat-value text-[var(--c-text-title)]">8.2M</strong> 获赞与收藏</span>
+                                </div>
+                                
+                                {/* Signature */}
+                                <div className="feed-profile-signature mt-[2px] text-left text-[var(--c-text)]">
+                                    {editingSignature ? (
+                                        <input
+                                            ref={sigInputRef}
+                                            defaultValue={signature}
+                                            autoFocus
+                                            className="feed-profile-signature-input bg-transparent outline-none ts-14 text-[var(--c-text)] w-full border-b border-[var(--c-action-blue)] pb-1"
+                                            onBlur={(e) => handleSignatureSubmit(e.target.value)}
+                                            onKeyDown={(e) => { if (e.key === "Enter") handleSignatureSubmit((e.target as HTMLInputElement).value); }}
+                                        />
+                                    ) : (
+                                        <span className="feed-profile-signature-text cursor-pointer ts-14 opacity-90 leading-[1.6]" onClick={() => setEditingSignature(true)}>
+                                            {signature || "编写你的个性签名..."}
+                                        </span>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                </div>
+                )}
 
                 {/* Unread notifications banner */}
-                {unreadNotifs.length > 0 && (
+                {!profileCharacterId && unreadNotifs.length > 0 && (
                     <button
                         className="feed-notif-banner"
                         onClick={() => setShowNotifModal(true)}
@@ -543,7 +625,7 @@ export function MomentsFeed({ onCloseApp }: MomentsFeedProps) {
                 {/* Posts list */}
                 {posts.length === 0 ? (
                     <div className="feed-empty-state py-10 text-center text-[var(--c-icon)] ts-14">
-                        还没有动态，发一条吧
+                        {profileCharacterId ? "TA 还没有发过朋友圈" : "还没有动态，发一条吧"}
                     </div>
                 ) : (
                     visiblePosts.map(post => (
