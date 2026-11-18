@@ -109,9 +109,15 @@ export type ChatSession = {
     groupMutes?: Record<string, string>; // (characterId | "self") → mute expiry ISO
     allowAdminActionsOnUser?: boolean; // characters may kick/mute the user (default off)
     isSpectator?: boolean; // 围观群：用户不在群内，只能生成/线下
+    /** 启用内置中文思考提示词（角色内心独白） */
+    chineseThinkingPromptEnabled?: boolean;
+    /** 内置中文思考提示词篇幅（100 / 300 / 500 字，默认 100） */
+    chineseThinkingPromptLength?: 100 | 300 | 500;
+    /** 仿真拉黑：私聊拉黑后对方发出的消息会被拒收并显示红感叹号 */
+    isBlacklisted?: boolean;
 };
 
-export type ChatMessageStatus = "sending" | "sent" | "read" | "failed";
+export type ChatMessageStatus = "sending" | "sent" | "read" | "failed" | "rejected";
 export type ChatMessageRole = "user" | "assistant" | "system" | "tool";
 
 export type StateValue = { name: string; value: number };
@@ -173,6 +179,9 @@ export type ChatMessage = {
         quoteMessageId?: string;  // 引用消息 ID
         quotePreview?: string;    // 引用消息预览文本
         quoteRole?: ChatMessageRole; // 引用消息的 role
+        blacklistEvent?: "block" | "unblock"; // 仿真拉黑系统事件类型（私聊：用户拉黑/解除拉黑角色）
+        blacklistCharacterName?: string; // 拉黑事件发生时的角色名（用于事件详情与上下文）
+        blacklistUserName?: string;      // 拉黑事件发生时的用户名（用于事件详情与上下文）
         stickerUrl?: string;      // 表情包图片路径
         diceFace?: number;        // 骰子点数（1-6），气泡翻滚后定格并与全屏动效一致
         pokeSender?: string;      // 拍一拍发起人名字
@@ -1314,6 +1323,17 @@ export function pushChatMessage(msg: Omit<ChatMessage, "id" | "createdAt" | "sta
     const pluginResult = runChatPluginTransformSync("message.beforePersist", { message: newMsg });
     if (pluginResult.message && typeof pluginResult.message === "object" && pluginResult.message.id === newMsg.id) {
         newMsg = pluginResult.message;
+    }
+
+    // 仿真拉黑（私聊）：用户把角色拉黑后，角色发出去的消息会被用户拒收——
+    // 角色消息标记 rejected（界面上显示仿微信红色感叹号 + 拒收提示）；
+    // 用户自己发的消息正常送达，不带任何标记。统一在这里处理，
+    // 聊天页生成、后台兜底回复、follow-up 等所有落库路径全覆盖。
+    if (newMsg.role === "assistant") {
+        const sessionForBlock = _sessionsCache.find(s => s.id === newMsg.sessionId);
+        if (sessionForBlock && !sessionForBlock.isGroup && sessionForBlock.isBlacklisted) {
+            newMsg.status = "rejected";
+        }
     }
 
     _messagesCache.push(newMsg);

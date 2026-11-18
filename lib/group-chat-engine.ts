@@ -51,6 +51,7 @@ import {
     loadRegexes,
     resolveUserIdentity,
 } from "./settings-storage";
+import { buildChineseThinkingPrompt, withChineseThinkingPrompt } from "./chinese-thinking-prompt";
 import {
     assembleGroupPromptPayload,
     formatRichMediaForHistory,
@@ -328,6 +329,9 @@ async function buildGroupChatPromptMessages(
         ? [...baseAppTags, "spectator"]
         : baseAppTags;
     const isOfflineMode = activeAppTags.includes("offline");
+    const chineseThinkingEnabled = session.chineseThinkingPromptEnabled === true && !isOfflineMode && !promptProfile
+        && activeAppTags.includes("group_chat");
+    preset = withChineseThinkingPrompt(preset, chineseThinkingEnabled);
 
     const memConfig = loadMemoryConfig();
     const allWorldBooks = loadWorldBooks();
@@ -493,6 +497,17 @@ async function buildGroupChatPromptMessages(
         offlineSummaryTag: preset?.story_summary_tag?.trim() || "summary",
         nativeToolHistory: usesNativeActions,
     });
+    if (chineseThinkingEnabled) {
+        llmMessages.push({
+            role: "system",
+            content: buildChineseThinkingPrompt(
+                userName,
+                preset?.online_thinking_tag?.trim() || "thinking",
+                memberNames,
+                session.chineseThinkingPromptLength,
+            ),
+        });
+    }
     if (promptProfile?.output === "plain_text") {
         llmMessages.push({
             role: "system",

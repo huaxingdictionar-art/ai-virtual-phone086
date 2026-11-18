@@ -8,6 +8,7 @@ import { parseStateValues, mergeStateValues } from "@/lib/state-value-parser";
 import { parseAIResponse, type ParsedMessagePart } from "@/lib/rich-message-parser";
 import { isKnownStickerLabel } from "@/lib/sticker-data";
 import { translateReasoningText } from "@/lib/reasoning-translate";
+import { withChineseThinkingPrompt } from "@/lib/chinese-thinking-prompt";
 import { MessageBubble, MediaDetailModal, prewarmStickerCache, BilingualTextBlock, isStandaloneHtmlPreviewContent, normalizeTextBubbleContent } from "./message-bubble";
 import { GeneratedImageErrorDialog } from "./generated-image-error-dialog";
 import { PhotoInputModal, TextPhotoModal, VoiceRecordModal, RedPacketModal, LocationInputModal, SystemInstructionModal } from "./rich-input-modals";
@@ -2603,6 +2604,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
     const [editingResponseRoundId, setEditingResponseRoundId] = useState<string | null>(null);
     const [editingResponseContent, setEditingResponseContent] = useState("");
     const [expandedVoiceCallIds, setExpandedVoiceCallIds] = useState<Set<string>>(new Set());
+    const [expandedBlacklistEventIds, setExpandedBlacklistEventIds] = useState<Set<string>>(new Set());
     const [highlightMessageId, setHighlightMessageId] = useState<string | null>(null);
     const [hasMore, setHasMore] = useState(false);
     const INITIAL_LOAD = CHAT_INITIAL_VISIBLE_MESSAGE_COUNT;
@@ -3193,7 +3195,11 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
     const streamPreviewTagConfig = useMemo(() => {
         const bindings = loadBindingConfig();
         const slot = resolveBinding(bindings, session.isGroup ? undefined : session.contactId, session.isGroup ? "group_chat" : "chat");
-        const preset = loadPresets().find(item => item.id === slot.presetId) || null;
+        const presets = loadPresets();
+        const preset = withChineseThinkingPrompt(
+            presets.find(item => item.id === slot.presetId) || presets.find(item => item.builtIn) || null,
+            session.chineseThinkingPromptEnabled === true,
+        );
         const withThoughtCompat = (tag: string): string[] => (tag === "thinking" ? ["thinking", "thought", "think"] : [tag]);
         return {
             online: preset?.online_thinking_enabled === true
@@ -3206,7 +3212,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             // 预设「剔除文本」：引擎最终会删，预览阶段同步删，避免闪现（字面量删除，成本极低）
             stripTexts: (preset?.strip_texts || []).filter(Boolean),
         };
-    }, [regexRevision, session.contactId, session.isGroup]);
+    }, [regexRevision, session.chineseThinkingPromptEnabled, session.contactId, session.isGroup]);
 
     const displayRegexMacroEngine = useMemo(() => {
         const charName = session.isGroup
@@ -9736,6 +9742,8 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                     const selectableStoredId = getSelectableStoredMessageId(msg);
                     const isMultiSelectable = isMultiSelectMode && !!selectableStoredId && !hiddenEmpty;
                     const isMultiSelected = !!selectableStoredId && selectedMessageIds.has(selectableStoredId);
+                    const blacklistEvent = msg.mediaData?.blacklistEvent;
+                    const isBlacklistEventExpanded = Boolean(blacklistEvent && expandedBlacklistEventIds.has(msg.id));
                     const multiSelectWrapperProps = isMultiSelectable ? {
                         onClickCapture: (e: React.MouseEvent) => {
                             e.preventDefault();
@@ -9789,7 +9797,18 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                 {uiRole(msg) === "system" ? (
                                     <div
                                         onPointerDown={(e) => { e.stopPropagation(); handleMessagePointerDown(e, msg.id); }}
-                                        onPointerUp={(e) => handleMessagePointerUp(e)}
+                                        onPointerUp={(e) => {
+                                            const wasLongPress = longPressTriggeredRef.current;
+                                            handleMessagePointerUp(e);
+                                            if (blacklistEvent && !wasLongPress) {
+                                                setExpandedBlacklistEventIds(prev => {
+                                                    const next = new Set(prev);
+                                                    if (next.has(msg.id)) next.delete(msg.id);
+                                                    else next.add(msg.id);
+                                                    return next;
+                                                });
+                                            }
+                                        }}
                                         onPointerCancel={handleMessagePointerCancel}
                                         onPointerLeave={handleMessagePointerCancel}
                                         onPointerMove={(e) => {
@@ -9802,7 +9821,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                         onContextMenu={(e) => { e.preventDefault(); openMessageContextMenu(msg.id, { x: e.clientX, y: e.clientY }); }}
                                         className={isSystemInstruction
                                             ? "chat-system-instruction-card relative cursor-pointer"
-                                            : `chat-sys-msg break-all max-w-[90%] relative cursor-pointer${
+                                            : `chat-sys-msg break-all max-w-[90%] relative cursor-pointer${blacklistEvent ? " chat-blacklist-event" : ""}${
                                                 // 骰子旁白：等骰子落定再淡入，避免剧透点数
                                                 msg.content.startsWith("🎲 掷出了") && Date.now() - new Date(msg.createdAt).getTime() < 6000
                                                     ? " dice-aside-reveal"
@@ -9818,6 +9837,22 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                                 onApprove={handleApproveMemoryWrite}
                                                 onIgnore={handleIgnoreMemoryWrite}
                                             />
+                                        ) : blacklistEvent ? (
+                                            <div className="chat-blacklist-event-content">
+                                                <span className="chat-blacklist-event-summary">
+                                                    {blacklistEvent === "block"
+                                                        ? `${msg.mediaData?.blacklistCharacterName || character?.name || "对方"}被你拉黑了`
+                                                        : `你解除了对${msg.mediaData?.blacklistCharacterName || character?.name || "对方"}的拉黑`}
+                                                </span>
+                                                {isBlacklistEventExpanded && (
+                                                    <span className="chat-blacklist-event-detail">
+                                                        <span>时间：{formatChatUiTime(msg.createdAt)}</span>
+                                                        <span>{blacklistEvent === "block"
+                                                            ? `${msg.mediaData?.blacklistUserName || userIdentity?.name || "用户"}把${msg.mediaData?.blacklistCharacterName || character?.name || "对方"}私聊拉黑了，${msg.mediaData?.blacklistCharacterName || character?.name || "对方"}发出的消息会被拒收`
+                                                            : `${msg.mediaData?.blacklistUserName || userIdentity?.name || "用户"}解除了对${msg.mediaData?.blacklistCharacterName || character?.name || "对方"}的私聊拉黑，${msg.mediaData?.blacklistCharacterName || character?.name || "对方"}发出的消息恢复正常接收`}</span>
+                                                    </span>
+                                                )}
+                                            </div>
                                         ) : (
                                             <>
                                                 {msg.mediaType === "poke"
@@ -9978,6 +10013,21 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                                 </svg>
                                             </button>
                                         )}
+                                        {/* 仿真拉黑：角色消息被用户拒收的仿微信红色感叹号（角色气泡右侧） */}
+                                        {msg.role === "assistant" && !isSilentThought && !isEmptyBubble && msg.status === "rejected" && (
+                                            <span
+                                                className="chat-msg-rejected-mark"
+                                                role="img"
+                                                aria-label="消息已发出，但被对方拒收了"
+                                                title="消息已发出，但被对方拒收了"
+                                            >
+                                                <svg viewBox="0 0 20 20" width="18" height="18" style={{ display: "block" }}>
+                                                    <circle cx="10" cy="10" r="9" fill="#fa5151" />
+                                                    <rect x="9" y="4.6" width="2" height="7.4" rx="1" fill="#fff" />
+                                                    <circle cx="10" cy="14.9" r="1.15" fill="#fff" />
+                                                </svg>
+                                            </span>
+                                        )}
                                         {msg.role === "user" && !isEmptyBubble && (
                                             <div className="chat-msg-avatar w-[40px] h-[40px] rounded-[20px] bg-[var(--c-page-body-bg)] shrink-0 flex items-center justify-center overflow-hidden">
                                                 {userIdentity?.avatarUrl ? (
@@ -9990,6 +10040,10 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
                                     </>
                                 )}
                             </div>
+                            {/* 仿真拉黑：拒收提示（仿微信灰字，靠角色一侧） */}
+                            {msg.role === "assistant" && msg.status === "rejected" && (
+                                <div className="chat-msg-rejected-note">消息已发出，但被对方拒收了</div>
+                            )}
                             {/* Voice message: text transcription bubble */}
                             {renderMsg.mediaType === "audio" && voiceTextIds.has(msg.id) && renderMsg.mediaData?.label && (
                                 <div className={`chat-msg-wrapper`} data-role={uiRole(msg)} style={{ marginTop: -12 }}>

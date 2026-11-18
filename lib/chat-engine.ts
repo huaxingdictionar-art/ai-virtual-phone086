@@ -44,6 +44,7 @@ import {
     loadRegexes,
     resolveUserIdentity,
 } from "./settings-storage";
+import { buildChineseThinkingPrompt, withChineseThinkingPrompt } from "./chinese-thinking-prompt";
 import { assemblePromptPayload, applyOutputRegex, type LLMMessage, type LLMContentPart } from "./llm-prompt-assembler";
 import { MacroEngine, postProcessTrim } from "./macro-engine";
 import { getStatusRegionConfig, resolveStatusRegionSection, resolveStatusRegionExampleLine, resolveStatusRegionComposition, resolveStatusRegionFullExample } from "./chat-status-region";
@@ -495,6 +496,12 @@ function isToolFlowHistoryMessage(message: ChatMessage): boolean {
         || message.mediaType === "memory_write_request";
 }
 
+/** history 末尾是拉黑/解除拉黑短期记忆事件 → 允许角色基于该事件作出反应。 */
+function isBlacklistEventHistoryMessage(message: ChatMessage): boolean {
+    return message.role === "system"
+        && (message.mediaData?.blacklistEvent === "block" || message.mediaData?.blacklistEvent === "unblock");
+}
+
 /** 日志分流：工坊（appId === "qa"）经聊天引擎发出的调用（答疑 Agent 原生工具循环）归工坊环，
  *  其余归底层调用日志环。channel 不能硬编码——工坊的 Agent 循环复用 sendLLMToolStreamRequest，
  *  旧逻辑靠 characterName === "工坊" 分流，改成显式字段后必须从 appId 派生，否则工坊记录漏进主环。 */
@@ -525,6 +532,11 @@ export function appendEmptyGenerateGuardMessage(
     // 明确禁止引用工具结果），同样不追加。
     const lastHistoryMessage = history[history.length - 1];
     if (lastHistoryMessage && (isRealUserHistoryMessage(lastHistoryMessage) || isToolFlowHistoryMessage(lastHistoryMessage))) {
+        return;
+    }
+    // 仿真拉黑事件豁免：末尾是拉黑/解除拉黑事件时，角色必须对此作出反应——
+    // 续写压制提示里的「禁止引用或复述系统消息」会把这次知情反应整个压掉
+    if (lastHistoryMessage && isBlacklistEventHistoryMessage(lastHistoryMessage)) {
         return;
     }
 
@@ -1858,6 +1870,9 @@ export async function buildChatPromptMessages(
     if (preset && promptProfile) {
         preset = applyCustomPromptProfileToPreset(preset, promptProfile);
     }
+    const chineseThinkingEnabled = session.chineseThinkingPromptEnabled === true
+        && resolvedAppId === "chat" && !options?.appTags?.includes("offline") && !promptProfile;
+    preset = withChineseThinkingPrompt(preset, chineseThinkingEnabled);
 
     const allWorldBooks = loadWorldBooks();
     const extraWorldBookIds = options?.extraWorldBookIds ?? [];
@@ -1996,6 +2011,24 @@ export async function buildChatPromptMessages(
         offlineSummaryTag: preset?.story_summary_tag?.trim() || "summary",
         nativeToolHistory: usesNativeActions,
     });
+    if (chineseThinkingEnabled) {
+        llmMessages.push({
+            role: "system",
+            content: buildChineseThinkingPrompt(
+                userIdentity?.name || "你",
+                preset?.online_thinking_tag?.trim() || "thinking",
+                [character.name],
+                session.chineseThinkingPromptLength,
+            ),
+        });
+    }
+    // 当前状态用一条直白提示兜底；具体拉黑/解除事件已写入私聊短期记忆。
+    if (!session.isGroup && session.isBlacklisted) {
+        llmMessages.push({
+            role: "system",
+            content: `当前会话状态：${character.name}已被${userIdentity?.name || "用户"}拉黑，${character.name}知道自己发出的消息会被拒收。`,
+        });
+    }
     if (promptProfile?.output === "plain_text") {
         llmMessages.push({
             role: "system",

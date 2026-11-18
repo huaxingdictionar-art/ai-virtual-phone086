@@ -57,7 +57,8 @@ import { downloadFile } from "@/lib/download-utils";
 import { getSchemes, saveScheme, deleteScheme, type CSSScheme } from "@/lib/css-scheme-storage";
 import { CustomStatusFrame } from "@/components/chat/custom-status-frame";
 import { KeyboardAutoSendDebounceItem } from "@/components/chat/keyboard-auto-send-debounce-item";
-import { ChevronRight, Image as ImageIcon, Video, Mic, UserMinus, UserPlus, Users, Pin, MessageSquare, Search, AlertCircle, Code, Laptop, Trash2, Smile, Sparkles, Lock, X, Play, Upload, Download, Save, FolderOpen, type LucideIcon } from "lucide-react";
+import { normalizeChineseThinkingPromptLength } from "@/lib/chinese-thinking-prompt";
+import { ChevronRight, Image as ImageIcon, Video, Mic, UserMinus, UserPlus, Users, Pin, MessageSquare, Search, AlertCircle, Code, Laptop, Trash2, Smile, Sparkles, Lock, X, Play, Upload, Download, Save, FolderOpen, Ban, type LucideIcon } from "lucide-react";
 import { BINDING_ACCENTS, CONTENT_APP_ACCENTS } from "@/lib/ui-accent-colors";
 import CSSSchemeBar from "@/components/ui/css-scheme-picker";
 import { ConfirmDialog } from "@/components/ui/modal";
@@ -314,6 +315,8 @@ export function ChatSettingsPanel({
     const [videoBackground, setVideoBackground] = useState<string>(session.videoBackground || "");
     const [voiceBackground, setVoiceBackground] = useState<string>(session.voiceBackground || "");
     const [isPinned, setIsPinned] = useState(session.isPinned || false);
+    // 仿真拉黑：拉黑期间用户发出的消息会被对方拒收（仿微信红色感叹号）
+    const [isBlacklisted, setIsBlacklisted] = useState(session.isBlacklisted || false);
     // 自定义状态栏（状态区）
     const [statusRegion, setStatusRegion] = useState<StatusRegionConfig>(() => getStatusRegionConfig(session.id));
     const [showStatusRegionDialog, setShowStatusRegionDialog] = useState(false);
@@ -411,6 +414,9 @@ export function ChatSettingsPanel({
     const [discardInvalidStickers, setDiscardInvalidStickers] = useState(session.discardInvalidStickers === true);
     // 流式生成：按会话区分（线上/线下），存 ChatSession 字段，默认关
     const [streamOnline, setStreamOnline] = useState(session.streamOnline === true);
+    const [chineseThinkingPromptEnabled, setChineseThinkingPromptEnabled] = useState(session.chineseThinkingPromptEnabled === true);
+    const [chineseThinkingPromptLength, setChineseThinkingPromptLength] = useState(() => normalizeChineseThinkingPromptLength(session.chineseThinkingPromptLength));
+    const [showChineseThinkingSettings, setShowChineseThinkingSettings] = useState(false);
     const [streamOffline, setStreamOffline] = useState(session.streamOffline === true);
     const [enableOfflineInvite, setEnableOfflineInvite] = useState(session.enableOfflineInvite !== false);
     const [enableOfflineLock, setEnableOfflineLock] = useState(session.enableOfflineLock !== false);
@@ -689,6 +695,33 @@ export function ChatSettingsPanel({
             saveChatSessions(sessions);
             Object.assign(session, updates);
         }
+    };
+
+    // 仿真拉黑：写成明确的私聊系统事件，直接进入该角色的短期记忆。
+    // 只做本地消息落库，不额外请求 AI。
+    const handleToggleBlacklist = (blocked: boolean) => {
+        setIsBlacklisted(blocked);
+        updateSession({ isBlacklisted: blocked });
+
+        const charLabel = character?.name || characterName;
+        const userLabel = userIdentity?.name || "用户";
+        const occurredAt = new Date();
+        const padTimePart = (value: number) => String(value).padStart(2, "0");
+        const occurredAtText = `${occurredAt.getFullYear()}-${padTimePart(occurredAt.getMonth() + 1)}-${padTimePart(occurredAt.getDate())} ${padTimePart(occurredAt.getHours())}:${padTimePart(occurredAt.getMinutes())}:${padTimePart(occurredAt.getSeconds())}`;
+        const eventContent = blocked
+            ? `私聊：时间：${occurredAtText}；${userLabel}把${charLabel}私聊拉黑了，${charLabel}发出的消息会被拒收`
+            : `私聊：时间：${occurredAtText}；${userLabel}解除了对${charLabel}的私聊拉黑，${charLabel}发出的消息恢复正常接收`;
+
+        pushChatMessage({
+            sessionId: session.id,
+            role: "system",
+            content: eventContent,
+            mediaData: {
+                blacklistEvent: blocked ? "block" : "unblock",
+                blacklistCharacterName: charLabel,
+                blacklistUserName: userLabel,
+            },
+        });
     };
 
     const handleClearHistory = () => {
@@ -1243,6 +1276,19 @@ export function ChatSettingsPanel({
                             <Toggle checked={isPinned} onChange={c => { setIsPinned(c); updateSession({ isPinned: c }); }} />
                         </div>
                     </div>
+                    {/* 仿真拉黑：仅私聊提供 */}
+                    {!session.isGroup && (
+                        <div className="menu-item">
+                            <ChatInfoIcon icon={Ban} color="#e5484d" />
+                            <div className="menu-label-group">
+                                <span className="menu-label">拉黑 TA</span>
+                                <span className="menu-desc">拉黑后 TA 会知道被你拉黑并做出反应；TA 发的消息会被你拒收（TA 的消息旁显示红色感叹号），你的消息不受影响</span>
+                            </div>
+                            <div className="menu-right">
+                                <Toggle checked={isBlacklisted} onChange={handleToggleBlacklist} />
+                            </div>
+                        </div>
+                    )}
                     <div className="menu-item">
                         <ChatInfoIcon icon={ImageIcon} color={BINDING_ACCENTS.api} />
                         <div className="menu-label-group">
@@ -1599,6 +1645,22 @@ export function ChatSettingsPanel({
                 {/* Advanced */}
                 <div className="menu-group">
                     <KeyboardAutoSendDebounceItem sessionId={session.id} />
+                    <div className="menu-item">
+                        <ChatInfoIcon icon={Sparkles} color={BINDING_ACCENTS.api} />
+                        <div className="menu-label-group">
+                            <span className="menu-label">启用内置中文思考提示词</span>
+                            <span className="menu-desc">仅当前会话：线上回复加入中文角色独白，沿用现有思考区的字体与排版</span>
+                            <button type="button" className="mt-1 flex w-fit items-center gap-1 text-left ts-12 text-[var(--c-icon-active)]" onClick={() => setShowChineseThinkingSettings(true)}>
+                                详细设置 · 约 {chineseThinkingPromptLength} 字 <ChevronRight size={14} />
+                            </button>
+                        </div>
+                        <div className="menu-right">
+                            <Toggle checked={chineseThinkingPromptEnabled} onChange={checked => {
+                                setChineseThinkingPromptEnabled(checked);
+                                updateSession({ chineseThinkingPromptEnabled: checked });
+                            }} />
+                        </div>
+                    </div>
                     <button className="menu-item" onClick={() => setEditingCSS(true)}>
                         <ChatInfoIcon icon={Code} color={BINDING_ACCENTS.embedding} />
                         <div className="menu-label-group"><span className="menu-label">自定义 CSS 样式</span></div>
@@ -2508,6 +2570,27 @@ export function ChatSettingsPanel({
                                 保存并启用
                             </button>
                         </div>
+                    </div>
+                </div>
+            )}
+            {showChineseThinkingSettings && (
+                <div className="modal-overlay" onClick={() => setShowChineseThinkingSettings(false)}>
+                    <div className="modal-dialog" role="dialog" aria-modal="true" aria-label="中文独白详细设置" onClick={event => event.stopPropagation()}>
+                        <span className="modal-header-title">中文独白详细设置</span>
+                        <p className="menu-desc">仅当前会话生效。开启中文思考提示词后，下次生成按所选篇幅创作；字数为大致目标。群聊按全部独白合计，显示沿用原有思考区。</p>
+                        <div className="flex w-full flex-col gap-2" role="radiogroup" aria-label="独白篇幅">
+                            {([100, 300, 500] as const).map(length => (
+                                <button key={length} type="button" role="radio" aria-checked={chineseThinkingPromptLength === length}
+                                    className={`ui-btn w-full ${chineseThinkingPromptLength === length ? "ui-btn-primary" : "ui-btn-ghost"}`}
+                                    onClick={() => {
+                                        setChineseThinkingPromptLength(length);
+                                        updateSession({ chineseThinkingPromptLength: length });
+                                    }}>
+                                    约 {length} 字
+                                </button>
+                            ))}
+                        </div>
+                        <button type="button" className="ui-btn ui-btn-ghost w-full" onClick={() => setShowChineseThinkingSettings(false)}>完成</button>
                     </div>
                 </div>
             )}
