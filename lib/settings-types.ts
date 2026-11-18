@@ -248,6 +248,34 @@ export type ImageGenerationSettings = {
     imageHosting: ImageHostingSettings;
 };
 
+// --- Sound Profile Configuration System ---
+export type SoundAudioItem = {
+    id: string;
+    name: string;
+    sourceType: "builtin" | "file" | "url";
+    value: string;
+};
+
+export type SoundChannelConfig = {
+    enabled: boolean;
+    activeAudioId?: string;
+    audios: SoundAudioItem[];
+    /** 仅新消息：当前打开该聊天时静音 */
+    muteActiveChat?: boolean;
+    /** 仅新消息：防轰炸，10秒内连续多条仅响一次 */
+    notifyOncePerBurst?: boolean;
+};
+
+export type SoundProfileConfig = SettingItemMeta & {
+    messageSoundsEnabled: boolean;
+    callSoundsEnabled: boolean;
+    newMessage: SoundChannelConfig;
+    sendMessage: SoundChannelConfig;
+    incomingCall: SoundChannelConfig;
+    outgoingCall: SoundChannelConfig;
+    hangup: SoundChannelConfig;
+};
+
 // --- Configuration Binding System ---
 
 // Content apps that can have per-character bindings.
@@ -293,6 +321,7 @@ export type BindingSlot = {
     userIdentityId?: string;
     worldBookIds?: string[];
     regexIds?: string[];
+    soundProfileId?: string;
 };
 
 // Character binding: character defaults + per-app overrides

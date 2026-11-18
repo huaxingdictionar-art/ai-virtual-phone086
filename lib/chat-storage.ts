@@ -7,8 +7,9 @@ import {
     dbPutMessages, dbPutSessions, dbPutContacts, dbDeleteSession,
     dbReplaceContacts, dbReplaceSessions,
 } from "./chat-db";
-import { resolveUserIdentity } from "./settings-storage";
+import { resolveUserIdentity, loadBindingConfig, resolveBinding, getSoundProfile } from "./settings-storage";
 import { loadCharacters, saveCharacters } from "./character-storage";
+import type { Character } from "./character-types";
 import {
     AVATAR_ACCEPT_RE,
     AVATAR_DECLINE_RE,
@@ -43,6 +44,7 @@ export type ChatContact = {
 export type ChatSession = {
     id: string;
     contactId: string;
+    characterId?: string;
     lastMessageId?: string;
     lastMessagePreview?: string;
     unreadCount: number;
@@ -128,8 +130,6 @@ export type ChatSession = {
     chineseThinkingPromptEnabled?: boolean;
     /** 内置中文思考提示词篇幅（100 / 300 / 500 字，默认 100） */
     chineseThinkingPromptLength?: 100 | 300 | 500;
-    /** 仿真拉黑：私聊拉黑后对方发出的消息会被拒收并显示红感叹号 */
-    isBlacklisted?: boolean;
 };
 
 export type ChatMessageStatus = "sending" | "sent" | "read" | "failed" | "rejected";
@@ -270,6 +270,10 @@ export type ChatMessage = {
         memoryReason?: string;    // 记忆写入原因
         memoryImportance?: number;// 记忆写入重要性
         memoryRequestStatus?: "pending" | "approved" | "ignored";
+        avatarRecommendationForCharacterId?: string;
+        avatarRecommendationStatus?: "pending" | "accepted" | "declined";
+        compactSystemInstruction?: boolean;
+        shortTermMemoryEvent?: boolean;
         fileType?: "audio" | "image" | "video" | "file";
         fileName?: string;
         fileDuration?: number;
@@ -397,21 +401,55 @@ export type ChatSoundsConfig = {
 };
 
 /**
- * 提示音配置解析：私聊角色专属（单独会话 sounds）＞ 全局聊天信息（globalChatSounds）。
- * 会话里显式设置的字段覆盖全局，其余继承全局。
+ * 提示音配置解析：
+ * 优先从角色绑定系统读取（BindingManager：角色专属绑定 ＞ 全局默认音效方案 ＞ 系统内置默认音效）。
+ * 同时兼容旧版或私聊单独会话 sounds 字段的显式覆盖。
  */
 export function resolveChatSoundConfig(
     kind: ChatSoundKind,
-    session: Pick<ChatSession, "sounds"> | null | undefined,
+    session?: Partial<ChatSession> | null,
 ): ChatSoundConfig {
-    const merged: ChatSoundConfig = { ...(loadChatAppSettings().globalChatSounds?.[kind] ?? {}) };
+    let resolvedSlotSoundId: string | undefined;
+    try {
+        const bindingConfig = loadBindingConfig();
+        const contact = session?.contactId ? _contactsCache.find(c => c.id === session.contactId) : null;
+        const charId = session?.characterId || contact?.characterId;
+        const slot = resolveBinding(bindingConfig, charId, "chat");
+        resolvedSlotSoundId = slot.soundProfileId;
+    } catch {
+        // fallback
+    }
+
+    const soundProfile = getSoundProfile(resolvedSlotSoundId);
+
+    // 检查音效总开关
+    const isMessageSound = kind === "newMessage" || kind === "sendMessage";
+    const masterEnabled = isMessageSound ? soundProfile.messageSoundsEnabled : soundProfile.callSoundsEnabled;
+
+    const channel = soundProfile[kind] || { enabled: true, audios: [] };
+    const activeAudio = channel.audios?.find(a => a.id === channel.activeAudioId) || channel.audios?.[0];
+
+    const profileConfig: ChatSoundConfig = {
+        enabled: masterEnabled && channel.enabled !== false,
+        sourceType: activeAudio && activeAudio.sourceType !== "builtin" ? activeAudio.sourceType : undefined,
+        value: activeAudio && activeAudio.sourceType !== "builtin" ? activeAudio.value : undefined,
+        muteActiveChat: channel.muteActiveChat,
+        notifyOncePerBurst: channel.notifyOncePerBurst,
+    };
+
+    // 如果全局 ChatAppSettings 或单个会话有遗留覆盖，予以合并
+    const globalChatSounds = loadChatAppSettings().globalChatSounds?.[kind];
+    if (globalChatSounds) {
+        Object.assign(profileConfig, globalChatSounds);
+    }
     const own = session?.sounds?.[kind];
     if (own) {
         for (const [key, value] of Object.entries(own)) {
-            if (value !== undefined) (merged as Record<string, unknown>)[key] = value;
+            if (value !== undefined) (profileConfig as Record<string, unknown>)[key] = value;
         }
     }
-    return merged;
+
+    return profileConfig;
 }
 
 let _activeChatSessionId: string | null = null;
@@ -442,7 +480,7 @@ export function resolveChatUserAvatar(
 
 /** 聊天 APP 内角色头像：专用聊天头像 ＞ 角色卡头像；其他 APP 仍直接读取角色卡头像。 */
 export function resolveChatCharacterAvatar(
-    character: Pick<Character, "avatar" | "chatAvatar" | "chatAvatarEnabled"> | null | undefined,
+    character?: any,
 ): string {
     if (character?.chatAvatarEnabled && character.chatAvatar) return character.chatAvatar;
     return character?.avatar || "";

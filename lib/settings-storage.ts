@@ -14,6 +14,7 @@ import type {
     CharacterBinding,
     Prompt,
     PromptOrderEntry,
+    SoundProfileConfig,
 } from "./settings-types";
 import type { UserIdentity } from "@/components/settings/user-identity";
 import { createBuiltinPreset, BUILTIN_PRESET_VERSION } from "./builtin-preset";
@@ -85,6 +86,7 @@ const BINDINGS_KEY = "ai_phone_bindings_v1";
 const FOLLOW_UP_CONFIG_KEY = "ai_phone_follow_up_config_v1";
 const CHAT_SEND_CONFIG_KEY = "ai_phone_chat_send_config_v1";
 const USER_IDENTITIES_KEY = "ai_phone_user_identities_v1";
+const SOUND_PROFILES_KEY = "ai_phone_sound_profiles_v1";
 
 // Legacy key for migration
 const LEGACY_OVERRIDES_KEY = "ai_phone_char_settings_v1";
@@ -95,6 +97,7 @@ registerKvMigration(BINDINGS_KEY);
 registerKvMigration(FOLLOW_UP_CONFIG_KEY);
 registerKvMigration(CHAT_SEND_CONFIG_KEY);
 registerKvMigration(USER_IDENTITIES_KEY);
+registerKvMigration(SOUND_PROFILES_KEY);
 registerKvMigration(LEGACY_OVERRIDES_KEY);
 
 // --- Helpers ---
@@ -665,6 +668,119 @@ export function saveVoiceConfigs(configs: VoiceApiConfig[]): void {
     kvSet(VOICE_CONFIGS_KEY, JSON.stringify(configs));
 }
 
+// --- Sound Profiles ──────────────────────────────────────────
+
+export function createDefaultSoundProfile(): SoundProfileConfig {
+    const now = Date.now();
+    return {
+        id: "sound_profile_default",
+        name: "默认灵动音效",
+        description: "系统内置清脆轻跃发消息音与灵动和弦新消息提示音",
+        createdAt: now,
+        updatedAt: now,
+        messageSoundsEnabled: true,
+        callSoundsEnabled: true,
+        newMessage: {
+            enabled: true,
+            activeAudioId: "builtin_new_msg",
+            audios: [
+                {
+                    id: "builtin_new_msg",
+                    name: "系统清脆叮咚（合成和弦）",
+                    sourceType: "builtin",
+                    value: "builtin:chime",
+                },
+            ],
+            muteActiveChat: false,
+            notifyOncePerBurst: true,
+        },
+        sendMessage: {
+            enabled: true,
+            activeAudioId: "builtin_send_msg",
+            audios: [
+                {
+                    id: "builtin_send_msg",
+                    name: "系统微跃轻弹（合成轻音）",
+                    sourceType: "builtin",
+                    value: "builtin:pop",
+                },
+            ],
+        },
+        incomingCall: {
+            enabled: true,
+            activeAudioId: "builtin_incoming_call",
+            audios: [
+                {
+                    id: "builtin_incoming_call",
+                    name: "系统默认来电铃声",
+                    sourceType: "builtin",
+                    value: "builtin:ring",
+                },
+            ],
+        },
+        outgoingCall: {
+            enabled: true,
+            activeAudioId: "builtin_outgoing_call",
+            audios: [
+                {
+                    id: "builtin_outgoing_call",
+                    name: "系统默认呼叫等待音",
+                    sourceType: "builtin",
+                    value: "builtin:dial",
+                },
+            ],
+        },
+        hangup: {
+            enabled: true,
+            activeAudioId: "builtin_hangup",
+            audios: [
+                {
+                    id: "builtin_hangup",
+                    name: "系统默认挂断音",
+                    sourceType: "builtin",
+                    value: "builtin:busy",
+                },
+            ],
+        },
+    };
+}
+
+export function loadSoundProfiles(): SoundProfileConfig[] {
+    if (typeof window === "undefined") return [createDefaultSoundProfile()];
+    try {
+        const raw = kvGet(SOUND_PROFILES_KEY);
+        if (!raw) {
+            const initial = [createDefaultSoundProfile()];
+            saveSoundProfiles(initial);
+            return initial;
+        }
+        const parsed = JSON.parse(raw);
+        if (!Array.isArray(parsed) || parsed.length === 0) {
+            const initial = [createDefaultSoundProfile()];
+            saveSoundProfiles(initial);
+            return initial;
+        }
+        return parsed as SoundProfileConfig[];
+    } catch {
+        return [createDefaultSoundProfile()];
+    }
+}
+
+export function saveSoundProfiles(profiles: SoundProfileConfig[]): void {
+    if (typeof window === "undefined") return;
+    kvSet(SOUND_PROFILES_KEY, JSON.stringify(profiles));
+    window.dispatchEvent(new CustomEvent("settings-sound-profiles-updated"));
+}
+
+export function getSoundProfile(id?: string): SoundProfileConfig {
+    const profiles = loadSoundProfiles();
+    if (id) {
+        const found = profiles.find(p => p.id === id);
+        if (found) return found;
+    }
+    return profiles[0] || createDefaultSoundProfile();
+}
+
 // --- Image Generation Settings ──────────────────────────────────────────
 
 export const DEFAULT_NOVELAI_PRESET: import("./settings-types").NovelAiPreset = {
@@ -1020,6 +1136,7 @@ export function resolveBinding(
         userIdentityId: global.userIdentityId,
         worldBookIds: global.worldBookIds ? [...global.worldBookIds] : undefined,
         regexIds: global.regexIds ? [...global.regexIds] : undefined,
+        soundProfileId: global.soundProfileId,
     };
 
     const applySlot = (slot: BindingSlot): void => {
@@ -1029,6 +1146,7 @@ export function resolveBinding(
         if (slot.userIdentityId) resolved.userIdentityId = slot.userIdentityId;
         if (slot.worldBookIds && slot.worldBookIds.length > 0) resolved.worldBookIds = [...slot.worldBookIds];
         if (slot.regexIds && slot.regexIds.length > 0) resolved.regexIds = [...slot.regexIds];
+        if (slot.soundProfileId) resolved.soundProfileId = slot.soundProfileId;
     };
 
     if (!characterId) return resolved;

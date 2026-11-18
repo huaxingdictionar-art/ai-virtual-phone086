@@ -64,7 +64,6 @@ import CSSSchemeBar from "@/components/ui/css-scheme-picker";
 import { ConfirmDialog } from "@/components/ui/modal";
 import { CHAT_SESSION_CSS_EXAMPLE } from "@/lib/css-examples";
 import { Toggle, Input } from "@/components/ui/form";
-import { SessionChatSoundsSection } from "@/components/chat/session-chat-sounds";
 import { resolveChatCharacterAvatar, resolveChatUserAvatar, CHAT_REQUEST_REPLY_EVENT } from "@/lib/chat-storage";
 import { PageShell } from "@/components/ui/page-shell";
 
@@ -1668,12 +1667,6 @@ export function ChatSettingsPanel({
                 </div>
 
 
-                {!session.isGroup && (
-                    <>
-                        <div className="px-4 pt-3 pb-2 ts-12 font-medium text-[var(--c-text-title)] opacity-80">角色专属提示音</div>
-                        <SessionChatSoundsSection session={session} accent={BINDING_ACCENTS.voice} onUpdate={updateSession} />
-                    </>
-                )}
 
                 {/* 头像与个性化设置 */}
                 {!session.isGroup && (
@@ -1704,7 +1697,7 @@ export function ChatSettingsPanel({
                         </button>
                         <div className="menu-item justify-between">
                             <div className="flex items-center gap-3">
-                                <ChatInfoIcon icon={Camera} color={BINDING_ACCENTS.character} />
+                                <ChatInfoIcon icon={Camera} color={BINDING_ACCENTS.identity} />
                                 <div>
                                     <span className="menu-label">发图自主更换头像</span>
                                     <span className="menu-desc">发图并提议时，角色结合人设自主决定是否换上头像</span>

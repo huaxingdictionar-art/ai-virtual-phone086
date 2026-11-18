@@ -15,6 +15,7 @@ import {
     RotateCcw,
     User,
     UserPlus,
+    Volume2,
     Wrench,
     X,
     type LucideIcon,
@@ -42,6 +43,7 @@ import type {
     PresetConfig,
     WorldBookConfig,
     RegexConfig,
+    SoundProfileConfig,
 } from "@/lib/settings-types";
 import { CONTENT_APP_IDS, CONTENT_APP_LABELS } from "@/lib/settings-types";
 import { BINDING_ACCENTS, CONTENT_APP_ACCENTS } from "@/lib/ui-accent-colors";
@@ -56,6 +58,7 @@ import {
     loadWorldBooks,
     loadRegexes,
     loadUserIdentities,
+    loadSoundProfiles,
     ensureSettingsStorageHydrated,
 } from "@/lib/settings-storage";
 import { hydrateKvDb } from "@/lib/kv-db";
@@ -64,7 +67,7 @@ import { loadCharacters } from "@/lib/character-storage";
 import type { Character } from "@/lib/character-types";
 
 type Level = "global" | "character" | "app";
-type SingleBindingField = "apiConfigId" | "voiceConfigId" | "presetId" | "userIdentityId";
+type SingleBindingField = "apiConfigId" | "voiceConfigId" | "presetId" | "userIdentityId" | "soundProfileId";
 type MultiBindingField = "worldBookIds" | "regexIds";
 type BindingField = SingleBindingField | MultiBindingField;
 type AuxBindingField = "memorySummaryApiConfigId" | "embeddingApiConfigId" | "mascotApiConfigId" | "reasoningTranslateApiConfigId" | "qaApiConfigId";
@@ -76,6 +79,7 @@ const BINDING_FIELD_VISUALS: Record<BindingField, { icon: LucideIcon; color: str
     worldBookIds: { icon: BookOpen, color: BINDING_ACCENTS.worldBook },
     regexIds: { icon: Asterisk, color: BINDING_ACCENTS.regex },
     userIdentityId: { icon: User, color: BINDING_ACCENTS.identity },
+    soundProfileId: { icon: Volume2, color: "#8b5cf6" },
 };
 
 const AUX_FIELD_VISUALS: Record<AuxBindingField, { icon: LucideIcon; color: string }> = {
@@ -114,6 +118,7 @@ export function BindingManager() {
     const [worldBooks, setWorldBooks] = useState<WorldBookConfig[]>([]);
     const [regexes, setRegexes] = useState<RegexConfig[]>([]);
     const [identities, setIdentities] = useState<UserIdentity[]>([]);
+    const [soundProfiles, setSoundProfiles] = useState<SoundProfileConfig[]>([]);
     const [customApps, setCustomApps] = useState<InstalledCustomApp[]>([]);
 
     const [level, setLevel] = useState<Level>("global");
@@ -132,6 +137,7 @@ export function BindingManager() {
         setWorldBooks(loadWorldBooks());
         setRegexes(loadRegexes());
         setIdentities(loadUserIdentities());
+        setSoundProfiles(loadSoundProfiles());
     };
 
     useEffect(() => {
@@ -176,6 +182,7 @@ export function BindingManager() {
             identity: new Set(identities.map(i => i.id)),
             wb: new Set(worldBooks.map(w => w.id)),
             regex: new Set(regexes.map(r => r.id)),
+            sound: new Set(soundProfiles.map(s => s.id)),
         };
         const cleanSlot = (slot: BindingSlot): [BindingSlot, boolean] => {
             const s = { ...slot };
@@ -184,6 +191,7 @@ export function BindingManager() {
             if (s.voiceConfigId && !validSets.voice.has(s.voiceConfigId)) { s.voiceConfigId = undefined; changed = true; }
             if (s.presetId && !validSets.preset.has(s.presetId)) { s.presetId = undefined; changed = true; }
             if (s.userIdentityId && !validSets.identity.has(s.userIdentityId)) { s.userIdentityId = undefined; changed = true; }
+            if (s.soundProfileId && !validSets.sound.has(s.soundProfileId)) { s.soundProfileId = undefined; changed = true; }
             if (s.worldBookIds) {
                 const f = s.worldBookIds.filter(id => validSets.wb.has(id));
                 if (f.length !== s.worldBookIds.length) changed = true;
@@ -322,6 +330,7 @@ export function BindingManager() {
         if (slot.voiceConfigId) target.voiceConfigId = slot.voiceConfigId;
         if (slot.presetId) target.presetId = slot.presetId;
         if (slot.userIdentityId) target.userIdentityId = slot.userIdentityId;
+        if (slot.soundProfileId) target.soundProfileId = slot.soundProfileId;
         if (slot.worldBookIds && slot.worldBookIds.length > 0) target.worldBookIds = [...slot.worldBookIds];
         if (slot.regexIds && slot.regexIds.length > 0) target.regexIds = [...slot.regexIds];
         return target;
@@ -365,6 +374,7 @@ export function BindingManager() {
         if (slot.voiceConfigId) count++;
         if (slot.presetId) count++;
         if (slot.userIdentityId) count++;
+        if (slot.soundProfileId) count++;
         if (slot.worldBookIds && slot.worldBookIds.length > 0) count++;
         if ((!appId || canBindRegexInApp(appId)) && slot.regexIds && slot.regexIds.length > 0) count++;
         return count;
@@ -378,6 +388,7 @@ export function BindingManager() {
             binding.defaults.voiceConfigId ||
             binding.defaults.presetId ||
             binding.defaults.userIdentityId ||
+            binding.defaults.soundProfileId ||
             (binding.defaults.worldBookIds && binding.defaults.worldBookIds.length > 0) ||
             (binding.defaults.regexIds && binding.defaults.regexIds.length > 0) ||
             Object.keys(binding.appOverrides).length > 0
@@ -426,6 +437,7 @@ export function BindingManager() {
             case "voiceConfigId": return "语音 API";
             case "presetId": return "预设";
             case "userIdentityId": return "用户身份";
+            case "soundProfileId": return "音效配置";
             case "worldBookIds": return "世界书";
             case "regexIds": return "正则规则";
         }
@@ -437,6 +449,7 @@ export function BindingManager() {
             case "voiceConfigId": return "全局语音合成接口";
             case "presetId": return "全局提示词预设";
             case "userIdentityId": return "全局用户身份";
+            case "soundProfileId": return "消息与通话音效方案";
             case "worldBookIds": return "全局启用的世界书";
             case "regexIds": return "全局启用的正则规则";
         }
@@ -472,6 +485,8 @@ export function BindingManager() {
                 return presets.map(p => ({ id: p.id, name: p.name }));
             case "userIdentityId":
                 return identities.map(i => ({ id: i.id, name: i.name }));
+            case "soundProfileId":
+                return soundProfiles.map(s => ({ id: s.id, name: s.name }));
             case "worldBookIds":
                 return worldBooks.map(w => ({ id: w.id, name: w.name }));
             case "regexIds":
@@ -620,6 +635,7 @@ export function BindingManager() {
                     {compactFields.map(field => renderBindingCard(field, "small"))}
                 </div>
                 {renderBindingCard("userIdentityId", "wide")}
+                {renderBindingCard("soundProfileId", "wide")}
             </div>
         );
     };

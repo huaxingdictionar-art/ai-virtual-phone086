@@ -1,13 +1,14 @@
 "use client";
 
 import { useState, useEffect, useLayoutEffect, useCallback, useRef, createContext, type CSSProperties, type ReactNode } from "react";
-import { Activity, Check, ChevronRight, Clock, Database, FileText, Fingerprint, Globe, HardDrive, Image, Info, KeyRound, Laptop, Layers, Link2, Loader2, LogOut, MessageSquare, Mic, SlidersHorizontal, UserCircle, Wrench, X, CloudUpload } from "lucide-react";
+import { Activity, Check, ChevronRight, Clock, Database, FileText, Fingerprint, Globe, HardDrive, Image, Info, KeyRound, Laptop, Layers, Link2, Loader2, LogOut, MessageSquare, Mic, SlidersHorizontal, UserCircle, Volume2, Wrench, X, CloudUpload } from "lucide-react";
 import { ConfirmDialog } from "./ui/modal";
 import { useAccount } from "@/lib/account-context";
 import { isSelfHostedModeEnabled } from "@/lib/self-hosting";
 import { changeAccountPassword } from "@/lib/account-client";
 import { ApiSettings } from "./settings/api-settings";
 import { VoiceSettings } from "./settings/voice-settings";
+import { SoundSettings } from "./settings/sound-settings";
 import { ImageGenerationSettings } from "./settings/image-generation-settings";
 import { PresetManager } from "./settings/preset-manager";
 import { WorldBookManager } from "./settings/worldbook-manager";
@@ -45,6 +46,7 @@ type SubPage =
     | "main"
     | "api"
     | "voice"
+    | "sound"
     | "imageGeneration"
     | "presets"
     | "worldbook"
@@ -62,6 +64,7 @@ type SubPage =
 const SETTINGS_MENU = [
     { id: "api", icon: HardDrive, label: "API 设置", desc: "大模型接口", iconColor: BINDING_ACCENTS.api , glass: "api" },
     { id: "voice", icon: Mic, label: "语音 API", desc: "语音合成", iconColor: BINDING_ACCENTS.voice , glass: "voice" },
+    { id: "sound", icon: Volume2, label: "音效设置", desc: "提示音与通话铃声方案", iconColor: "#8b5cf6", glass: "voice" },
     { id: "imageGeneration", icon: Image, label: "图像生成 API", desc: "模型、参考图与提示词", iconColor: CONTENT_APP_ACCENTS.moments , glass: "image-generation" },
     { id: "presets", icon: Fingerprint, label: "预设", desc: "角色预设", iconColor: BINDING_ACCENTS.preset , glass: "presets" },
     { id: "worldbook", icon: Globe, label: "世界书", desc: "世界观设定", iconColor: BINDING_ACCENTS.worldBook , glass: "worldbook" },
@@ -253,6 +256,17 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
         onNotice(next ? "已开启后台保活" : "已关闭后台保活");
     }, [onNotice]);
 
+    const soundItem = SETTINGS_MENU.find(i => i.id === "sound")!;
+    const soundFeaturedItem: FeaturedCardItem = {
+        id: soundItem.id,
+        icon: soundItem.icon,
+        label: soundItem.label,
+        desc: soundItem.desc,
+        iconColor: soundItem.iconColor,
+        glassIcon: soundItem.glass,
+        onClick: () => setCurrentPage("sound"),
+    };
+
     const imageGenerationItem = SETTINGS_MENU.find(i => i.id === "imageGeneration")!;
     const imageGenerationFeaturedItem: FeaturedCardItem = {
         id: imageGenerationItem.id,
@@ -302,6 +316,8 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                 return <ApiSettings />;
             case "voice":
                 return <VoiceSettings />;
+            case "sound":
+                return <SoundSettings />;
             case "imageGeneration":
                 return <ImageGenerationSettings />;
             case "presets":
@@ -399,6 +415,12 @@ export function PhoneSettingsApp({ onClose, onNotice }: SettingsPageProps) {
                             labelClassName="settings-menu-section-title"
                             items={SETTINGS_MENU.filter(item => ["api", "voice"].includes(item.id)).map(makeCardItem)}
                         />
+                        <div className="settings-sound-section">
+                            <h3 className="settings-menu-section-title">Sound & Haptics</h3>
+                            <div className="mt-[10px]">
+                                <FeaturedCard item={soundFeaturedItem} />
+                            </div>
+                        </div>
                         <div className="settings-data-rules-section">
                             <h3 className="settings-menu-section-title">Data & Rules</h3>
                             <div className="mt-[10px] flex flex-col gap-3">

@@ -18,8 +18,8 @@ import {
 } from "./chat-storage";
 import { getChatAudioFromIndexedDB } from "./chat-asset-storage";
 
-/** 提示音解析用的会话上下文（带 sounds 字段即可） */
-type SessionLike = Pick<ChatSession, "sounds"> | null | undefined;
+/** 提示音解析用的会话上下文（支持传入 ChatSession 或局部对象） */
+type SessionLike = Partial<ChatSession> | null | undefined;
 
 // ── Web Audio 原生音效合成引擎（开箱即自带，零延迟、零体积、纯净治愈） ──
 let audioCtx: AudioContext | null = null;
