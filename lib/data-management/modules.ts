@@ -231,6 +231,7 @@ const PRIMARY_DATA_MODULES: DataModuleDefinition[] = [
           "ai_phone_character_world_layout_v1",
           "ai_phone_xiaohongshu_state_v1",
           "ai_phone_friend_requests_v1",
+          "ai_phone_character_moments_profiles_v1",
         ],
         prefixes: ["checkphone:xiaohongshu:readThreads", "xiaohongshu_events_", "ai_phone_xiaohongshu_events_"],
       },
@@ -239,10 +240,11 @@ const PRIMARY_DATA_MODULES: DataModuleDefinition[] = [
   {
     id: "apps",
     label: "内容应用",
-    description: "日历、日记、购物、余额、阅读、音乐、经期记录与应用偏好",
+    description: "日历、日记、收藏夹、购物、余额、阅读、音乐、经期记录与应用偏好",
     variant: "teal",
     large: true,
     sources: [
+      { type: "indexeddb", dbName: "AiPhoneFavoritesDB", label: "收藏夹（聊天/图片/动态/剧情）" },
       { type: "indexeddb", dbName: "reading-db", label: "阅读书架与章节" },
       { type: "indexeddb", dbName: "reading-raw-files", label: "阅读原始文件" },
       { type: "indexeddb", dbName: "reading-appearance-assets", label: "阅读外观素材" },
@@ -309,12 +311,12 @@ const PRIMARY_DATA_MODULES: DataModuleDefinition[] = [
   {
     id: "resource_hub",
     label: "资源集市",
-    description: "摊主钥匙（自己发布资源的所有权凭证）、昵称头像与集市设置",
+    description: "摊主钥匙、昵称头像、集市设置与本地私藏好物",
     variant: "teal",
     sources: [
       {
         type: "kv",
-        label: "摊主身份与集市设置",
+        label: "摊主身份、集市设置与私藏好物",
         keys: [
           // 钥匙丢了就再也管不了自己发过的资源，必须跟着备份走
           "ai_phone_resource_hub_identity_v1",
@@ -325,6 +327,7 @@ const PRIMARY_DATA_MODULES: DataModuleDefinition[] = [
           "ai_phone_resource_hub_flowers_sent_v1",
           "ai_phone_resource_hub_flowers_seen_v1",
           "ai_phone_resource_hub_notice_v2",
+          "ai_phone_resource_hub_favorites_v1",
         ],
       },
     ],
@@ -374,7 +377,12 @@ const PRIMARY_DATA_MODULES: DataModuleDefinition[] = [
           "mixology_builtin_version_v1",
           "mixology_profile_v1",
         ],
-        prefixes: ["map_world_theme_", "map_adventure_summary_", "ai_phone_black_market_theater_events_"],
+        prefixes: [
+          "map_world_theme_",
+          "map_adventure_summary_",
+          "ai_phone_black_market_theater_events_",
+          "ai_phone_story_input_draft_v1_",
+        ],
       },
     ],
   },
