@@ -108,6 +108,20 @@ const NOTICE_DISMISSED_KEY = "ai_phone_resource_hub_notice_v2";
 registerKvMigration(NOTICE_DISMISSED_KEY);
 /** 摊主钥匙强制备份：确认保存过一次后不再打扰 */
 const KEY_BACKUP_DONE_KEY = "ai_phone_resource_hub_key_backup_v1";
+const FAVORITES_KEY = "ai_phone_resource_hub_favorites_v1";
+registerKvMigration(FAVORITES_KEY);
+
+function loadHubFavorites(): Set<string> {
+    try {
+        const raw = kvGet(FAVORITES_KEY);
+        const arr = raw ? JSON.parse(raw) : [];
+        return new Set(Array.isArray(arr) ? arr : []);
+    } catch { return new Set(); }
+}
+
+function saveHubFavorites(set: Set<string>): void {
+    kvSet(FAVORITES_KEY, JSON.stringify(Array.from(set)));
+}
 
 export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onNotice?: (msg: string) => void }) {
     const [source, setSource] = useState<ResourceHubSource>(() => loadResourceHubSource());
@@ -120,6 +134,12 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
     const [searchQuery, setSearchQuery] = useState("");
     const [confirmDeleteEntry, setConfirmDeleteEntry] = useState<ShareIndexEntry | null>(null);
     const [deleting, setDeleting] = useState(false);
+    // 集市排序：最新更新 / 热度最高（按送花数）
+    const [marketSort, setMarketSort] = useState<"latest" | "popular">("latest");
+    // 本地私藏资源路径集合
+    const [favorites, setFavorites] = useState<Set<string>>(() => loadHubFavorites());
+    // 货摊子选项卡：我的私藏 / 我的发布（默认停在私藏）
+    const [mineSubTab, setMineSubTab] = useState<"favorites" | "published">("favorites");
     // 浏览集市 / 我的货摊
     const [viewMode, setViewMode] = useState<"market" | "mine" | "build">("market");
     // 共同建设：贡献墙（只展示已被官方采纳=已合并的社区 PR）
@@ -270,6 +290,25 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
         if (!editorRefFor(field).current?.clearFormat()) showToast("先选中要还原的文字，再点清除");
     }, [editorRefFor, showToast]);
 
+    const toggleFavorite = useCallback((path: string, e?: React.MouseEvent) => {
+        if (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+        setFavorites(prev => {
+            const next = new Set(prev);
+            if (next.has(path)) {
+                next.delete(path);
+                showToast("已取消私藏");
+            } else {
+                next.add(path);
+                showToast("已加入我的私藏 ⭐");
+            }
+            saveHubFavorites(next);
+            return next;
+        });
+    }, [showToast]);
+
     // 换弹窗时把面板收掉，免得残留的目标指向另一个弹窗里的编辑器
     const closeRichPickers = useCallback(() => {
         setStickerPickerFor(null);
@@ -329,20 +368,32 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
 
     useEffect(() => { reload(source); }, [reload, source]);
 
-    // 切到我的货摊时拉取花数（仅作者本人可见的统计）
+    // 拉取各资源花数（大厅热度排序、单项展示与货摊统计共用）
     useEffect(() => {
-        if (viewMode !== "mine") return;
         let cancelled = false;
         void fetchFlowerCounts(source).then(counts => { if (!cancelled) setFlowerCounts(counts); });
         return () => { cancelled = true; };
-    }, [viewMode, source, index]);
+    }, [source, index]);
+
+    // 我的私藏资源列表
+    const favoriteEntries = useMemo(() => {
+        if (!index) return [];
+        return index.entries.filter(e => favorites.has(e.path));
+    }, [index, favorites]);
 
     const folderEntries = useMemo(() => {
         if (!index || !activeFolder) return [];
         return index.entries
             .filter(e => e.folder === activeFolder)
-            .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "") || a.name.localeCompare(b.name, "zh"));
-    }, [index, activeFolder]);
+            .sort((a, b) => {
+                if (marketSort === "popular") {
+                    const countA = flowerCounts?.[a.path] ?? 0;
+                    const countB = flowerCounts?.[b.path] ?? 0;
+                    if (countB !== countA) return countB - countA;
+                }
+                return (b.updatedAt || "").localeCompare(a.updatedAt || "") || a.name.localeCompare(b.name, "zh");
+            });
+    }, [index, activeFolder, marketSort, flowerCounts]);
 
     // 关键词搜索：跨全部分类，匹配名称/说明/分类/文件名
     const searchResults = useMemo(() => {
@@ -351,8 +402,15 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
         return index.entries
             .filter(e => [e.name, e.description, e.folder, ...e.files, ...e.images]
                 .join(" ").toLowerCase().includes(q))
-            .sort((a, b) => (b.updatedAt || "").localeCompare(a.updatedAt || "") || a.name.localeCompare(b.name, "zh"));
-    }, [index, searchQuery]);
+            .sort((a, b) => {
+                if (marketSort === "popular") {
+                    const countA = flowerCounts?.[a.path] ?? 0;
+                    const countB = flowerCounts?.[b.path] ?? 0;
+                    if (countB !== countA) return countB - countA;
+                }
+                return (b.updatedAt || "").localeCompare(a.updatedAt || "") || a.name.localeCompare(b.name, "zh");
+            });
+    }, [index, searchQuery, marketSort, flowerCounts]);
 
     // 我的货摊：本机上传记录与目录比对——在目录里的可点进详情，不在的显示待审/未上架
     const myStall = useMemo(() => {
@@ -745,24 +803,38 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
         ) : null
     );
 
-    const renderEntryRow = (entry: ShareIndexEntry, showFolder = false, flowers?: number | "loading") => (
-        <button key={entry.path} className="rh-entry" onClick={() => { setActiveEntry(entry); setSelectedFile(entry.files[0] ?? null); }}>
-            {entry.images.length > 0 ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className="rh-entry-thumb" src={resolveResourceHubAssetUrl(source, entry.images[0])} alt="" loading="lazy" />
-            ) : (
-                <span className="rh-entry-thumb rh-entry-thumb-blank">📄</span>
-            )}
-            <span className="rh-entry-main">
-                <span className="rh-entry-title"><RichText text={entry.name} mode="sticker" /></span>
-                {entry.description && <span className="rh-entry-desc"><RichText text={entry.description} mode="inline" /></span>}
-                <span className="rh-entry-meta">
-                    {[showFolder ? entry.folder : "", formatEntryDate(entry.updatedAt), `${entry.files.length} 个文件`,
-                        flowers === undefined ? "" : `🌸 ${flowers === "loading" ? "…" : flowers}`].filter(Boolean).join(" · ")}
-                </span>
-            </span>
-        </button>
-    );
+    const renderEntryRow = (entry: ShareIndexEntry, showFolder = false, flowers?: number | "loading") => {
+        const isFav = favorites.has(entry.path);
+        return (
+            <div key={entry.path} className="rh-entry-wrap">
+                <button type="button" className="rh-entry" onClick={() => { setActiveEntry(entry); setSelectedFile(entry.files[0] ?? null); }}>
+                    {entry.images.length > 0 ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img className="rh-entry-thumb" src={resolveResourceHubAssetUrl(source, entry.images[0])} alt="" loading="lazy" />
+                    ) : (
+                        <span className="rh-entry-thumb rh-entry-thumb-blank">📄</span>
+                    )}
+                    <span className="rh-entry-main">
+                        <span className="rh-entry-title"><RichText text={entry.name} mode="sticker" /></span>
+                        {entry.description && <span className="rh-entry-desc"><RichText text={entry.description} mode="inline" /></span>}
+                        <span className="rh-entry-meta">
+                            {[showFolder ? entry.folder : "", formatEntryDate(entry.updatedAt), `${entry.files.length} 个文件`,
+                                flowers === undefined ? "" : `🌸 ${flowers === "loading" ? "…" : flowers}`].filter(Boolean).join(" · ")}
+                        </span>
+                    </span>
+                </button>
+                <button
+                    type="button"
+                    className={`rh-entry-star-btn${isFav ? " rh-entry-star-active" : ""}`}
+                    aria-label={isFav ? "取消私藏" : "加入私藏"}
+                    title={isFav ? "已私藏（点击取消）" : "加入私藏"}
+                    onClick={e => toggleFavorite(entry.path, e)}
+                >
+                    {isFav ? "★" : "☆"}
+                </button>
+            </div>
+        );
+    };
 
     return (
         <div className="rh-root page-shell">
@@ -815,107 +887,107 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
 
                     {/* 我的货摊 */}
                     {loadState === "ready" && viewMode === "mine" && !activeEntry && (
-                        (myStall.published.length > 0 || myStall.pending.length > 0) ? (
-                            <div className="rh-entry-list">
-                                {/* 摊主资料卡：头像 + 昵称 + 统计 */}
-                                <div className="rh-profile-card">
-                                    <label className="rh-profile-avatar" title="点击更换头像">
-                                        {renderAuthorAvatar(null, 54)}
-                                        <input type="file" accept="image/*" hidden
-                                            onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void handlePickAvatar(f); }} />
-                                        <span className="rh-profile-avatar-hint">换头像</span>
-                                    </label>
-                                    <div className="rh-profile-main">
-                                        <div className="rh-profile-name-row">
-                                        {editingNickname ? (
-                                            <input
-                                                className="rh-input rh-profile-nickname-input"
-                                                autoFocus
-                                                value={profile.nickname}
-                                                placeholder="给自己起个昵称"
-                                                maxLength={24}
-                                                onChange={e => setProfile(current => ({ ...current, nickname: e.target.value }))}
-                                                onBlur={() => { saveHubProfile(profile); setEditingNickname(false); }}
-                                                onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                                            />
-                                        ) : (
-                                            <button className="rh-profile-nickname" onClick={() => setEditingNickname(true)}>
-                                                {profile.nickname || "点这里起个昵称"} <span className="rh-profile-edit-hint">✎</span>
-                                            </button>
-                                        )}
-                                            <button className="rh-key-link" onClick={() => { setClaimFolder(""); setClaimPath(""); setClaimFiles([]); setClaimNote(""); setShowClaim(true); }}>🧾 找回作品</button>
-                                        </div>
-                                        <div className="rh-profile-stats">
-                                            <span>已发布 <b>{myStall.published.length}</b></span>
-                                            <span>待审核 <b>{myStall.pending.length}</b></span>
-                                            <span>收到 <b>{flowerCounts
-                                                ? myStall.published.reduce((sum, e) => sum + (flowerCounts[e.path] ?? 0), 0)
-                                                : "…"}</b> 🌸</span>
-                                            <button className="rh-key-link" onClick={() => { setKeyImportText(""); setShowKeyDialog(true); }}>🔑 摊主钥匙</button>
-                                        </div>
+                        <div className="rh-mine-container">
+                            {/* 摊主资料卡：头像 + 昵称 + 统计 */}
+                            <div className="rh-profile-card">
+                                <label className="rh-profile-avatar" title="点击更换头像">
+                                    {renderAuthorAvatar(null, 54)}
+                                    <input type="file" accept="image/*" hidden
+                                        onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void handlePickAvatar(f); }} />
+                                    <span className="rh-profile-avatar-hint">换头像</span>
+                                </label>
+                                <div className="rh-profile-main">
+                                    <div className="rh-profile-name-row">
+                                    {editingNickname ? (
+                                        <input
+                                            className="rh-input rh-profile-nickname-input"
+                                            autoFocus
+                                            value={profile.nickname}
+                                            placeholder="给自己起个昵称"
+                                            maxLength={24}
+                                            onChange={e => setProfile(current => ({ ...current, nickname: e.target.value }))}
+                                            onBlur={() => { saveHubProfile(profile); setEditingNickname(false); }}
+                                            onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                                        />
+                                    ) : (
+                                        <button className="rh-profile-nickname" onClick={() => setEditingNickname(true)}>
+                                            {profile.nickname || "点这里起个昵称"} <span className="rh-profile-edit-hint">✎</span>
+                                        </button>
+                                    )}
+                                        <button className="rh-key-link" onClick={() => { setClaimFolder(""); setClaimPath(""); setClaimFiles([]); setClaimNote(""); setShowClaim(true); }}>🧾 找回作品</button>
+                                    </div>
+                                    <div className="rh-profile-stats">
+                                        <span>已发布 <b>{myStall.published.length}</b></span>
+                                        <span>待审核 <b>{myStall.pending.length}</b></span>
+                                        <span>收到 <b>{flowerCounts
+                                            ? myStall.published.reduce((sum, e) => sum + (flowerCounts[e.path] ?? 0), 0)
+                                            : (myStall.published.length > 0 ? "…" : 0)}</b> 🌸</span>
+                                        <button className="rh-key-link" onClick={() => { setKeyImportText(""); setShowKeyDialog(true); }}>🔑 摊主钥匙</button>
                                     </div>
                                 </div>
-                                {myStall.published.length > 0 && (
-                                    <div className="rh-stall-flowers">
-                                        {flowerCounts
-                                            ? `🌸 共收到 ${myStall.published.reduce((sum, e) => sum + (flowerCounts[e.path] ?? 0), 0)} 朵花`
-                                            : <><PixelHourglass size={13} /> 正在统计收到的花…</>}
-                                    </div>
-                                )}
-                                {myStall.published.map(entry => renderEntryRow(entry, true, flowerCounts ? (flowerCounts[entry.path] ?? 0) : "loading"))}
-                                {myStall.pending.map(item => (
-                                    <div key={item.name + item.uploadedAt} className="rh-entry rh-entry-pending">
-                                        <span className="rh-entry-thumb rh-entry-thumb-blank">⏳</span>
-                                        <span className="rh-entry-main">
-                                            <span className="rh-entry-title"><RichText text={item.name} mode="sticker" /></span>
-                                            <span className="rh-entry-meta">待管理员审核，或索引尚未更新</span>
-                                        </span>
-                                    </div>
-                                ))}
                             </div>
-                        ) : (
-                            <>
-                                <div className="rh-profile-card">
-                                    <label className="rh-profile-avatar" title="点击更换头像">
-                                        {renderAuthorAvatar(null, 54)}
-                                        <input type="file" accept="image/*" hidden
-                                            onChange={e => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void handlePickAvatar(f); }} />
-                                        <span className="rh-profile-avatar-hint">换头像</span>
-                                    </label>
-                                    <div className="rh-profile-main">
-                                        <div className="rh-profile-name-row">
-                                        {editingNickname ? (
-                                            <input
-                                                className="rh-input rh-profile-nickname-input"
-                                                autoFocus
-                                                value={profile.nickname}
-                                                placeholder="给自己起个昵称"
-                                                maxLength={24}
-                                                onChange={e => setProfile(current => ({ ...current, nickname: e.target.value }))}
-                                                onBlur={() => { saveHubProfile(profile); setEditingNickname(false); }}
-                                                onKeyDown={e => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
-                                            />
-                                        ) : (
-                                            <button className="rh-profile-nickname" onClick={() => setEditingNickname(true)}>
-                                                {profile.nickname || "点这里起个昵称"} <span className="rh-profile-edit-hint">✎</span>
-                                            </button>
-                                        )}
-                                            <button className="rh-key-link" onClick={() => { setClaimFolder(""); setClaimPath(""); setClaimFiles([]); setClaimNote(""); setShowClaim(true); }}>🧾 找回作品</button>
-                                        </div>
-                                        <div className="rh-profile-stats">
-                                            <span>已发布 <b>0</b></span>
-                                            <span>待审核 <b>0</b></span>
-                                            <span>收到 <b>0</b> 🌸</span>
-                                            <button className="rh-key-link" onClick={() => { setKeyImportText(""); setShowKeyDialog(true); }}>🔑 摊主钥匙</button>
-                                        </div>
+
+                            {/* 货摊子选项卡：我的私藏 / 我的发布 */}
+                            <div className="rh-subtabs">
+                                <button
+                                    type="button"
+                                    className="rh-subtab"
+                                    data-active={mineSubTab === "favorites" ? "1" : undefined}
+                                    onClick={() => setMineSubTab("favorites")}
+                                >
+                                    ⭐ 我的私藏 ({favoriteEntries.length})
+                                </button>
+                                <button
+                                    type="button"
+                                    className="rh-subtab"
+                                    data-active={mineSubTab === "published" ? "1" : undefined}
+                                    onClick={() => setMineSubTab("published")}
+                                >
+                                    📦 我的发布 ({myStall.published.length + myStall.pending.length})
+                                </button>
+                            </div>
+
+                            {/* 子选项卡内容 */}
+                            {mineSubTab === "favorites" ? (
+                                favoriteEntries.length > 0 ? (
+                                    <div className="rh-entry-list">
+                                        {favoriteEntries.map(entry => renderEntryRow(entry, true, flowerCounts ? (flowerCounts[entry.path] ?? 0) : undefined))}
                                     </div>
-                                </div>
-                                <div className="rh-center-hint">你还没有上传过资源，点右上角「上传」摆个摊吧</div>
-                            </>
-                        )
+                                ) : (
+                                    <div className="rh-center-hint">
+                                        还没有私藏资源<br />
+                                        在集市大厅点卡片右侧的 ☆ 即可私藏好物～
+                                    </div>
+                                )
+                            ) : (
+                                (myStall.published.length > 0 || myStall.pending.length > 0) ? (
+                                    <div className="rh-entry-list">
+                                        {myStall.published.length > 0 && (
+                                            <div className="rh-stall-flowers">
+                                                {flowerCounts
+                                                    ? `🌸 共收到 ${myStall.published.reduce((sum, e) => sum + (flowerCounts[e.path] ?? 0), 0)} 朵花`
+                                                    : <><PixelHourglass size={13} /> 正在统计收到的花…</>}
+                                            </div>
+                                        )}
+                                        {myStall.published.map(entry => renderEntryRow(entry, true, flowerCounts ? (flowerCounts[entry.path] ?? 0) : "loading"))}
+                                        {myStall.pending.map(item => (
+                                            <div key={item.name + item.uploadedAt} className="rh-entry rh-entry-pending">
+                                                <span className="rh-entry-thumb rh-entry-thumb-blank">⏳</span>
+                                                <span className="rh-entry-main">
+                                                    <span className="rh-entry-title"><RichText text={item.name} mode="sticker" /></span>
+                                                    <span className="rh-entry-meta">待管理员审核，或索引尚未更新</span>
+                                                </span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="rh-center-hint">你还没有上传过资源，点右上角「上传」摆个摊吧</div>
+                                )
+                            )}
+                        </div>
                     )}
 
-                    {/* 搜索框（首页与文件夹页显示） */}
+                    {/* 搜索框与排序栏（首页与文件夹页显示） */}
                     {loadState === "ready" && viewMode === "market" && !activeEntry && (
                         <div className="rh-search-row">
                             <input
@@ -927,6 +999,26 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                             {searchQuery.trim() && (
                                 <button className="rh-btn" onClick={() => setSearchQuery("")}>清除</button>
                             )}
+                            <div className="rh-sort-group">
+                                <button
+                                    type="button"
+                                    className="rh-btn rh-sort-btn"
+                                    data-active={marketSort === "latest" ? "1" : undefined}
+                                    onClick={() => setMarketSort("latest")}
+                                    title="按最新更新排序"
+                                >
+                                    🕒 最新
+                                </button>
+                                <button
+                                    type="button"
+                                    className="rh-btn rh-sort-btn"
+                                    data-active={marketSort === "popular" ? "1" : undefined}
+                                    onClick={() => setMarketSort("popular")}
+                                    title="按热度（送花/下载）排序"
+                                >
+                                    🔥 最热
+                                </button>
+                            </div>
                         </div>
                     )}
 
@@ -934,7 +1026,7 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                     {loadState === "ready" && viewMode === "market" && !activeEntry && searchResults && (
                         searchResults.length > 0 ? (
                             <div className="rh-entry-list">
-                                {searchResults.map(entry => renderEntryRow(entry, true))}
+                                {searchResults.map(entry => renderEntryRow(entry, true, flowerCounts ? (flowerCounts[entry.path] ?? 0) : undefined))}
                             </div>
                         ) : (
                             <div className="rh-center-hint">没有匹配「{searchQuery.trim()}」的资源</div>
@@ -1007,7 +1099,7 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                     {loadState === "ready" && viewMode === "market" && activeFolder && !activeEntry && !searchResults && (
                         folderEntries.length > 0 ? (
                             <div className="rh-entry-list">
-                                {folderEntries.map(entry => renderEntryRow(entry))}
+                                {folderEntries.map(entry => renderEntryRow(entry, false, flowerCounts ? (flowerCounts[entry.path] ?? 0) : undefined))}
                             </div>
                         ) : (
                             <div className="rh-center-hint">这个文件夹还是空的</div>
@@ -1097,6 +1189,13 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                                     {sendingFlower
                                         ? <><PixelHourglass size={13} /> 送出中</>
                                         : hasSentFlowerToday(activeEntry.path) ? "已送🌸" : "送花🌸"}
+                                </button>
+                                <button
+                                    className={`rh-btn rh-fav-btn${favorites.has(activeEntry.path) ? " rh-fav-btn-active" : ""}`}
+                                    title={favorites.has(activeEntry.path) ? "已加入私藏（点击取消）" : "加入我的私藏"}
+                                    onClick={() => toggleFavorite(activeEntry.path)}
+                                >
+                                    {favorites.has(activeEntry.path) ? "已私藏 ★" : "私藏 ☆"}
                                 </button>
                                 {activeEntry.files.length > 0 && (
                                     <>
@@ -1975,6 +2074,102 @@ export function ResourceHubApp({ onClose, onNotice }: { onClose: () => void; onN
                     word-break: break-all;
                 }
                 .rh-folder-count { font-size: calc(10px * var(--app-text-scale, 1)); color: #808080; }
+                /* 条目行容器与收藏星标 */
+                .rh-entry-wrap {
+                    display: flex;
+                    align-items: stretch;
+                    border-bottom: 1px solid #d4d0c8;
+                    background: #fff;
+                }
+                .rh-entry-wrap .rh-entry {
+                    flex: 1;
+                    min-width: 0;
+                    border-bottom: none;
+                }
+                .rh-entry-star-btn {
+                    width: 38px;
+                    flex-shrink: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: none;
+                    border: none;
+                    border-left: 1px dotted #d4d0c8;
+                    font-size: 19px;
+                    color: #9ca3af;
+                    cursor: pointer;
+                    padding: 0;
+                    transition: transform 0.1s ease, color 0.1s ease;
+                }
+                .rh-entry-star-btn:active {
+                    transform: scale(0.9);
+                    background: #e4ecf7;
+                }
+                .rh-entry-star-btn.rh-entry-star-active {
+                    color: #d97706;
+                    text-shadow: 0 0 1px #b45309;
+                }
+
+                /* 排序按钮组 */
+                .rh-sort-group {
+                    display: flex;
+                    gap: 2px;
+                    flex-shrink: 0;
+                }
+                .rh-sort-btn {
+                    padding: 2px 7px;
+                    font-size: calc(11px * var(--app-text-scale, 1));
+                }
+                .rh-sort-btn[data-active] {
+                    background: #fff;
+                    color: #000080;
+                    font-weight: 700;
+                    border-color: #404040 #ffffff #ffffff #404040;
+                }
+
+                /* 详情页私藏按钮 */
+                .rh-fav-btn {
+                    font-size: calc(12px * var(--app-text-scale, 1));
+                    color: #000;
+                }
+                .rh-fav-btn.rh-fav-btn-active {
+                    color: #b45309;
+                    font-weight: 700;
+                    background: #fffcf0;
+                }
+
+                /* 货摊子选项卡（Win98 属性标签页风格） */
+                .rh-mine-container {
+                    display: flex;
+                    flex-direction: column;
+                }
+                .rh-subtabs {
+                    display: flex;
+                    background: #c0c0c0;
+                    padding: 4px 8px 0;
+                    border-bottom: 2px solid #808080;
+                    gap: 3px;
+                    flex-shrink: 0;
+                }
+                .rh-subtab {
+                    padding: 4px 10px;
+                    font-size: calc(11px * var(--app-text-scale, 1));
+                    background: #b0b0b0;
+                    color: #404040;
+                    border: 2px solid;
+                    border-color: #ffffff #404040 #404040 #ffffff;
+                    border-bottom: none;
+                    cursor: pointer;
+                }
+                .rh-subtab[data-active] {
+                    background: #fff;
+                    color: #000080;
+                    font-weight: 700;
+                    border-color: #808080 #808080 #fff #808080;
+                    margin-bottom: -2px;
+                    padding-bottom: 6px;
+                }
+
                 /* 论坛式条目列表 */
                 .rh-entry-list { display: flex; flex-direction: column; }
                 .rh-entry {
