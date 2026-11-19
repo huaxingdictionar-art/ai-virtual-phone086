@@ -16,6 +16,7 @@ import {
     PhoneIncoming,
     PhoneOutgoing,
     PhoneOff,
+    Check,
 } from "lucide-react";
 import { SettingsContext } from "../phone-settings-app";
 import type { SoundProfileConfig, SoundAudioItem } from "@/lib/settings-types";
@@ -190,9 +191,20 @@ export function SoundSettings() {
     const [deletingAudio, setDeletingAudio] = useState<SoundAudioItem | null>(null);
 
     // 弹窗状态：方案管理
+    const [isCreateProfileModalOpen, setIsCreateProfileModalOpen] = useState(false);
+    const [newProfileName, setNewProfileName] = useState("");
     const [isRenameProfileModalOpen, setIsRenameProfileModalOpen] = useState(false);
     const [renamingProfileName, setRenamingProfileName] = useState("");
     const [deletingProfileId, setDeletingProfileId] = useState<string | null>(null);
+
+    // Toast 提示
+    const [toast, setToast] = useState<string | null>(null);
+    const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const showToast = (msg: string) => {
+        if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+        setToast(msg);
+        toastTimerRef.current = setTimeout(() => setToast(null), 2400);
+    };
 
     // 文件上传 ref
     const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -293,13 +305,19 @@ export function SoundSettings() {
         });
     };
 
-    const handleCreateProfile = () => {
+    const handleOpenCreateProfileModal = () => {
+        setNewProfileName(`音效方案 ${profiles.length + 1}`);
+        setIsCreateProfileModalOpen(true);
+    };
+
+    const handleConfirmCreateProfile = () => {
+        const name = newProfileName.trim() || `音效方案 ${profiles.length + 1}`;
         const base = createDefaultSoundProfile();
         const newId = `sound_profile_${Date.now()}`;
         const newProfile: SoundProfileConfig = {
             ...base,
             id: newId,
-            name: `自定义音效方案 ${profiles.length + 1}`,
+            name,
             description: "用户专属配置的音效方案",
             createdAt: Date.now(),
             updatedAt: Date.now(),
@@ -308,6 +326,8 @@ export function SoundSettings() {
         setProfiles(nextList);
         saveSoundProfiles(nextList);
         setActiveProfileId(newId);
+        setIsCreateProfileModalOpen(false);
+        showToast("✓ 已新建并应用方案");
     };
 
     const handleDeleteProfile = (id: string) => {
@@ -319,6 +339,13 @@ export function SoundSettings() {
             setActiveProfileId(nextList[0].id);
         }
         setDeletingProfileId(null);
+        showToast("✓ 音效方案已删除");
+    };
+
+    const handleSaveCurrentProfile = () => {
+        if (!activeProfile) return;
+        saveSoundProfiles(profiles);
+        showToast("✓ 音效方案配置已保存");
     };
 
     const triggerUpload = () => {
@@ -465,7 +492,14 @@ export function SoundSettings() {
     };
 
     return (
-        <div className="flex flex-col gap-4 pb-12 px-1 text-[var(--c-text-title)]">
+        <div className="flex flex-col gap-5 pb-12 px-1 text-[var(--c-text-title)] relative">
+            {/* 优雅悬浮 Toast 提示 */}
+            {toast && (
+                <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-black/85 backdrop-blur-md text-white text-[12px] font-medium shadow-lg transition-all flex items-center gap-1.5 pointer-events-none animate-fade-in">
+                    <span>{toast}</span>
+                </div>
+            )}
+
             <input
                 ref={fileInputRef}
                 type="file"
@@ -475,14 +509,14 @@ export function SoundSettings() {
             />
 
             {/* 1. 当前方案管理 */}
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-2.5">
                 <p className="settings-menu-section-title">PROFILE MANAGEMENT</p>
                 <div className="menu-group p-4 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
                         <span className="text-[13px] font-medium text-[var(--c-text-title)]">当前方案</span>
                         <button
                             type="button"
-                            onClick={handleCreateProfile}
+                            onClick={handleOpenCreateProfileModal}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black text-white text-[12px] font-medium shadow-xs hover:bg-gray-800 active:scale-95 transition-all"
                         >
                             <Plus size={14} /> 新建方案
@@ -496,6 +530,7 @@ export function SoundSettings() {
                                 onChange={e => {
                                     stopAudio();
                                     setActiveProfileId(e.target.value);
+                                    showToast("已切换音效方案");
                                 }}
                                 className="ui-select w-full pr-8 text-[13px]"
                             >
@@ -530,11 +565,24 @@ export function SoundSettings() {
                             </button>
                         )}
                     </div>
+
+                    <div className="pt-1 flex items-center justify-between gap-2 border-t border-black/[0.045]">
+                        <span className="text-[11.5px] text-emerald-600 flex items-center gap-1">
+                            <Check size={13} strokeWidth={2.5} /> 本地存储已就绪
+                        </span>
+                        <button
+                            type="button"
+                            onClick={handleSaveCurrentProfile}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/[0.05] hover:bg-black/[0.08] active:scale-95 text-[12px] font-medium text-[var(--c-text-title)] transition-all"
+                        >
+                            <Check size={13} /> 保存当前配置
+                        </button>
+                    </div>
                 </div>
             </div>
 
             {/* 2. 消息音效 */}
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-2.5">
                 <p className="settings-menu-section-title">MESSAGE SOUNDS</p>
                 <div className="menu-group">
                     <div className="menu-item data-readonly-item">
@@ -549,7 +597,6 @@ export function SoundSettings() {
                         </span>
                         <div className="menu-label-group">
                             <span className="menu-label">消息音效</span>
-                            <span className="menu-desc">新消息与发出消息时的提示声</span>
                         </div>
                         <span className="menu-right">
                             <Toggle
@@ -562,7 +609,7 @@ export function SoundSettings() {
                     </div>
 
                     {activeProfile.messageSoundsEnabled && (
-                        <div className="px-4 pb-4 pt-2 flex flex-col gap-3.5 border-t border-[var(--c-border-light)]/40">
+                        <div className="px-4 pb-4 pt-2 flex flex-col gap-3.5 border-t border-black/[0.045]">
                             {/* 新消息提示音 */}
                             <div className="flex flex-col gap-1.5">
                                 <span className="text-[13px] font-medium text-[var(--c-text-title)] flex items-center gap-1.5">
@@ -575,15 +622,15 @@ export function SoundSettings() {
                                         className="ui-select flex-1 text-[13px]"
                                     >
                                         {soundLibrary.map(audio => (
-                                            <option key={audio.id} value={audio.id}>
-                                                {audio.name} {audio.sourceType === "builtin" ? " (内置)" : ""}
-                                            </option>
+                                             <option key={audio.id} value={audio.id}>
+                                                 {audio.name} {audio.sourceType === "builtin" ? " (内置)" : ""}
+                                             </option>
                                         ))}
                                     </select>
                                     {renderCirclePlayButton(MESSAGE_SLOTS[0])}
                                 </div>
                                 <div className="flex items-center justify-between pt-1 text-[12px] text-[var(--c-text-sub)]">
-                                    <span>防连续轰炸（10秒内多条消息仅响一次）</span>
+                                    <span>防连续轰炸（一轮连续消息仅响一次）</span>
                                     <Toggle
                                         checked={activeProfile.newMessage?.notifyOncePerBurst !== false}
                                         onChange={checked => {
@@ -600,7 +647,7 @@ export function SoundSettings() {
                             </div>
 
                             {/* 极细微线分隔 */}
-                            <div className="border-t border-[var(--c-border-light)]/30" />
+                            <div className="border-t border-black/[0.045]" />
 
                             {/* 发消息提示音 */}
                             <div className="flex flex-col gap-1.5">
@@ -614,9 +661,9 @@ export function SoundSettings() {
                                         className="ui-select flex-1 text-[13px]"
                                     >
                                         {soundLibrary.map(audio => (
-                                            <option key={audio.id} value={audio.id}>
-                                                {audio.name} {audio.sourceType === "builtin" ? " (内置)" : ""}
-                                            </option>
+                                             <option key={audio.id} value={audio.id}>
+                                                 {audio.name} {audio.sourceType === "builtin" ? " (内置)" : ""}
+                                             </option>
                                         ))}
                                     </select>
                                     {renderCirclePlayButton(MESSAGE_SLOTS[1])}
@@ -628,7 +675,7 @@ export function SoundSettings() {
             </div>
 
             {/* 3. 通话音效 */}
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-2.5">
                 <p className="settings-menu-section-title">CALL SOUNDS</p>
                 <div className="menu-group">
                     <div className="menu-item data-readonly-item">
@@ -643,7 +690,6 @@ export function SoundSettings() {
                         </span>
                         <div className="menu-label-group">
                             <span className="menu-label">通话音效</span>
-                            <span className="menu-desc">对方来电、致电与挂断时的提示声</span>
                         </div>
                         <span className="menu-right">
                             <Toggle
@@ -656,14 +702,14 @@ export function SoundSettings() {
                     </div>
 
                     {activeProfile.callSoundsEnabled && (
-                        <div className="px-4 pb-4 pt-2 flex flex-col gap-3.5 border-t border-[var(--c-border-light)]/40">
+                        <div className="px-4 pb-4 pt-2 flex flex-col gap-3.5 border-t border-black/[0.045]">
                             {CALL_SLOTS.map((slot, idx) => {
                                 const Icon = slot.icon;
                                 const slotVal = activeProfile[slot.kind]?.activeAudioId || slot.defaultBuiltinId;
 
                                 return (
                                     <div key={slot.kind} className="flex flex-col gap-1.5">
-                                        {idx > 0 && <div className="border-t border-[var(--c-border-light)]/30 mb-2" />}
+                                        {idx > 0 && <div className="border-t border-black/[0.045] mb-2" />}
                                         <span className="text-[13px] font-medium text-[var(--c-text-title)] flex items-center gap-1.5">
                                             <Icon size={14} className="text-[var(--c-text-sub)]" /> {slot.title}
                                         </span>
@@ -674,9 +720,9 @@ export function SoundSettings() {
                                                 className="ui-select flex-1 text-[13px]"
                                             >
                                                 {soundLibrary.map(audio => (
-                                                    <option key={audio.id} value={audio.id}>
-                                                        {audio.name} {audio.sourceType === "builtin" ? " (内置)" : ""}
-                                                    </option>
+                                                     <option key={audio.id} value={audio.id}>
+                                                         {audio.name} {audio.sourceType === "builtin" ? " (内置)" : ""}
+                                                     </option>
                                                 ))}
                                             </select>
                                             {renderCirclePlayButton(slot)}
@@ -690,7 +736,7 @@ export function SoundSettings() {
             </div>
 
             {/* 4. 音效素材库 */}
-            <div className="space-y-1.5">
+            <div className="flex flex-col gap-2.5">
                 <p className="settings-menu-section-title">SOUND LIBRARY</p>
                 <div className="menu-group p-4 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
@@ -797,6 +843,45 @@ export function SoundSettings() {
                 </div>
             </div>
 
+            {/* 弹窗：新建方案 */}
+            {isCreateProfileModalOpen && (
+                <div className="modal-overlay" data-ui="modal" onClick={() => setIsCreateProfileModalOpen(false)}>
+                    <div
+                        className="modal-dialog max-w-[340px]"
+                        role="dialog"
+                        aria-modal="true"
+                        onClick={e => e.stopPropagation()}
+                    >
+                        <span className="modal-header-title">新建音效方案</span>
+                        <div className="modal-body flex flex-col gap-2">
+                            <span className="text-[12px] text-[var(--c-text-sub)]">为这套音效方案起一个名字：</span>
+                            <Input
+                                value={newProfileName}
+                                onChange={e => setNewProfileName(e.target.value)}
+                                placeholder="输入方案名称"
+                                autoFocus
+                            />
+                        </div>
+                        <div className="modal-actions">
+                            <button
+                                type="button"
+                                className="ui-btn ui-btn-outline"
+                                onClick={() => setIsCreateProfileModalOpen(false)}
+                            >
+                                取消
+                            </button>
+                            <button
+                                type="button"
+                                className="ui-btn ui-btn-primary"
+                                onClick={handleConfirmCreateProfile}
+                            >
+                                确认创建
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             {/* 弹窗：重命名方案 */}
             {isRenameProfileModalOpen && (
                 <div className="modal-overlay" data-ui="modal" onClick={() => setIsRenameProfileModalOpen(false)}>
@@ -829,6 +914,7 @@ export function SoundSettings() {
                                 onClick={() => {
                                     if (renamingProfileName.trim()) {
                                         updateProfile(prev => ({ ...prev, name: renamingProfileName.trim() }));
+                                        showToast("✓ 方案名称已更新");
                                     }
                                     setIsRenameProfileModalOpen(false);
                                 }}

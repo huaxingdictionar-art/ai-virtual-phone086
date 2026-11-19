@@ -116,6 +116,13 @@
   border-left: 3.5px solid var(--c-icon-amber, #d39c36);
   border-radius: 16px;
 }
+.favorites-card.is-chat-card {
+  background: #ffffff;
+  border: 1px solid var(--c-card-border, rgba(20, 30, 45, 0.07));
+  box-shadow: 0 4px 18px rgba(20, 30, 45, 0.04), 0 1px 3px rgba(0, 0, 0, 0.02);
+  border-left: 3.5px solid #4f8cff;
+  border-radius: 16px;
+}
 .favorites-card[data-selected="1"] { outline: 2px solid var(--c-icon-amber, #d39c36); }
 .favorites-card-check { position: absolute; right: 10px; top: 10px; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--c-icon, #94a0b2); display: grid; place-items: center; color: #fff; background: transparent; }
 .favorites-card[data-selected="1"] .favorites-card-check { border-color: var(--c-icon-amber, #d39c36); background: var(--c-icon-amber, #d39c36); }
@@ -198,10 +205,31 @@
 }
 .favorites-role-badge {
   font-size: calc(9.5px * var(--app-text-scale, 1));
-  padding: 1px 5px;
-  border-radius: 4px;
+  padding: 1.5px 5.5px;
+  border-radius: 5px;
+  background: rgba(0, 0, 0, 0.05);
+  color: var(--c-text-sub, #64748b);
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.favorites-role-badge.is-story {
   background: rgba(217, 164, 65, 0.14);
   color: #96703b;
+}
+.favorites-role-badge.is-user {
+  background: rgba(79, 140, 255, 0.12);
+  color: #2563eb;
+}
+.favorites-role-badge.is-peer {
+  background: rgba(139, 92, 246, 0.1);
+  color: #6d28d9;
+}
+.favorites-type-badge {
+  font-size: calc(9px * var(--app-text-scale, 1));
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(0, 0, 0, 0.05);
+  color: #64748b;
   font-weight: 500;
   flex-shrink: 0;
 }
@@ -221,10 +249,114 @@
   border: 1px solid rgba(217, 164, 65, 0.15);
 }
 .favorites-chat-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 3.5px;
+  padding: 2px 6.5px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.035);
+  color: #718096;
   font-size: calc(10.5px * var(--app-text-scale, 1));
-  color: var(--c-icon, #8993a4);
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
+  border: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+/* 聊天气泡式正文排版 */
+.favorites-content-box.is-chat-bubble {
+  background: rgba(243, 245, 249, 0.88);
+  border: 1px solid rgba(0, 0, 0, 0.045);
+  border-radius: 12px;
+  padding: 8px 12px;
+  margin-top: 3px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.015);
+}
+.favorites-content-box.is-chat-bubble.is-user-bubble {
+  background: rgba(239, 246, 255, 0.95);
+  border-color: rgba(191, 219, 254, 0.45);
+}
+.favorites-entry-text.is-chat-text {
+  font-size: calc(13px * var(--app-text-scale, 1));
+  line-height: 1.62;
+  color: #1e293b;
+}
+
+/* 原生高定语音播放胶囊与转文字 */
+.favorites-voice-wrap {
+  margin-top: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.favorites-voice-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 6px 8px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+  color: #1e293b;
+  font-size: calc(12.5px * var(--app-text-scale, 1));
+  cursor: pointer;
+  transition: all 0.15s ease;
+  width: fit-content;
+  min-width: 96px;
+  max-width: 180px;
+  user-select: none;
+}
+.favorites-voice-pill:hover {
+  background: #fcfcfc;
+  border-color: rgba(0, 0, 0, 0.14);
+}
+.favorites-voice-pill:active {
+  transform: scale(0.97);
+}
+.favorites-voice-pill.is-playing {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+.favorites-voice-icon {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, 0.07);
+}
+.favorites-voice-pill.is-playing .favorites-voice-icon {
+  background: rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+}
+.favorites-voice-duration {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  margin-left: auto;
+}
+.favorites-voice-transcription {
+  display: flex;
+  flex-direction: column;
+  gap: 2.5px;
+  padding: 6px 10px;
+  background: rgba(0, 0, 0, 0.025);
+  border-left: 2.5px solid rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+  max-width: 100%;
+}
+.favorites-voice-transcription-tag {
+  font-size: calc(9.5px * var(--app-text-scale, 1));
+  color: #94a3b8;
+  font-weight: 500;
+  line-height: 1;
+}
+.favorites-voice-transcription-text {
+  margin: 0;
+  font-size: calc(12px * var(--app-text-scale, 1));
+  line-height: 1.5;
+  color: #475569;
 }
 
 /* 正文段落：小说排版质感 */

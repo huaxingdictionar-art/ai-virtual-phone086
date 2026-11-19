@@ -16,6 +16,9 @@ import {
   Trash2,
   Users,
   X,
+  Play,
+  Pause,
+  Volume2,
 } from "lucide-react";
 
 import { ChatPageHeader } from "@/components/chat/chat-page-header";
@@ -129,12 +132,57 @@ function FavoriteVideo({ entry }: { entry: FavoriteEntry }) {
 function FavoriteAudio({ entry }: { entry: FavoriteEntry }) {
   const src = useFavoriteMediaUrl(entry.mediaUrl);
   const label = typeof entry.mediaData?.label === "string" ? entry.mediaData.label.trim() : "";
-  const duration = typeof entry.mediaData?.voiceDuration === "number" ? entry.mediaData.voiceDuration : null;
+  const duration = typeof entry.mediaData?.voiceDuration === "number" ? Math.ceil(entry.mediaData.voiceDuration) : null;
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const togglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!audioRef.current || !src) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    }
+  };
+
+  const transcription = label || (entry.content && !entry.content.startsWith("[语音") ? entry.content : "");
 
   return (
-    <div className="favorites-entry-audio" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
-      {src ? <audio controls preload="metadata" src={src}>当前浏览器无法播放这条语音。</audio> : <span>原语音文件已不可用</span>}
-      <small>{label || entry.content || "语音消息"}{duration ? ` · ${Math.ceil(duration)} 秒` : ""}</small>
+    <div className="favorites-voice-wrap" onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
+      {src && (
+        <audio
+          ref={audioRef}
+          src={src}
+          preload="metadata"
+          onEnded={() => setIsPlaying(false)}
+          onPause={() => setIsPlaying(false)}
+          onError={() => setIsPlaying(false)}
+          className="hidden"
+        />
+      )}
+      <button
+        type="button"
+        onClick={togglePlay}
+        disabled={!src}
+        className={`favorites-voice-pill ${isPlaying ? "is-playing" : ""}`}
+        title={isPlaying ? "停止播放" : "播放语音"}
+      >
+        <span className="favorites-voice-icon">
+          {isPlaying ? <Pause size={12} className="fill-current" /> : <Play size={12} className="fill-current ml-0.5" />}
+        </span>
+        <span className="favorites-voice-wave">
+          <Volume2 size={15} className={isPlaying ? "animate-pulse" : ""} />
+        </span>
+        <span className="favorites-voice-duration">{duration ? `${duration}"` : "语音"}</span>
+      </button>
+      {transcription && (
+        <div className="favorites-voice-transcription">
+          <span className="favorites-voice-transcription-tag">转文字</span>
+          <p className="favorites-voice-transcription-text">{transcription}</p>
+        </div>
+      )}
     </div>
   );
 }
@@ -211,32 +259,51 @@ function FavoriteEntryView({
 }) {
   const parsed = parseFavoriteContent(entry.content, isStory);
   const mediaType = entry.mediaType === "media_file" ? entry.mediaData?.fileType : entry.mediaType;
+  const isUser = entry.role === "user";
 
   return (
-    <div className={`favorites-entry ${isStory ? "is-story-entry" : ""}`} data-role={entry.role}>
+    <div
+      className={`favorites-entry ${isStory ? "is-story-entry" : "is-chat-entry"} ${isUser ? "is-user-entry" : "is-peer-entry"}`}
+      data-role={entry.role}
+    >
       <div className="favorites-entry-meta">
         <div className="favorites-sender-wrap">
           <strong className="favorites-sender-name">{entry.senderName}</strong>
-          {isStory && (
-            <span className="favorites-role-badge">剧情</span>
+          {isStory ? (
+            <span className="favorites-role-badge is-story">剧情</span>
+          ) : isUser ? (
+            <span className="favorites-role-badge is-user">我</span>
+          ) : (
+            <span className="favorites-role-badge is-peer">角色</span>
+          )}
+          {mediaType === "audio" && (
+            <span className="favorites-type-badge">语音</span>
+          )}
+          {mediaType === "image" && (
+            <span className="favorites-type-badge">图片</span>
           )}
         </div>
-        <div className="favorites-entry-time" title={isStory ? "角色所处的剧情时空时间" : "消息时间"}>
+        <div className="favorites-entry-time" title={isStory ? "角色所处的剧情时空时间" : "消息发送时间"}>
           {isStory ? (
             <span className="favorites-story-time">
-              <Clock size={11} className="shrink-0 opacity-70" />
+              <Clock size={10.5} className="shrink-0 opacity-70" />
               <span>剧中 {formatDate(entry.createdAt)}</span>
             </span>
           ) : (
-            <span className="favorites-chat-time">{formatDate(entry.createdAt)}</span>
+            <span className="favorites-chat-time">
+              <Clock size={10.5} className="shrink-0 opacity-60" />
+              <span>{formatDate(entry.createdAt)}</span>
+            </span>
           )}
         </div>
       </div>
 
-      {parsed.visible && (
-        <p className={`favorites-entry-text ${compact ? "is-compact" : ""} ${isStory ? "is-story-text" : ""}`}>
-          {parsed.visible}
-        </p>
+      {parsed.visible && mediaType !== "audio" && (
+        <div className={`favorites-content-box ${isStory ? "is-story-box" : "is-chat-bubble"} ${isUser ? "is-user-bubble" : ""}`}>
+          <p className={`favorites-entry-text ${compact ? "is-compact" : ""} ${isStory ? "is-story-text" : "is-chat-text"}`}>
+            {parsed.visible}
+          </p>
+        </div>
       )}
 
       {/* 剧情概要（SUMMARY）精致优雅板块 */}
@@ -536,7 +603,7 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
               return (
                 <article
                   key={item.id}
-                  className={`favorites-card ${item.category === "story" ? "is-story-card" : ""}`}
+                  className={`favorites-card ${item.category === "story" ? "is-story-card" : "is-chat-card"}`}
                   data-selected={selected ? "1" : "0"}
                   data-category={item.category}
                   onPointerDown={event => handleCardPointerDown(event, item.id)}
@@ -616,8 +683,10 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
             <header>
               <div>
                 <strong>{detailItem.title}</strong>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span className="text-[11px] text-[var(--c-icon)]">{detailItem.entityName}</span>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[11.5px] font-medium text-slate-600 bg-black/[0.04] px-2 py-0.5 rounded-md">
+                    {detailItem.entityName}
+                  </span>
                   <span className="favorites-time-pill">
                     <span className="favorites-time-pill-label">现实</span>
                     <time>{formatDate(detailItem.createdAt)}</time>
