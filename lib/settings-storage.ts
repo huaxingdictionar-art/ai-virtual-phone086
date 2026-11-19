@@ -693,7 +693,6 @@ export function createDefaultSoundProfile(): SoundProfileConfig {
                     value: "builtin:chime",
                 },
             ],
-            muteActiveChat: false,
             notifyOncePerBurst: true,
         },
         sendMessage: {
@@ -762,6 +761,31 @@ export function loadSoundProfiles(): SoundProfileConfig[] {
             saveSoundProfiles(initial);
             return initial;
         }
+
+        // 清洗废弃字段与废弃类型，保持存储备份100%纯净
+        let needsSave = false;
+        for (const p of parsed) {
+            for (const key of ["newMessage", "sendMessage", "incomingCall", "outgoingCall", "hangup"] as const) {
+                const ch = p[key];
+                if (ch) {
+                    if ("muteActiveChat" in ch) {
+                        delete (ch as Record<string, unknown>).muteActiveChat;
+                        needsSave = true;
+                    }
+                    if (ch.audios && Array.isArray(ch.audios)) {
+                        const originalLen = ch.audios.length;
+                        ch.audios = ch.audios.filter((a: any) => a && a.sourceType !== "url");
+                        if (ch.audios.length !== originalLen) {
+                            needsSave = true;
+                        }
+                    }
+                }
+            }
+        }
+        if (needsSave) {
+            saveSoundProfiles(parsed);
+        }
+
         return parsed as SoundProfileConfig[];
     } catch {
         return [createDefaultSoundProfile()];
@@ -837,6 +861,9 @@ export function loadSoundLibrary() {
         if (!Array.isArray(list) || list.length === 0) {
             list = [...DEFAULT_BUILTIN_AUDIOS];
         }
+
+        // 过滤掉废弃的 url 类型音频
+        list = list.filter(item => item && item.sourceType !== "url");
 
         const existingIds = new Set(list.map(item => item.id));
         for (const builtin of DEFAULT_BUILTIN_AUDIOS) {

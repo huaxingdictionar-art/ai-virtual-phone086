@@ -382,12 +382,10 @@ export type ChatSoundKind = "newMessage" | "sendMessage" | "incomingCall" | "out
 export type ChatSoundConfig = {
     /** 是否开启该提示音 */
     enabled?: boolean;
-    /** 音频来源："file"=用户上传的音频文件（IndexedDB 资产 id）；"url"=音频 URL */
-    sourceType?: "file" | "url";
-    /** sourceType="file" 时为资产 id；sourceType="url" 时为音频地址 */
+    /** 音频来源："file"=用户上传的音频文件（IndexedDB 资产 id） */
+    sourceType?: "file";
+    /** sourceType="file" 时为资产 id 或 inline DataURL */
     value?: string;
-    /** （仅新消息音效）开启后当前正打开该聊天时，角色新消息不播放音效 */
-    muteActiveChat?: boolean;
     /** （仅新消息音效）开启后同一角色连续多条消息只播一次音效 */
     notifyOncePerBurst?: boolean;
 };
@@ -440,7 +438,6 @@ export function resolveChatSoundConfig(
         enabled: masterEnabled && channel.enabled !== false,
         sourceType: activeAudio && activeAudio.sourceType !== "builtin" ? activeAudio.sourceType : undefined,
         value: activeAudio && activeAudio.sourceType !== "builtin" ? effectiveValue : undefined,
-        muteActiveChat: channel.muteActiveChat,
         notifyOncePerBurst: channel.notifyOncePerBurst,
     };
 

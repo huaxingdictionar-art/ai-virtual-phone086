@@ -252,7 +252,7 @@ export type ImageGenerationSettings = {
 export type SoundAudioItem = {
     id: string;
     name: string;
-    sourceType: "builtin" | "file" | "url";
+    sourceType: "builtin" | "file";
     value: string;
     /** 小型音频直接内嵌 DataURL（小于300KB），无论如何备份与迁移均100%跟随配置 */
     dataUrl?: string;
@@ -262,8 +262,6 @@ export type SoundChannelConfig = {
     enabled: boolean;
     activeAudioId?: string;
     audios: SoundAudioItem[];
-    /** 仅新消息：当前打开该聊天时静音 */
-    muteActiveChat?: boolean;
     /** 仅新消息：防轰炸，10秒内连续多条仅响一次 */
     notifyOncePerBurst?: boolean;
 };

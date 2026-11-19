@@ -110,7 +110,6 @@ const dataUrlCache = new Map<string, string>();
 async function resolveChatSoundSrc(kind: ChatSoundKind, session?: SessionLike): Promise<string | null> {
     const config = resolveChatSoundConfig(kind, session);
     if (!config.value) return null;
-    if (config.sourceType === "url") return config.value;
     // 兼容历史数据 / 手写配置：直接是 data: 或 http(s) 地址时原样使用
     if (config.value.startsWith("data:") || /^https?:/i.test(config.value)) return config.value;
     const cached = dataUrlCache.get(config.value);
@@ -257,13 +256,11 @@ function getBurstKey(msg: ChatMessage): string {
     return msg.senderCharacterId || msg.sessionId;
 }
 
-function shouldPlayNewMessageSound(msg: ChatMessage, muteActiveChat: boolean, notifyOnce: boolean): boolean {
+function shouldPlayNewMessageSound(msg: ChatMessage, notifyOnce: boolean): boolean {
     if (SILENT_ASSISTANT_MEDIA_TYPES.has(msg.mediaType || "")) return false;
     if (msg.origin && SILENT_ORIGINS.has(msg.origin)) return false;
     if (CALL_SYS_MSG_RE.test(msg.content)) return false;
     if (!msg.content.trim() && !msg.mediaType) return false;
-    // 正在看该聊天时是否静音
-    if (muteActiveChat && isSessionBeingWatched(msg.sessionId)) return false;
     // 防轰炸：10秒内只响一次
     if (notifyOnce) {
         const key = getBurstKey(msg);
@@ -302,8 +299,7 @@ export function installChatSoundListener(): () => void {
             if (config.enabled === false) return;
             // 默认防轰炸开启（notifyOncePerBurst !== false）
             const notifyOnce = config.notifyOncePerBurst !== false;
-            const muteActive = config.muteActiveChat === true;
-            if (!shouldPlayNewMessageSound(msg, muteActive, notifyOnce)) return;
+            if (!shouldPlayNewMessageSound(msg, notifyOnce)) return;
             markBurstPlayed(msg);
             void playChatSoundOnce("newMessage", session);
         }
