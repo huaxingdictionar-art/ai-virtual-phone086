@@ -179,10 +179,10 @@
   --c-home-pink: rgba(255, 160, 175, 0.5);
   /* 组件装饰粉（心形/引号/符号） */
 
-  /* ═══ Phone Shell ═══ */
-  --phone-screen-width: 390px;
-  --phone-screen-height: 844px;
-  --phone-screen-radius: 48px;
+  /* ═══ Phone Shell (荣耀400 · 6.55英寸 专属定制) ═══ */
+  --phone-screen-width: 412px;
+  --phone-screen-height: 892px;
+  --phone-screen-radius: 40px;
   --phone-frame-size: 4px;
   --phone-frame-color: #111111;
   --phone-frame-radius: calc(var(--phone-screen-radius) + var(--phone-frame-size));

@@ -39,8 +39,8 @@ async function main() {
       '/c',
       'start',
       'msedge',
-      `--app=${TARGET_URL}`,
-      '--window-size=430,932',
+      '--app=' + TARGET_URL,
+      '--window-size=480,980',
     ], { detached: true, stdio: 'ignore' });
     browserProcess.unref();
   } else {
