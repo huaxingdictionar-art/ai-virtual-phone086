@@ -306,7 +306,7 @@
 .favorites-tabs { position: absolute; left: 0; right: 0; bottom: 0; z-index: 40; min-height: calc(62px + env(safe-area-inset-bottom)); padding: 7px 10px env(safe-area-inset-bottom); display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--c-card-border, rgba(20,30,45,.08)); background: color-mix(in srgb, var(--c-page-body-bg, #fff) 90%, transparent); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
 .favorites-tabs button { border: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--c-icon, #8b94a3); background: transparent; font-size: calc(9px*var(--app-text-scale,1)); }
 .favorites-tabs button[data-active="1"] { color: #a87920; }
-.favorites-detail-backdrop { position: absolute; inset: 0; z-index: 200; display: flex; align-items: flex-end; padding: 18px 12px calc(14px + env(safe-area-inset-bottom)); background: rgba(18,25,35,.42); }
+.favorites-detail-backdrop { position: absolute; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 24px 16px; background: rgba(18,25,35,.45); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); }
 .favorites-detail { width: 100%; max-height: 82%; display: flex; flex-direction: column; overflow: hidden; border-radius: 22px; color: var(--c-text, #334155); background: var(--c-page-body-bg, #f8f9fb); box-shadow: 0 18px 58px rgba(0,0,0,.24); }
 .favorites-detail > header { padding: 15px 16px 10px; display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
 .favorites-detail > header > div { min-width: 0; display: grid; gap: 4px; }

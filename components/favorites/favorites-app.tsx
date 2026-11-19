@@ -617,7 +617,6 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
               </div>
               <button type="button" onClick={() => setDetailItem(null)} aria-label="关闭"><X size={19} /></button>
             </header>
-            <div className="favorites-detail-tags">{detailItem.tags.map(tag => <span key={tag}>{tag}</span>)}</div>
             <div className="favorites-detail-body">
               {detailItem.entries.map(entry => (
                 <FavoriteEntryView
@@ -628,7 +627,13 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
               ))}
             </div>
             <footer>
-              <span>时序来源：{detailItem.containerName}</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {detailItem.tags.map(tag => (
+                  <span key={tag} className={detailItem.category === "story" ? "is-story-tag" : ""}>
+                    {tag}
+                  </span>
+                ))}
+              </div>
               <button type="button" onClick={async () => { await deleteFavoriteItems([detailItem.id]); setDetailItem(null); await refresh(); }}><Trash2 size={15} />删除</button>
             </footer>
           </section>
