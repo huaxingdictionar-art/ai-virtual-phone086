@@ -631,13 +631,13 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
                   <footer>
                     <div className="favorites-card-footer-tags">
                       {item.tags.map(tag => (
-                        <span key={tag} className="is-story-tag">
+                        <span key={tag} className={item.category === "story" ? "is-story-tag" : "is-chat-tag"}>
                           {tag}
                         </span>
                       ))}
                     </div>
-                    <div className="favorites-time-pill" title="现实世界收藏时间">
-                      <span className="favorites-time-pill-label">现实</span>
+                    <div className="favorites-card-reality-time" title="现实世界收藏时间">
+                      <span>现实</span>
                       <time>{formatDate(item.createdAt || item.sourceCreatedAt)}</time>
                     </div>
                   </footer>
@@ -676,20 +676,24 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
             aria-modal="true"
             onClick={event => event.stopPropagation()}
           >
-            <header>
-              <div>
-                <strong>{detailItem.title}</strong>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-[11.5px] font-medium text-slate-600 bg-black/[0.04] px-2 py-0.5 rounded-md">
-                    {detailItem.entityName}
+            <header className="favorites-detail-header">
+              <div className="favorites-detail-header-info">
+                <div className={`favorites-detail-overline ${detailItem.category === "story" ? "is-story" : "is-chat"}`}>
+                  {detailItem.category === "story" ? "STORY ARCHIVE" : "CHAT ARCHIVE"}
+                </div>
+                <div className="favorites-detail-title-row">
+                  <h3 className="favorites-detail-entity-name">{detailItem.entityName}</h3>
+                  <span className={`favorites-detail-type-tag ${detailItem.category === "story" ? "is-story" : "is-chat"}`}>
+                    {detailItem.title}
                   </span>
-                  <span className="favorites-time-pill">
-                    <span className="favorites-time-pill-label">现实</span>
-                    <time>{formatDate(detailItem.createdAt)}</time>
+                </div>
+                <div className="favorites-detail-meta-row">
+                  <span className="favorites-detail-time-text">
+                    现实 {formatDate(detailItem.createdAt)}
                   </span>
                 </div>
               </div>
-              <button type="button" onClick={() => setDetailItem(null)} aria-label="关闭"><X size={19} /></button>
+              <button type="button" className="favorites-detail-close-btn" onClick={() => setDetailItem(null)} aria-label="关闭"><X size={19} /></button>
             </header>
             <div className="favorites-detail-body">
               {detailItem.entries.map(entry => (
@@ -701,9 +705,9 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
               ))}
             </div>
             <footer>
-              <div className="flex items-center gap-1.5 flex-wrap">
+              <div className="favorites-detail-footer-tags">
                 {detailItem.tags.map(tag => (
-                  <span key={tag} className={detailItem.category === "story" ? "is-story-tag" : ""}>
+                  <span key={tag} className={detailItem.category === "story" ? "is-story-tag" : "is-chat-tag"}>
                     {tag}
                   </span>
                 ))}

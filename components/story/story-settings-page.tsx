@@ -668,10 +668,38 @@ export function StorySettingsPage(props: StorySettingsPageProps) {
         </SettingCard>
 
         <SettingCard title="生成设置" hint="检查预设条目与生成设置是否重复">
-          <div className="story-generation-three-grid">
-            <label className="story-generation-control"><span>用户人称</span><select value={normalized.userPerspective} onChange={(event) => patchSettings({ userPerspective: event.target.value as StoryCharacterSettings["userPerspective"] })}><option value="second">第二人称“你”</option><option value="third">第三人称“TA”</option><option value="username">用户名“{props.userName}”</option></select></label>
-            <label className="story-generation-control"><span>正文文风</span><select value={normalized.activeProseStyleSchemeId} onChange={(event) => patchSettings({ activeProseStyleSchemeId: event.target.value })}>{repo.proseStyleSchemes.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-            <div className="story-generation-control story-generation-length"><span>正文字数</span><div><CharLimitInput label="最少" value={normalized.minChars ?? 800} onCommit={(minChars) => patchSettings({ minChars })} /><CharLimitInput label="最多" value={normalized.maxChars ?? 1500} onCommit={(maxChars) => patchSettings({ maxChars })} /></div></div>
+          <div className="story-generation-grid">
+            <div className="story-generation-top-row">
+              <label className="story-generation-control">
+                <span>用户人称</span>
+                <select
+                  value={normalized.userPerspective}
+                  onChange={(event) => patchSettings({ userPerspective: event.target.value as StoryCharacterSettings["userPerspective"] })}
+                >
+                  <option value="second">第二人称“你”</option>
+                  <option value="third">第三人称“TA”</option>
+                  <option value="username">用户名“{props.userName}”</option>
+                </select>
+              </label>
+              <label className="story-generation-control">
+                <span>正文文风</span>
+                <select
+                  value={normalized.activeProseStyleSchemeId}
+                  onChange={(event) => patchSettings({ activeProseStyleSchemeId: event.target.value })}
+                >
+                  {repo.proseStyleSchemes.map((item) => (
+                    <option key={item.id} value={item.id}>{item.name}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="story-generation-control story-generation-length is-full-width">
+              <span>正文字数</span>
+              <div className="story-generation-length-inputs">
+                <CharLimitInput label="最少" value={normalized.minChars ?? 800} onCommit={(minChars) => patchSettings({ minChars })} />
+                <CharLimitInput label="最多" value={normalized.maxChars ?? 1500} onCommit={(maxChars) => patchSettings({ maxChars })} />
+              </div>
+            </div>
           </div>
           <ToggleRow title="引导生成角色心声" detail="结合人设和情境，适量用 *心声内容* 描写角色未说出口的想法" checked={Boolean(normalized.innerThoughtGenerationEnabled)} onChange={(value) => patchSettings({ innerThoughtGenerationEnabled: value })} />
           <ToggleRow title="引导使用重点强调" detail="适量用 **重点内容** 加粗重要的情绪、动作或句子" checked={Boolean(normalized.emphasisGenerationEnabled)} onChange={(value) => patchSettings({ emphasisGenerationEnabled: value })} />
