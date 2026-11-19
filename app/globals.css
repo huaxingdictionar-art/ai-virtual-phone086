@@ -586,7 +586,7 @@
 
 /* 收藏详情弹窗极简高级排版（第一行仅保留英文标识与现实时间） */
 .favorites-detail-header {
-  padding: 16px 20px 13px;
+  padding: 16px 20px 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -594,23 +594,38 @@
   user-select: none;
 }
 .favorites-detail-archive-tag {
-  font-size: calc(10.5px * var(--app-text-scale, 1));
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6.5px;
+  font-size: calc(13px * var(--app-text-scale, 1));
+  font-weight: 800;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   line-height: 1;
 }
+.favorites-detail-archive-tag::before {
+  content: "";
+  display: inline-block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background-color: currentColor;
+  opacity: 0.75;
+}
 .favorites-detail-archive-tag.is-chat {
-  color: #6366f1;
+  color: #4f46e5;
 }
 .favorites-detail-archive-tag.is-story {
   color: #d97706;
 }
 .favorites-detail-reality-time {
-  font-size: calc(11px * var(--app-text-scale, 1));
+  font-size: calc(10.5px * var(--app-text-scale, 1));
   color: #94a3b8;
+  font-weight: 500;
+  letter-spacing: 0.02em;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+  opacity: 0.85;
 }
 
 .favorites-detail-footer-tags {
