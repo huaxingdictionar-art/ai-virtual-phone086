@@ -996,113 +996,104 @@ export function SoundSettings() {
 
             {/* 弹窗：自定义音频设置（重命名、音量调节、删除） */}
             {isAudioConfigModalOpen && editingAudio && (
-                <div className="modal-overlay" data-ui="modal" onClick={() => setIsAudioConfigModalOpen(false)}>
+                <div className="modal-overlay" style={{ zIndex: 10005 }} onClick={() => setIsAudioConfigModalOpen(false)}>
                     <div
-                        className="modal-dialog max-w-[340px] p-5 rounded-2xl bg-white shadow-2xl flex flex-col gap-4"
-                        role="dialog"
-                        aria-modal="true"
+                        className="modal-expand"
+                        data-ui="modal-dialog"
+                        style={{ width: "min(400px, calc(100% - 32px))", maxHeight: "80%" }}
                         onClick={e => e.stopPropagation()}
                     >
-                        {/* 顶栏：标题与关闭按钮 */}
-                        <div className="flex items-center justify-between pb-1">
-                            <span className="text-[15px] font-semibold text-[var(--c-text-title)]">
-                                音效设置与编辑
+                        <div className="modal-header justify-center" data-ui="modal-header" style={{ justifyContent: "center" }}>
+                            <span className="modal-header-title" style={{ textAlign: "center", width: "100%" }}>
+                                编辑音效
                             </span>
-                            <button
-                                type="button"
-                                onClick={() => setIsAudioConfigModalOpen(false)}
-                                className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--c-text-sub)] hover:text-[var(--c-text-title)] hover:bg-black/5 transition-colors"
-                                aria-label="关闭"
-                            >
-                                <X size={16} />
-                            </button>
                         </div>
 
-                        <div className="flex flex-col gap-3.5">
-                            {/* 音频名称 */}
-                            <div className="flex flex-col gap-1.5">
-                                <span className="text-[12px] font-medium text-[var(--c-text-sub,#64748b)]">
-                                    音效名称
-                                </span>
-                                <Input
-                                    value={editingAudioName}
-                                    onChange={e => setEditingAudioName(e.target.value)}
-                                    placeholder="输入音频名称"
-                                    className="w-full text-[13px] py-2 px-3 rounded-xl border border-black/10 focus:border-black/25 focus:ring-0"
-                                    autoFocus
-                                />
-                            </div>
-
-                            {/* 音量微调卡片 */}
-                            <div className="flex flex-col gap-2 p-3.5 rounded-xl bg-black/[0.03] border border-black/[0.03]">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[12px] font-medium text-[var(--c-text-title)]">
-                                        单音效音量
-                                    </span>
-                                    <span className="text-[12px] font-semibold text-[var(--c-text-title)] tabular-nums">
-                                        {Math.round(editingAudioVolume * 100)}%
+                        <div className="modal-body hide-scrollbar" data-ui="modal-body">
+                            <div className="flex flex-col gap-4">
+                                <div className="flex flex-col gap-1">
+                                    <label className="menu-desc ml-1 font-medium">音效名称（必填）</label>
+                                    <Input
+                                        type="text"
+                                        value={editingAudioName}
+                                        onChange={e => setEditingAudioName(e.target.value)}
+                                        placeholder="例如: 专属新消息提示音"
+                                        autoFocus
+                                    />
+                                    <span className="menu-desc ml-1 opacity-70">
+                                        用于在方案配置中识别该音频素材
                                     </span>
                                 </div>
 
-                                {activeProfile?.autoVolumeNormalization ? (
-                                    <p className="text-[11px] text-[var(--c-text-sub,#64748b)] leading-relaxed mt-0.5">
-                                        💡 当前方案已开启「自动音量均衡」，所有音效将由智能响度算法统一接管。
-                                    </p>
-                                ) : (
-                                    <div className="flex items-center gap-3 pt-1">
-                                        <input
-                                            type="range"
-                                            min={0.1}
-                                            max={1.5}
-                                            step={0.05}
-                                            value={editingAudioVolume}
-                                            onChange={e => {
-                                                const val = Number.parseFloat(e.target.value);
-                                                setEditingAudioVolume(val);
-                                            }}
-                                            className="flex-1 accent-neutral-800 cursor-pointer h-1.5 bg-neutral-200 rounded-lg appearance-none"
-                                        />
+                                <div className="flex flex-col gap-1">
+                                    <div className="flex items-center justify-between ml-1 pr-1">
+                                        <label className="menu-desc font-medium">单音效音量</label>
+                                        <span className="menu-desc font-semibold tabular-nums">
+                                            {Math.round(editingAudioVolume * 100)}%
+                                        </span>
+                                    </div>
+                                    {activeProfile?.autoVolumeNormalization ? (
+                                        <span className="menu-desc ml-1 opacity-70 leading-relaxed">
+                                            💡 当前方案已开启「自动音量均衡」，所有音效由智能响度算法统一接管
+                                        </span>
+                                    ) : (
+                                        <div className="flex items-center gap-3 px-3 py-2 rounded-xl bg-black/[0.03]">
+                                            <input
+                                                type="range"
+                                                min={0.1}
+                                                max={1.5}
+                                                step={0.05}
+                                                value={editingAudioVolume}
+                                                onChange={e => {
+                                                    const val = Number.parseFloat(e.target.value);
+                                                    setEditingAudioVolume(val);
+                                                }}
+                                                className="flex-1 accent-neutral-800 cursor-pointer h-1.5 bg-neutral-200 rounded-lg appearance-none"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => playAudioItem(editingAudio, undefined, editingAudioVolume)}
+                                                className="px-3 py-1 rounded-full bg-black/[0.06] hover:bg-black/10 text-[11.5px] font-medium shrink-0 active:scale-95 transition-all"
+                                            >
+                                                试听
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center justify-between pt-2">
+                                    <div>
                                         <button
                                             type="button"
-                                            onClick={() => playAudioItem(editingAudio, undefined, editingAudioVolume)}
-                                            className="px-3 py-1 rounded-full bg-black/[0.06] hover:bg-black/10 text-[11.5px] font-medium shrink-0 active:scale-95 transition-all"
+                                            onClick={() => {
+                                                const toDelete = editingAudio;
+                                                setIsAudioConfigModalOpen(false);
+                                                setDeletingAudio(toDelete);
+                                            }}
+                                            className="ui-btn ui-btn-ghost px-2"
+                                            style={{ color: "var(--c-danger, #fa5151)" }}
                                         >
-                                            试听
+                                            删除
                                         </button>
                                     </div>
-                                )}
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setIsAudioConfigModalOpen(false)}
+                                            className="ui-btn ui-btn-outline"
+                                        >
+                                            取消
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleSaveAudioConfig}
+                                            className="ui-btn ui-btn-primary"
+                                        >
+                                            保存
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-
-                        {/* 底部操作区：类似第五图的优雅双按钮，外加删除 */}
-                        <div className="flex flex-col gap-2 pt-1 border-t border-black/[0.045]">
-                            <div className="grid grid-cols-2 gap-2.5">
-                                <button
-                                    type="button"
-                                    className="py-2.5 px-3 rounded-xl border border-black/10 bg-white hover:bg-black/[0.03] text-[13px] font-medium text-[var(--c-text-title)] text-center transition-all active:scale-98"
-                                    onClick={() => setIsAudioConfigModalOpen(false)}
-                                >
-                                    取消
-                                </button>
-                                <button
-                                    type="button"
-                                    className="py-2.5 px-3 rounded-xl bg-[#1e293b] hover:bg-[#0f172a] text-white text-[13px] font-medium text-center shadow-xs transition-all active:scale-98"
-                                    onClick={handleSaveAudioConfig}
-                                >
-                                    保存设置
-                                </button>
-                            </div>
-                            <button
-                                type="button"
-                                className="w-full text-center py-1.5 text-[12px] font-medium text-red-500 hover:text-red-600 transition-colors"
-                                onClick={() => {
-                                    const toDelete = editingAudio;
-                                    setIsAudioConfigModalOpen(false);
-                                    setDeletingAudio(toDelete);
-                                }}
-                            >
-                                删除音频素材
-                            </button>
                         </div>
                     </div>
                 </div>
