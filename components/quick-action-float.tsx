@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type CSSProperties } from "react";
-import { BookOpen, Check, ChevronDown, Code2, SlidersHorizontal, UserRound, X } from "lucide-react";
+import { BookOpen, Check, ChevronDown, Code2, SlidersHorizontal, UserRound, Volume2, X } from "lucide-react";
 import { CHAT_APP_SETTINGS_UPDATED_EVENT, loadChatAppSettings } from "@/lib/chat-storage";
 import {
     getFloatingDockState,
@@ -16,15 +16,17 @@ import {
     getCharacterBinding,
     loadApiConfigs,
     loadBindingConfig,
+    loadSoundProfiles,
     loadWorldBooks,
     saveBindingConfig,
     setCharacterBinding,
 } from "@/lib/settings-storage";
-import type { ApiConfig, BindingConfig, BindingSlot, WorldBookConfig } from "@/lib/settings-types";
+import type { ApiConfig, BindingConfig, BindingSlot, SoundProfileConfig, WorldBookConfig } from "@/lib/settings-types";
 import { loadCharacters } from "@/lib/character-storage";
 import type { Character } from "@/lib/character-types";
 
 type QuickScope = "global" | "character";
+type SectionKey = "api" | "worldbook" | "sound";
 type FloatingPosition = { left: number; top: number };
 type PopoverPosition = { left: number; top: number };
 type FloatingDragState = {
@@ -39,6 +41,7 @@ type FloatingDragState = {
 };
 
 const EMPTY_BINDING_CONFIG: BindingConfig = { globalDefaults: {}, characterBindings: [] };
+const QUICK_ACTION_COLLAPSED_KEY = "ai_phone_quick_action_collapsed_sections_v2";
 
 function clampFloatingPosition(value: number, max: number): number {
     return Math.min(Math.max(12, value), max);
@@ -63,17 +66,46 @@ export function QuickActionFloat() {
     const [config, setConfig] = useState<BindingConfig>(EMPTY_BINDING_CONFIG);
     const [apiConfigs, setApiConfigs] = useState<ApiConfig[]>([]);
     const [worldBooks, setWorldBooks] = useState<WorldBookConfig[]>([]);
+    const [soundProfiles, setSoundProfiles] = useState<SoundProfileConfig[]>([]);
     const [characters, setCharacters] = useState<Character[]>([]);
     const [floatingPosition, setFloatingPosition] = useState<FloatingPosition | null>(null);
     const [popoverPosition, setPopoverPosition] = useState<PopoverPosition | null>(null);
     const [draggingFloatingButton, setDraggingFloatingButton] = useState(false);
     const [floatingDockEnabled, setFloatingDockEnabled] = useState(false);
     const [promptViewerEnabled, setPromptViewerEnabled] = useState(false);
+
+    // 折叠状态持久化：默认收起世界书和音效方案，展开 API，保持面板极致轻薄不需滑动
+    const [collapsedSections, setCollapsedSections] = useState<Record<SectionKey, boolean>>(() => {
+        if (typeof window === "undefined") return { api: false, worldbook: true, sound: true };
+        try {
+            const saved = localStorage.getItem(QUICK_ACTION_COLLAPSED_KEY);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                return {
+                    api: Boolean(parsed.api),
+                    worldbook: Boolean(parsed.worldbook),
+                    sound: Boolean(parsed.sound),
+                };
+            }
+        } catch {}
+        return { api: false, worldbook: true, sound: true };
+    });
+
     const dockState = useSyncExternalStore(subscribeFloatingDockState, getFloatingDockState, getFloatingDockState);
     const layerRef = useRef<HTMLDivElement | null>(null);
     const floatingButtonRef = useRef<HTMLButtonElement | null>(null);
     const floatingDragRef = useRef<FloatingDragState | null>(null);
     const suppressFloatingClickRef = useRef(false);
+
+    const toggleSection = useCallback((key: SectionKey) => {
+        setCollapsedSections(prev => {
+            const next = { ...prev, [key]: !prev[key] };
+            try {
+                localStorage.setItem(QUICK_ACTION_COLLAPSED_KEY, JSON.stringify(next));
+            } catch {}
+            return next;
+        });
+    }, []);
 
     const handleClose = useCallback(() => {
         setOpen(false);
@@ -87,6 +119,7 @@ export function QuickActionFloat() {
         setConfig(loadBindingConfig());
         setApiConfigs(loadApiConfigs());
         setWorldBooks(loadWorldBooks());
+        setSoundProfiles(loadSoundProfiles());
         setCharacters(nextCharacters);
         setSelectedCharId(prev => {
             if (prev && nextCharacters.some(character => character.id === prev)) return prev;
@@ -117,9 +150,11 @@ export function QuickActionFloat() {
         const handleBindingsUpdated = () => reloadData();
         const handleFocus = () => reloadData();
         window.addEventListener("settings-bindings-updated", handleBindingsUpdated);
+        window.addEventListener("sound-profiles-updated", handleBindingsUpdated);
         window.addEventListener("focus", handleFocus);
         return () => {
             window.removeEventListener("settings-bindings-updated", handleBindingsUpdated);
+            window.removeEventListener("sound-profiles-updated", handleBindingsUpdated);
             window.removeEventListener("focus", handleFocus);
         };
     }, [enabled, reloadData]);
@@ -212,6 +247,33 @@ export function QuickActionFloat() {
         ? (config.globalDefaults.worldBookIds || []).map(id => itemName(worldBooks, id)).filter(Boolean)
         : [];
 
+    const inheritedSoundProfileName = useMemo(() => {
+        if (scope !== "character") return "";
+        const globalId = config.globalDefaults.soundProfileId;
+        if (globalId) {
+            return soundProfiles.find(s => s.id === globalId)?.name || "默认方案";
+        }
+        return soundProfiles[0]?.name || "默认方案";
+    }, [config.globalDefaults.soundProfileId, scope, soundProfiles]);
+
+    const inheritApiLabel = scope === "global"
+        ? "未设置"
+        : inheritedApiName
+            ? `继承全局：${inheritedApiName}`
+            : "继承全局";
+    const inheritWorldBookLabel = scope === "global"
+        ? "未设置"
+        : inheritedWorldBookNames.length > 0
+            ? `继承全局：${inheritedWorldBookNames.join("、")}`
+            : "继承全局";
+    const inheritSoundLabel = useMemo(() => {
+        if (scope === "global") {
+            const firstProfileName = soundProfiles[0]?.name;
+            return firstProfileName ? `未指定 (默认使用：${firstProfileName})` : "未指定 (默认首选)";
+        }
+        return inheritedSoundProfileName ? `继承全局：${inheritedSoundProfileName}` : "继承全局";
+    }, [inheritedSoundProfileName, scope, soundProfiles]);
+
     const persistConfig = useCallback((next: BindingConfig) => {
         setConfig(next);
         saveBindingConfig(next);
@@ -251,6 +313,59 @@ export function QuickActionFloat() {
         updateWorldBooks(next);
     }, [selectedWorldBookIds, updateWorldBooks]);
 
+    const updateSoundProfile = useCallback((soundProfileId: string | undefined) => {
+        if (scope === "global") {
+            persistConfig({
+                ...config,
+                globalDefaults: {
+                    ...config.globalDefaults,
+                    soundProfileId: soundProfileId || undefined,
+                },
+            });
+            window.dispatchEvent(new CustomEvent("settings-bindings-updated"));
+            return;
+        }
+        if (!selectedCharId) return;
+        const binding = getCharacterBinding(config, selectedCharId);
+        persistConfig(setCharacterBinding(config, {
+            ...binding,
+            defaults: {
+                ...binding.defaults,
+                soundProfileId: soundProfileId || undefined,
+            },
+        }));
+        window.dispatchEvent(new CustomEvent("settings-bindings-updated"));
+    }, [config, persistConfig, scope, selectedCharId]);
+
+    // 当前选中的微标（Badge）文字
+    const activeApiLabel = useMemo(() => {
+        if (currentSlot.apiConfigId) {
+            return itemName(apiConfigs, currentSlot.apiConfigId);
+        }
+        return scope === "global" ? "未设置" : (inheritedApiName ? `继承: ${inheritedApiName}` : "继承");
+    }, [apiConfigs, currentSlot.apiConfigId, inheritedApiName, scope]);
+
+    const activeWorldBookLabel = useMemo(() => {
+        if (selectedWorldBookNames.length > 0) {
+            return selectedWorldBookNames.length === 1
+                ? selectedWorldBookNames[0]
+                : `${selectedWorldBookNames[0]} 等 ${selectedWorldBookNames.length} 项`;
+        }
+        return scope === "global"
+            ? "未设置"
+            : (inheritedWorldBookNames.length > 0 ? `继承 (${inheritedWorldBookNames.length})` : "继承");
+    }, [inheritedWorldBookNames.length, scope, selectedWorldBookNames]);
+
+    const activeSoundLabel = useMemo(() => {
+        if (currentSlot.soundProfileId) {
+            return soundProfiles.find(s => s.id === currentSlot.soundProfileId)?.name || "自定义音效";
+        }
+        if (scope === "global") {
+            return soundProfiles[0]?.name || "默认音效";
+        }
+        return inheritedSoundProfileName ? `继承: ${inheritedSoundProfileName}` : "继承";
+    }, [currentSlot.soundProfileId, inheritedSoundProfileName, scope, soundProfiles]);
+
     function getFloatingButtonBounds(button: HTMLButtonElement, currentPos: FloatingPosition | null) {
         const parent = button.offsetParent instanceof HTMLElement ? button.offsetParent : null;
         const parentRect = parent?.getBoundingClientRect() ?? {
@@ -259,7 +374,6 @@ export function QuickActionFloat() {
             width: window.innerWidth,
             height: window.innerHeight,
         };
-        // 始终使用未变换的纯净布局坐标：优先使用 state 中的位置，若初始未拖拽则取 offsetLeft / offsetTop（不受 CSS transform 影响）
         const left = currentPos ? currentPos.left : button.offsetLeft;
         const top = currentPos ? currentPos.top : button.offsetTop;
         return {
@@ -276,7 +390,6 @@ export function QuickActionFloat() {
         const isDual = floatingDockEnabled && promptViewerEnabled && enabled;
         const isQuickPrimary = !isDual || dockState.primaryTool === "quick-action";
         if (dockState.isExpanded || (isDual && !isQuickPrimary)) {
-            // 展开挑选模式、或并非当前停靠的主球时，不接受拖拽
             return;
         }
         event.stopPropagation();
@@ -293,7 +406,6 @@ export function QuickActionFloat() {
             maxTop: bounds.maxTop,
             moved: false,
         };
-        // 不在 pointerDown 立即 setDraggingFloatingButton(true)，避免普通点击时瞬间取消 is-docked 产生动画抖动
         button.setPointerCapture(event.pointerId);
     }
 
@@ -304,7 +416,6 @@ export function QuickActionFloat() {
         const deltaX = event.clientX - drag.startClientX;
         const deltaY = event.clientY - drag.startClientY;
         if (!drag.moved) {
-            // 超过 3px 移动阈值才判定为拖拽，杜绝手指/鼠标微小震颤把贴边位移写入 floatingPosition
             if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
                 drag.moved = true;
                 setDraggingFloatingButton(true);
@@ -325,7 +436,6 @@ export function QuickActionFloat() {
         if (drag.moved) {
             suppressFloatingClickRef.current = true;
             if (floatingDockEnabled) {
-                // Auto-snap to closest edge (left or right)
                 const bounds = getFloatingButtonBounds(event.currentTarget, floatingPosition);
                 const midX = bounds.parentWidth / 2;
                 const currentX = drag.left + (event.clientX - drag.startClientX);
@@ -356,7 +466,6 @@ export function QuickActionFloat() {
             return;
         }
 
-        // If already open, clicking it collapses back to dock
         if (open) {
             handleClose();
             return;
@@ -365,7 +474,6 @@ export function QuickActionFloat() {
         if (floatingDockEnabled) {
             const isDual = promptViewerEnabled && enabled;
             const isQuickPrimary = !isDual || dockState.primaryTool === "quick-action";
-            // Dual-ball mode: if currently docked as primary and not expanded, clicking expands both balls!
             if (isDual && isQuickPrimary && dockState.isDocked && !dockState.isExpanded) {
                 expandFloatingDock();
                 return;
@@ -380,16 +488,6 @@ export function QuickActionFloat() {
     if (!enabled) return null;
 
     const characterDisabled = scope === "character" && characters.length === 0;
-    const inheritApiLabel = scope === "global"
-        ? "未设置"
-        : inheritedApiName
-            ? `继承全局：${inheritedApiName}`
-            : "继承全局";
-    const inheritWorldBookLabel = scope === "global"
-        ? "未设置"
-        : inheritedWorldBookNames.length > 0
-            ? `继承全局：${inheritedWorldBookNames.join("、")}`
-            : "继承全局";
     const popoverStyle: CSSProperties | undefined = popoverPosition
         ? { left: popoverPosition.left, top: popoverPosition.top }
         : undefined;
@@ -397,7 +495,6 @@ export function QuickActionFloat() {
     const isDual = floatingDockEnabled && promptViewerEnabled && enabled;
     const isQuickPrimary = !isDual || dockState.primaryTool === "quick-action";
     const isPromptViewerActive = floatingDockEnabled && promptViewerEnabled && dockState.activeTool === "prompt-viewer";
-
     const isHiddenBehind = isDual && !isQuickPrimary && !open && !dockState.isExpanded;
     const isDocked = floatingDockEnabled && !open && (
         isQuickPrimary ? (dockState.isDocked && !draggingFloatingButton) : false
@@ -512,79 +609,169 @@ export function QuickActionFloat() {
                             </label>
                         ) : null}
 
+                        {/* 1. API 配置板块 */}
                         <section className="quick-action-section" data-disabled={characterDisabled ? "" : undefined}>
-                            <div className="quick-action-section-heading">
+                            <div
+                                className="quick-action-section-heading"
+                                onClick={() => toggleSection("api")}
+                                role="button"
+                                tabIndex={0}
+                                aria-expanded={!collapsedSections.api}
+                            >
                                 <span><Code2 size={16} />API</span>
-                                {currentSlot.apiConfigId ? <small>{itemName(apiConfigs, currentSlot.apiConfigId)}</small> : <small>{scope === "global" ? "未设置" : "继承"}</small>}
+                                <div className="quick-action-heading-right">
+                                    <span className="quick-action-badge">{activeApiLabel}</span>
+                                    <ChevronDown
+                                        size={14}
+                                        className={`quick-action-chevron ${collapsedSections.api ? "is-collapsed" : ""}`}
+                                    />
+                                </div>
                             </div>
-                            <div className="quick-action-option-list">
-                                <button
-                                    type="button"
-                                    className="quick-action-option"
-                                    data-selected={!currentSlot.apiConfigId}
-                                    disabled={characterDisabled}
-                                    onClick={() => updateApiConfig(undefined)}
-                                >
-                                    <span>{inheritApiLabel}</span>
-                                    {!currentSlot.apiConfigId ? <Check size={15} /> : null}
-                                </button>
-                                {apiConfigs.length === 0 ? (
-                                    <div className="quick-action-empty">暂无 API 配置</div>
-                                ) : apiConfigs.map(api => (
+                            {!collapsedSections.api && (
+                                <div className="quick-action-option-list">
                                     <button
                                         type="button"
-                                        key={api.id}
                                         className="quick-action-option"
-                                        data-selected={currentSlot.apiConfigId === api.id}
+                                        data-selected={!currentSlot.apiConfigId}
                                         disabled={characterDisabled}
-                                        onClick={() => updateApiConfig(api.id)}
+                                        onClick={() => updateApiConfig(undefined)}
                                     >
-                                        <span>{api.name || api.defaultModel || api.provider}</span>
-                                        {currentSlot.apiConfigId === api.id ? <Check size={15} /> : null}
+                                        <span>{inheritApiLabel}</span>
+                                        {!currentSlot.apiConfigId ? <Check size={15} /> : null}
                                     </button>
-                                ))}
-                            </div>
+                                    {apiConfigs.length === 0 ? (
+                                        <div className="quick-action-empty">暂无 API 配置</div>
+                                    ) : apiConfigs.map(api => (
+                                        <button
+                                            type="button"
+                                            key={api.id}
+                                            className="quick-action-option"
+                                            data-selected={currentSlot.apiConfigId === api.id}
+                                            disabled={characterDisabled}
+                                            onClick={() => updateApiConfig(api.id)}
+                                        >
+                                            <span>{api.name || api.defaultModel || api.provider}</span>
+                                            {currentSlot.apiConfigId === api.id ? <Check size={15} /> : null}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
                         </section>
 
+                        {/* 2. 世界书板块 */}
                         <section className="quick-action-section" data-disabled={characterDisabled ? "" : undefined}>
-                            <div className="quick-action-section-heading">
-                                <span><BookOpen size={16} />世界书</span>
-                                <button
-                                    type="button"
-                                    className="quick-action-clear-btn"
-                                    disabled={characterDisabled || selectedWorldBookIds.length === 0}
-                                    onClick={() => updateWorldBooks([])}
-                                >
-                                    清空
-                                </button>
-                            </div>
-                            <button
-                                type="button"
-                                className="quick-action-option quick-action-inherit-option"
-                                data-selected={selectedWorldBookIds.length === 0}
-                                disabled={characterDisabled}
-                                onClick={() => updateWorldBooks([])}
+                            <div
+                                className="quick-action-section-heading"
+                                onClick={() => toggleSection("worldbook")}
+                                role="button"
+                                tabIndex={0}
+                                aria-expanded={!collapsedSections.worldbook}
                             >
-                                <span>{selectedWorldBookIds.length === 0 ? inheritWorldBookLabel : selectedWorldBookNames.join("、")}</span>
-                                {selectedWorldBookIds.length === 0 ? <Check size={15} /> : null}
-                            </button>
-                            {worldBooks.length === 0 ? (
-                                <div className="quick-action-empty">暂无世界书</div>
-                            ) : (
-                                <div className="quick-action-chip-grid">
-                                    {worldBooks.map(book => {
-                                        const selected = selectedWorldBookIds.includes(book.id);
+                                <span><BookOpen size={16} />世界书</span>
+                                <div className="quick-action-heading-right">
+                                    {!collapsedSections.worldbook && (
+                                        <button
+                                            type="button"
+                                            className="quick-action-clear-btn"
+                                            disabled={characterDisabled || selectedWorldBookIds.length === 0}
+                                            onClick={e => {
+                                                e.stopPropagation();
+                                                updateWorldBooks([]);
+                                            }}
+                                        >
+                                            清空
+                                        </button>
+                                    )}
+                                    <span className="quick-action-badge">{activeWorldBookLabel}</span>
+                                    <ChevronDown
+                                        size={14}
+                                        className={`quick-action-chevron ${collapsedSections.worldbook ? "is-collapsed" : ""}`}
+                                    />
+                                </div>
+                            </div>
+                            {!collapsedSections.worldbook && (
+                                <>
+                                    <button
+                                        type="button"
+                                        className="quick-action-option quick-action-inherit-option"
+                                        data-selected={selectedWorldBookIds.length === 0}
+                                        disabled={characterDisabled}
+                                        onClick={() => updateWorldBooks([])}
+                                    >
+                                        <span>{selectedWorldBookIds.length === 0 ? inheritWorldBookLabel : selectedWorldBookNames.join("、")}</span>
+                                        {selectedWorldBookIds.length === 0 ? <Check size={15} /> : null}
+                                    </button>
+                                    {worldBooks.length === 0 ? (
+                                        <div className="quick-action-empty">暂无世界书</div>
+                                    ) : (
+                                        <div className="quick-action-chip-grid">
+                                            {worldBooks.map(book => {
+                                                const selected = selectedWorldBookIds.includes(book.id);
+                                                return (
+                                                    <button
+                                                        type="button"
+                                                        key={book.id}
+                                                        className="quick-action-chip"
+                                                        data-selected={selected}
+                                                        disabled={characterDisabled}
+                                                        onClick={() => toggleWorldBook(book.id)}
+                                                    >
+                                                        <span>{book.name}</span>
+                                                        {selected ? <Check size={14} /> : null}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </>
+                            )}
+                        </section>
+
+                        {/* 3. 音效方案板块 */}
+                        <section className="quick-action-section" data-disabled={characterDisabled ? "" : undefined}>
+                            <div
+                                className="quick-action-section-heading"
+                                onClick={() => toggleSection("sound")}
+                                role="button"
+                                tabIndex={0}
+                                aria-expanded={!collapsedSections.sound}
+                            >
+                                <span><Volume2 size={16} />音效方案</span>
+                                <div className="quick-action-heading-right">
+                                    <span className="quick-action-badge">{activeSoundLabel}</span>
+                                    <ChevronDown
+                                        size={14}
+                                        className={`quick-action-chevron ${collapsedSections.sound ? "is-collapsed" : ""}`}
+                                    />
+                                </div>
+                            </div>
+                            {!collapsedSections.sound && (
+                                <div className="quick-action-option-list">
+                                    <button
+                                        type="button"
+                                        className="quick-action-option"
+                                        data-selected={!currentSlot.soundProfileId}
+                                        disabled={characterDisabled}
+                                        onClick={() => updateSoundProfile(undefined)}
+                                    >
+                                        <span>{inheritSoundLabel}</span>
+                                        {!currentSlot.soundProfileId ? <Check size={15} /> : null}
+                                    </button>
+                                    {soundProfiles.length === 0 ? (
+                                        <div className="quick-action-empty">暂无音效方案</div>
+                                    ) : soundProfiles.map(p => {
+                                        const isSelected = currentSlot.soundProfileId === p.id;
                                         return (
                                             <button
                                                 type="button"
-                                                key={book.id}
-                                                className="quick-action-chip"
-                                                data-selected={selected}
+                                                key={p.id}
+                                                className="quick-action-option"
+                                                data-selected={isSelected}
                                                 disabled={characterDisabled}
-                                                onClick={() => toggleWorldBook(book.id)}
+                                                onClick={() => updateSoundProfile(p.id)}
                                             >
-                                                <span>{book.name}</span>
-                                                {selected ? <Check size={14} /> : null}
+                                                <span>{p.name}</span>
+                                                {isSelected ? <Check size={15} /> : null}
                                             </button>
                                         );
                                     })}

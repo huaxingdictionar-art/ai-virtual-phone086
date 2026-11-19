@@ -566,16 +566,13 @@ export function SoundSettings() {
                         )}
                     </div>
 
-                    <div className="pt-1 flex items-center justify-between gap-2 border-t border-black/[0.045]">
-                        <span className="text-[11.5px] text-emerald-600 flex items-center gap-1">
-                            <Check size={13} strokeWidth={2.5} /> 本地存储已就绪
-                        </span>
+                    <div className="pt-1 flex items-center justify-end border-t border-black/[0.045]">
                         <button
                             type="button"
                             onClick={handleSaveCurrentProfile}
                             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/[0.05] hover:bg-black/[0.08] active:scale-95 text-[12px] font-medium text-[var(--c-text-title)] transition-all"
                         >
-                            <Check size={13} /> 保存当前配置
+                            <Check size={13} /> 保存/更新当前配置
                         </button>
                     </div>
                 </div>
@@ -612,8 +609,8 @@ export function SoundSettings() {
                         <div className="px-4 pb-4 pt-2 flex flex-col gap-3.5 border-t border-black/[0.045]">
                             {/* 新消息提示音 */}
                             <div className="flex flex-col gap-1.5">
-                                <span className="text-[13px] font-medium text-[var(--c-text-title)] flex items-center gap-1.5">
-                                    <Bell size={14} className="text-[var(--c-text-sub)]" /> 新消息提示音
+                                <span className="text-[12px] font-medium text-[var(--c-text-sub,#64748b)]">
+                                    新消息提示音
                                 </span>
                                 <div className="flex items-center gap-2">
                                     <select
@@ -651,8 +648,8 @@ export function SoundSettings() {
 
                             {/* 发消息提示音 */}
                             <div className="flex flex-col gap-1.5">
-                                <span className="text-[13px] font-medium text-[var(--c-text-title)] flex items-center gap-1.5">
-                                    <Send size={14} className="text-[var(--c-text-sub)]" /> 发消息提示音
+                                <span className="text-[12px] font-medium text-[var(--c-text-sub,#64748b)]">
+                                    发消息提示音
                                 </span>
                                 <div className="flex items-center gap-2">
                                     <select
@@ -704,14 +701,13 @@ export function SoundSettings() {
                     {activeProfile.callSoundsEnabled && (
                         <div className="px-4 pb-4 pt-2 flex flex-col gap-3.5 border-t border-black/[0.045]">
                             {CALL_SLOTS.map((slot, idx) => {
-                                const Icon = slot.icon;
                                 const slotVal = activeProfile[slot.kind]?.activeAudioId || slot.defaultBuiltinId;
 
                                 return (
                                     <div key={slot.kind} className="flex flex-col gap-1.5">
                                         {idx > 0 && <div className="border-t border-black/[0.045] mb-2" />}
-                                        <span className="text-[13px] font-medium text-[var(--c-text-title)] flex items-center gap-1.5">
-                                            <Icon size={14} className="text-[var(--c-text-sub)]" /> {slot.title}
+                                        <span className="text-[12px] font-medium text-[var(--c-text-sub,#64748b)]">
+                                            {slot.title}
                                         </span>
                                         <div className="flex items-center gap-2">
                                             <select

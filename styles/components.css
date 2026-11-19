@@ -1942,6 +1942,40 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.quick-action-heading-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.quick-action-badge {
+  display: inline-flex;
+  align-items: center;
+  max-width: 140px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: calc(11px * var(--app-text-scale, 1));
+  font-weight: 600;
+  color: var(--c-text-sub, #64748b);
+  background: rgba(0, 0, 0, 0.05);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.quick-action-chevron {
+  flex-shrink: 0;
+  color: var(--c-text-sub, #64748b);
+  transition: transform 180ms ease;
+}
+
+.quick-action-chevron.is-collapsed {
+  transform: rotate(-90deg);
 }
 
 .quick-action-section-heading small {
