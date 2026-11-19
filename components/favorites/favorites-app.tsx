@@ -613,16 +613,6 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
                   onClick={() => handleCardClick(item)}
                 >
                   {selected && <span className="favorites-card-check"><Check size={13} /></span>}
-                  <header>
-                    <div className="favorites-card-title-group">
-                      <strong className="favorites-card-title">{item.title}</strong>
-                      <small className="favorites-card-container">{item.containerName}</small>
-                    </div>
-                    <div className="favorites-time-pill" title="现实世界收藏时间">
-                      <span className="favorites-time-pill-label">现实</span>
-                      <time>{formatDate(item.createdAt || item.sourceCreatedAt)}</time>
-                    </div>
-                  </header>
                   <div className="favorites-card-entries">
                     {previewEntries.map(entry => (
                       <FavoriteEntryView
@@ -639,11 +629,17 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
                     </button>
                   )}
                   <footer>
-                    {item.tags.map(tag => (
-                      <span key={tag} className={item.category === "story" ? "is-story-tag" : ""}>
-                        {tag}
-                      </span>
-                    ))}
+                    <div className="favorites-card-footer-tags">
+                      {item.tags.map(tag => (
+                        <span key={tag} className="is-story-tag">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                    <div className="favorites-time-pill" title="现实世界收藏时间">
+                      <span className="favorites-time-pill-label">现实</span>
+                      <time>{formatDate(item.createdAt || item.sourceCreatedAt)}</time>
+                    </div>
                   </footer>
                 </article>
               );

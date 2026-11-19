@@ -636,7 +636,7 @@ export function StorySettingsPage(props: StorySettingsPageProps) {
             <button type="button" className="story-settings-primary" disabled={!activeSettingsPresetId} onClick={applySettingsPreset}><FolderOpen size={14} />应用</button>
           </div>
           <div className="story-font-actions">
-            <button type="button" className="story-font-apply" onClick={saveCurrentSettingsPreset}><Save size={14} />{activeSettingsPresetId ? "覆盖/另存" : "保存并命名"}</button>
+            <button type="button" className="story-font-apply" onClick={saveCurrentSettingsPreset}>{activeSettingsPresetId ? "覆盖/另存" : "保存并命名"}</button>
             {activeSettingsPresetId ? <button type="button" className="story-font-reset" onClick={deleteSettingsPreset}>删除预设</button> : null}
           </div>
           <p className="story-settings-note">包含通用生成能力、文风/人称/字数、额外要求、语音、字体、自动阅读、快捷面板、剧情尾部、悬浮小手机、CSS 与折叠规则。</p>

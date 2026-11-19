@@ -352,6 +352,11 @@ const PRIMARY_DATA_MODULES: DataModuleDefinition[] = [
         type: "kv",
         label: "创作玩法配置",
         keys: [
+          "ai_phone_story_global_settings_v1",
+          "ai_phone_story_settings_presets_v1",
+          "ai_phone_story_scheme_repo_v1",
+          "ai_phone_story_groups_v1",
+          "ai_phone_story_appearance_editor_state_v1",
           "ai_phone_vn_scenes_v1",
           "ai_phone_vn_sprites_v1",
           "map_adventure_interaction_config_v1",

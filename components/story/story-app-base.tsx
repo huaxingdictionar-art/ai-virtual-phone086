@@ -2877,7 +2877,7 @@ export function StoryApp({ onClose }: StoryAppProps) {
         </div>
       ) : null}
 
-      {cssModalOpen && <StoryAppearanceEditor key={currentSession.id} sessionId={currentSession.id}
+      {cssModalOpen && <StoryAppearanceEditor key={`story-appearance-editor-${currentSession.id}`} sessionId={currentSession.id}
         initialPrefs={uiPrefs} initialCSS={currentSession.customCSS || ""}
         customFont={customFontSource ? '"StoryCustomFont", "Noto Serif SC", "Songti SC", serif' : undefined}
         userName={userIdentity?.name?.trim() || "我"} characterName={storyDisplayName}
