@@ -57,6 +57,22 @@ function formatDate(value: string): string {
   });
 }
 
+function getItemDisplayTags(item: FavoriteItem): string[] {
+  return item.tags.map(tag => {
+    if (tag === "聊天") {
+      return item.entityType === "group" ? "群聊" : "私聊";
+    }
+    return tag;
+  });
+}
+
+function itemHasTag(item: FavoriteItem, tag: string): boolean {
+  if (item.tags.includes(tag)) return true;
+  if (tag === "群聊" && (item.tags.includes("聊天") && item.entityType === "group")) return true;
+  if (tag === "私聊" && (item.tags.includes("聊天") && item.entityType !== "group")) return true;
+  return false;
+}
+
 function matchesText(item: FavoriteItem, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
@@ -66,6 +82,7 @@ function matchesText(item: FavoriteItem, query: string): boolean {
     item.title,
     item.preview,
     item.participantNames.join(" "),
+    getItemDisplayTags(item).join(" "),
     item.tags.join(" "),
     item.entries.map(entry => `${entry.senderName} ${entry.content} ${entry.imageDescription || ""}`).join(" "),
   ].join(" ").toLowerCase().includes(needle);
@@ -385,7 +402,7 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
     const set = new Set<string>();
     for (const item of items) {
       if (categoryMatches(item, tab)) {
-        item.tags.forEach(tag => set.add(tag));
+        getItemDisplayTags(item).forEach(tag => set.add(tag));
       }
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
@@ -399,7 +416,7 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
         const matchesParticipant = item.participantIds.includes(selectedEntity.id);
         if (!matchesEntity && !matchesParticipant) return false;
       }
-      if (selectedTags.size > 0 && !Array.from(selectedTags).every(tag => item.tags.includes(tag))) {
+      if (selectedTags.size > 0 && !Array.from(selectedTags).every(tag => itemHasTag(item, tag))) {
         return false;
       }
       return matchesText(item, query);
@@ -410,7 +427,7 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
     const map = new Map<string, EntitySummary>();
     for (const item of items) {
       if (!categoryMatches(item, tab)) continue;
-      if (selectedTags.size > 0 && !Array.from(selectedTags).every(tag => item.tags.includes(tag))) continue;
+      if (selectedTags.size > 0 && !Array.from(selectedTags).every(tag => itemHasTag(item, tag))) continue;
       if (!matchesText(item, query)) continue;
       const key = `${item.entityType}:${item.entityId}`;
       const current = map.get(key);
@@ -630,7 +647,7 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
                   )}
                   <footer>
                     <div className="favorites-card-footer-tags">
-                      {item.tags.map(tag => (
+                      {getItemDisplayTags(item).map(tag => (
                         <span key={tag} className={item.category === "story" ? "is-story-tag" : "is-chat-tag"}>
                           {tag}
                         </span>
@@ -695,7 +712,7 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
             </div>
             <footer>
               <div className="favorites-detail-footer-tags">
-                {detailItem.tags.map(tag => (
+                {getItemDisplayTags(detailItem).map(tag => (
                   <span key={tag} className={detailItem.category === "story" ? "is-story-tag" : "is-chat-tag"}>
                     {tag}
                   </span>

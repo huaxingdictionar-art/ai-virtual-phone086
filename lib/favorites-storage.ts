@@ -166,7 +166,7 @@ export async function addChatFavorite(input: {
       mediaData: normalizeMediaData(message.mediaData),
     };
   });
-  const tags = new Set<string>(["聊天"]);
+  const tags = new Set<string>([session.isGroup ? "群聊" : "私聊"]);
   for (const message of storedMessages) {
     if (message.mediaType === "audio") tags.add("语音");
     if (message.mediaType === "image" || message.mediaType === "video" || message.mediaType === "media_file") tags.add("图片");
