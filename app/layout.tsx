@@ -45,7 +45,8 @@ export default function RootLayout({
                 try {
                   var p = window.location.port;
                   var h = window.location.hostname;
-                  if (p === "3002" || h === "localhost" || h === "127.0.0.1") {
+                  var isLocalDev = p === "3002" || h === "localhost" || h === "127.0.0.1" || h.indexOf("192.168.") === 0 || h.indexOf("10.") === 0;
+                  if (isLocalDev) {
                     if ("serviceWorker" in navigator) {
                       navigator.serviceWorker.getRegistrations().then(function(regs) {
                         for (var i = 0; i < regs.length; i++) {

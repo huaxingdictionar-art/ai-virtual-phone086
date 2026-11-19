@@ -11,7 +11,9 @@ export function PWARegistrar() {
       typeof window !== "undefined" &&
       (window.location.port === "3002" ||
         window.location.hostname === "localhost" ||
-        window.location.hostname === "127.0.0.1");
+        window.location.hostname === "127.0.0.1" ||
+        window.location.hostname.startsWith("192.168.") ||
+        window.location.hostname.startsWith("10."));
 
     // 在开发环境或 3002 本地特调端口下，主动注销残留的 Service Worker 并清理静态缓存，
     // 确保华只要在普通窗口按刷新就能直接向本地拉取最新代码，告别无痕窗口和旧缓存死锁！

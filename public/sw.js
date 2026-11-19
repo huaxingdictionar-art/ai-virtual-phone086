@@ -1,8 +1,11 @@
-// 如果是在 3002 特调端口或本地环境，Service Worker 自我注销并直通网络，彻底不拦截 fetch 请求！
+// 如果是在 3002 特调端口或本地开发/局域网环境，Service Worker 自我注销并直通网络，彻底不拦截 fetch 请求！
 const isLocalBypass =
   self.location.port === "3002" ||
   self.location.hostname === "localhost" ||
-  self.location.hostname === "127.0.0.1";
+  self.location.hostname === "127.0.0.1" ||
+  self.location.hostname.startsWith("192.168.") ||
+  self.location.hostname.startsWith("10.") ||
+  self.location.hostname.endsWith(".local");
 
 if (isLocalBypass) {
   self.addEventListener("install", () => {
@@ -18,7 +21,7 @@ if (isLocalBypass) {
   });
   // 在 3002 本地特调环境下绝不注册 fetch 监听器，确保每次刷新都 100% 直达 Node 服务端！
 } else {
-  const CACHE_VERSION = "ai-phone-pwa-v15-hua-diy";
+  const CACHE_VERSION = "ai-phone-pwa-v16-hua-flush";
   const STATIC_CACHE = `${CACHE_VERSION}-static`;
   const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 
