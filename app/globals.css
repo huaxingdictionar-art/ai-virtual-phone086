@@ -98,13 +98,188 @@
 .favorites-entity-copy strong { font-size: calc(14px*var(--app-text-scale,1)); color: var(--c-text-title, #1f2937); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .favorites-entity-copy small { font-size: calc(10px*var(--app-text-scale,1)); color: var(--c-icon, #8a94a4); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .favorites-entity-count { min-width: 26px; height: 26px; border-radius: 13px; display: grid; place-items: center; font-size: calc(11px*var(--app-text-scale,1)); color: var(--c-icon, #6c7687); background: var(--c-input, #f0f2f5); }
-.favorites-card { position: relative; padding: 13px; border: 1px solid var(--c-card-border, rgba(20,30,45,.07)); border-radius: 17px; background: var(--c-card, rgba(255,255,255,.94)); box-shadow: 0 6px 22px rgba(20,30,45,.05); user-select: none; }
+.favorites-card {
+  position: relative;
+  padding: 14px 15px;
+  border: 1px solid var(--c-card-border, rgba(20, 30, 45, 0.07));
+  border-radius: 18px;
+  background: var(--c-card, rgba(255, 255, 255, 0.96));
+  box-shadow: 0 4px 20px rgba(20, 30, 45, 0.05), 0 1px 3px rgba(0, 0, 0, 0.02);
+  user-select: none;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.favorites-card.is-story-card {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98) 0%, rgba(252, 250, 246, 0.95) 100%);
+  border-color: rgba(217, 185, 140, 0.22);
+}
 .favorites-card[data-selected="1"] { outline: 2px solid var(--c-icon-amber, #d39c36); }
 .favorites-card-check { position: absolute; right: 10px; top: 10px; width: 22px; height: 22px; border-radius: 50%; border: 1.5px solid var(--c-icon, #94a0b2); display: grid; place-items: center; color: #fff; background: transparent; }
 .favorites-card[data-selected="1"] .favorites-card-check { border-color: var(--c-icon-amber, #d39c36); background: var(--c-icon-amber, #d39c36); }
-.favorites-card > header { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; margin-bottom: 7px; }
-.favorites-card > header strong { font-size: calc(13px*var(--app-text-scale,1)); color: var(--c-text-title, #1e293b); }
-.favorites-card > header span { font-size: calc(10px*var(--app-text-scale,1)); color: var(--c-icon, #8993a4); }
+
+/* 卡片顶栏：标题组与现实时间 */
+.favorites-card > header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 9px;
+}
+.favorites-card-title-group {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex: 1;
+}
+.favorites-card-title {
+  font-size: calc(13.5px * var(--app-text-scale, 1));
+  font-weight: 600;
+  color: var(--c-text-title, #1e293b);
+  white-space: nowrap;
+}
+.favorites-card-container {
+  font-size: calc(11px * var(--app-text-scale, 1));
+  color: var(--c-icon, #8993a4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 现实时间胶囊（右上角） */
+.favorites-time-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2.5px 7px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.04);
+  color: #64748b;
+  font-size: calc(10.5px * var(--app-text-scale, 1));
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.favorites-time-pill-label {
+  font-size: calc(9px * var(--app-text-scale, 1));
+  color: #94a3b8;
+  font-weight: 500;
+}
+
+/* 条目发送者与时空时间行 */
+.favorites-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.favorites-entry-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 2px;
+}
+.favorites-sender-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.favorites-sender-name {
+  font-size: calc(12.5px * var(--app-text-scale, 1));
+  font-weight: 600;
+  color: var(--c-text-title, #1e293b);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.favorites-role-badge {
+  font-size: calc(9.5px * var(--app-text-scale, 1));
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: rgba(217, 164, 65, 0.14);
+  color: #96703b;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+/* 剧情时间微标（角色时空） */
+.favorites-story-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1.5px 6px;
+  border-radius: 5px;
+  background: rgba(217, 164, 65, 0.08);
+  color: #8b6e40;
+  font-size: calc(10.5px * var(--app-text-scale, 1));
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.favorites-chat-time {
+  font-size: calc(10.5px * var(--app-text-scale, 1));
+  color: var(--c-icon, #8993a4);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* 正文段落：小说排版质感 */
+.favorites-entry-text {
+  margin: 0;
+  font-size: calc(12.5px * var(--app-text-scale, 1));
+  line-height: 1.62;
+  color: var(--c-text, #263345);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.favorites-entry-text.is-compact {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+.favorites-entry-text.is-story-text {
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", SimSun, serif;
+  font-size: calc(13px * var(--app-text-scale, 1));
+  line-height: 1.76;
+  color: #222a36;
+  text-indent: 2em;
+  letter-spacing: 0.015em;
+}
+
+/* 剧情概要（SUMMARY）精致模块 */
+.favorites-story-summary {
+  margin-top: 8px;
+  padding: 8px 11px;
+  border-radius: 9px;
+  background: rgba(245, 238, 224, 0.5);
+  border: 1px dashed rgba(190, 160, 110, 0.3);
+}
+.favorites-story-summary-divider {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+}
+.favorites-story-summary-line {
+  flex: 1;
+  height: 1px;
+  background: rgba(190, 160, 110, 0.25);
+}
+.favorites-story-summary-title {
+  font-size: calc(9.5px * var(--app-text-scale, 1));
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: #947138;
+}
+.favorites-story-summary-text {
+  margin: 0;
+  font-family: "Noto Serif SC", "Source Han Serif SC", "Songti SC", SimSun, serif;
+  font-size: calc(11.5px * var(--app-text-scale, 1));
+  line-height: 1.6;
+  color: #63523d;
+  font-style: italic;
+  white-space: pre-wrap;
+}
+
 .favorites-preview { margin: 0; font-size: calc(12px*var(--app-text-scale,1)); line-height: 1.55; color: var(--c-text, #334155); display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
 .favorites-entry-item { padding: 9px 0; border-top: 1px dashed var(--c-card-border, rgba(20,30,45,.08)); }
 .favorites-entry-item:first-child { border-top: 0; padding-top: 0; }
@@ -126,6 +301,7 @@
 .favorites-thinking p { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--c-text, #536071); font-size: calc(11px*var(--app-text-scale,1)); line-height: 1.6; user-select: text; }
 .favorites-expand-note { width: 100%; margin-top: 8px; border: 0; background: transparent; color: #a87b24; font-size: calc(10px*var(--app-text-scale,1)); }
 .favorites-card > footer { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 10px; }
+.favorites-card > footer .is-story-tag { background: rgba(217, 164, 65, 0.14); color: #8c6a32; }
 .favorites-empty { min-height: 46vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--c-icon, #8b94a3); text-align: center; }
 .favorites-tabs { position: absolute; left: 0; right: 0; bottom: 0; z-index: 40; min-height: calc(62px + env(safe-area-inset-bottom)); padding: 7px 10px env(safe-area-inset-bottom); display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid var(--c-card-border, rgba(20,30,45,.08)); background: color-mix(in srgb, var(--c-page-body-bg, #fff) 90%, transparent); backdrop-filter: blur(18px); -webkit-backdrop-filter: blur(18px); }
 .favorites-tabs button { border: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--c-icon, #8b94a3); background: transparent; font-size: calc(9px*var(--app-text-scale,1)); }

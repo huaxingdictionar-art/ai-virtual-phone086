@@ -8,10 +8,19 @@ export type StoryUiPrefs = {
   theme?: string;
 };
 
+export type StoryGroup = {
+  id: string;
+  name: string;
+  characterIds: string[];
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type StorySession = {
   id: string;
   characterId: string;
   title?: string;
+  createdAt?: string;
   updatedAt: string;
   customCSS?: string;
   foldTags?: string;            // Comma-separated tag names to fold for this session.
@@ -19,6 +28,13 @@ export type StorySession = {
   uiPrefs?: StoryUiPrefs;
   lastMessageId?: string;
   lastMessagePreview?: string;
+  // 多人场景 / 独立剧情与分线扩展字段
+  independentStory?: boolean;
+  branchId?: string;
+  branchName?: string;
+  participantIds?: string[];
+  ownerType?: "character" | "group";
+  ownerId?: string;
 };
 
 export type StoryMessageRole = "user" | "assistant" | "system";

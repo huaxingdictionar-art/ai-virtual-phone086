@@ -296,7 +296,7 @@ export async function addMomentFavorite(input: {
   ]);
   const participantNames = participantIds.map(id => characters.find(character => character.id === id)?.name || id);
   const resolvedIdentity = resolveUserIdentity(participantIds[0], "moments");
-  const userIdentityId = post.userIdentityId || resolvedIdentity?.id || null;
+  const userIdentityId = (post as any).userIdentityId || resolvedIdentity?.id || null;
   const scope = resolveScope(userIdentityId);
   const isGroup = participantIds.length > 1;
   const authorCharacter = post.authorType === "character" ? characters.find(character => character.id === post.authorId) : null;

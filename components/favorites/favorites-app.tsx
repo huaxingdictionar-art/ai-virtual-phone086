@@ -6,6 +6,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Filter,
   Download,
   Upload,
@@ -138,9 +139,19 @@ function FavoriteAudio({ entry }: { entry: FavoriteEntry }) {
   );
 }
 
-function splitThinkingContent(content: string): { visible: string; thoughts: string[] } {
+type ParsedFavoriteContent = {
+  visible: string;
+  summary?: string;
+  thoughts: string[];
+};
+
+function parseFavoriteContent(content: string, isStory = false): ParsedFavoriteContent {
+  let text = content || "";
   const thoughts: string[] = [];
-  const visible = content
+  let summary: string | undefined;
+
+  // 1. 提取 <think> / <thinking>
+  text = text
     .replace(/<(think|thinking)\b[^>]*>([\s\S]*?)<\/\1>/gi, (_match, _tag: string, body: string) => {
       const thought = body.trim();
       if (thought) thoughts.push(thought);
@@ -150,34 +161,118 @@ function splitThinkingContent(content: string): { visible: string; thoughts: str
       const thought = body.trim();
       if (thought) thoughts.push(thought);
       return "\n";
+    });
+
+  // 2. 提取 <summary> 剧情概要
+  text = text
+    .replace(/<summary\b[^>]*>([\s\S]*?)<\/summary>/gi, (_match, body: string) => {
+      const s = body.trim();
+      if (s) summary = s;
+      return "\n";
     })
-    .replace(/\n{3,}/g, "\n\n")
-    .trim();
-  return { visible, thoughts };
+    .replace(/<summary\b[^>]*>([\s\S]*)$/gi, (_match, body: string) => {
+      const s = body.trim();
+      if (s) summary = s;
+      return "\n";
+    });
+
+  // 3. 提取 <content> 剧情正文（剥离代码格式标签，还原干净的小说段落）
+  const contentMatch = text.match(/<content\b[^>]*>([\s\S]*?)<\/content>/i);
+  if (contentMatch) {
+    text = contentMatch[1].trim();
+  } else {
+    // 兼容没有闭合或零散标签的情况
+    text = text.replace(/<\/?content\b[^>]*>/gi, "").trim();
+  }
+
+  // 4. 清理残留的多余空行
+  text = text.replace(/\n{3,}/g, "\n\n").trim();
+
+  return { visible: text, summary, thoughts };
 }
 
-function FavoriteEntryView({ entry, compact = false, foldThinking = false }: { entry: FavoriteEntry; compact?: boolean; foldThinking?: boolean }) {
-  const parsed = foldThinking ? splitThinkingContent(entry.content) : { visible: entry.content, thoughts: [] };
+function FavoriteEntryView({
+  entry,
+  compact = false,
+  isStory = false,
+}: {
+  entry: FavoriteEntry;
+  compact?: boolean;
+  isStory?: boolean;
+}) {
+  const parsed = parseFavoriteContent(entry.content, isStory);
   const mediaType = entry.mediaType === "media_file" ? entry.mediaData?.fileType : entry.mediaType;
+
   return (
-    <div className="favorites-entry" data-role={entry.role}>
+    <div className={`favorites-entry ${isStory ? "is-story-entry" : ""}`} data-role={entry.role}>
       <div className="favorites-entry-meta">
-        <strong>{entry.senderName}</strong>
-        <span>{formatDate(entry.createdAt)}</span>
+        <div className="favorites-sender-wrap">
+          <strong className="favorites-sender-name">{entry.senderName}</strong>
+          {isStory && (
+            <span className="favorites-role-badge">剧情</span>
+          )}
+        </div>
+        <div className="favorites-entry-time" title={isStory ? "角色所处的剧情时空时间" : "消息时间"}>
+          {isStory ? (
+            <span className="favorites-story-time">
+              <Clock size={11} className="shrink-0 opacity-70" />
+              <span>剧中 {formatDate(entry.createdAt)}</span>
+            </span>
+          ) : (
+            <span className="favorites-chat-time">{formatDate(entry.createdAt)}</span>
+          )}
+        </div>
       </div>
-      {parsed.visible && <p className={compact ? "favorites-entry-text is-compact" : "favorites-entry-text"}>{parsed.visible}</p>}
+
+      {parsed.visible && (
+        <p className={`favorites-entry-text ${compact ? "is-compact" : ""} ${isStory ? "is-story-text" : ""}`}>
+          {parsed.visible}
+        </p>
+      )}
+
+      {/* 剧情概要（SUMMARY）精致优雅板块 */}
+      {parsed.summary && !compact && (
+        <div className="favorites-story-summary">
+          <div className="favorites-story-summary-divider">
+            <span className="favorites-story-summary-line" />
+            <span className="favorites-story-summary-title">SUMMARY · 剧情概要</span>
+            <span className="favorites-story-summary-line" />
+          </div>
+          <p className="favorites-story-summary-text">{parsed.summary}</p>
+        </div>
+      )}
+
       {mediaType === "image" && <FavoriteImage entry={entry} />}
       {mediaType === "audio" && <FavoriteAudio entry={entry} />}
       {mediaType === "video" && <FavoriteVideo entry={entry} />}
-      {mediaType === "sticker" && <FavoriteImage entry={{ ...entry, mediaUrl: typeof entry.mediaData?.stickerUrl === "string" ? entry.mediaData.stickerUrl : entry.mediaUrl }} />}
-      {parsed.thoughts.length > 0 && (compact ? (
-        <div className="favorites-thinking-compact">思考内容已折叠</div>
-      ) : (
-        <details className="favorites-thinking">
-          <summary><span>思考内容</span><ChevronRight size={14} /></summary>
-          <div>{parsed.thoughts.map((thought, index) => <p key={index}>{thought}</p>)}</div>
-        </details>
-      ))}
+      {mediaType === "sticker" && (
+        <FavoriteImage
+          entry={{
+            ...entry,
+            mediaUrl:
+              typeof entry.mediaData?.stickerUrl === "string"
+                ? entry.mediaData.stickerUrl
+                : entry.mediaUrl,
+          }}
+        />
+      )}
+
+      {parsed.thoughts.length > 0 &&
+        (compact ? (
+          <div className="favorites-thinking-compact">思考过程已折叠</div>
+        ) : (
+          <details className="favorites-thinking">
+            <summary>
+              <span>思考内容</span>
+              <ChevronRight size={14} />
+            </summary>
+            <div>
+              {parsed.thoughts.map((thought, index) => (
+                <p key={index}>{thought}</p>
+              ))}
+            </div>
+          </details>
+        ))}
     </div>
   );
 }
@@ -432,8 +527,9 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
               return (
                 <article
                   key={item.id}
-                  className="favorites-card"
+                  className={`favorites-card ${item.category === "story" ? "is-story-card" : ""}`}
                   data-selected={selected ? "1" : "0"}
+                  data-category={item.category}
                   onPointerDown={event => handleCardPointerDown(event, item.id)}
                   onPointerUp={cancelLongPress}
                   onPointerCancel={cancelLongPress}
@@ -441,12 +537,38 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
                   onClick={() => handleCardClick(item)}
                 >
                   {selected && <span className="favorites-card-check"><Check size={13} /></span>}
-                  <header><div><strong>{item.title}</strong><small>{item.containerName}</small></div><time>{formatDate(item.sourceCreatedAt)}</time></header>
+                  <header>
+                    <div className="favorites-card-title-group">
+                      <strong className="favorites-card-title">{item.title}</strong>
+                      <small className="favorites-card-container">{item.containerName}</small>
+                    </div>
+                    <div className="favorites-time-pill" title="现实世界收藏时间">
+                      <span className="favorites-time-pill-label">现实</span>
+                      <time>{formatDate(item.createdAt || item.sourceCreatedAt)}</time>
+                    </div>
+                  </header>
                   <div className="favorites-card-entries">
-                    {previewEntries.map(entry => <FavoriteEntryView key={entry.id} entry={entry} compact foldThinking={item.category === "story"} />)}
+                    {previewEntries.map(entry => (
+                      <FavoriteEntryView
+                        key={entry.id}
+                        entry={entry}
+                        compact
+                        isStory={item.category === "story"}
+                      />
+                    ))}
                   </div>
-                  {item.entries.length > previewEntries.length && <button className="favorites-expand-note" type="button">展开全部 {item.entries.length} 条</button>}
-                  <footer>{item.tags.map(tag => <span key={tag}>{tag}</span>)}</footer>
+                  {item.entries.length > previewEntries.length && (
+                    <button className="favorites-expand-note" type="button">
+                      展开全部 {item.entries.length} 条
+                    </button>
+                  )}
+                  <footer>
+                    {item.tags.map(tag => (
+                      <span key={tag} className={item.category === "story" ? "is-story-tag" : ""}>
+                        {tag}
+                      </span>
+                    ))}
+                  </footer>
                 </article>
               );
             })}
@@ -476,17 +598,37 @@ export function FavoritesApp({ onClose }: { onClose: () => void }) {
 
       {detailItem && (
         <div className="favorites-detail-backdrop" onClick={() => setDetailItem(null)}>
-          <section className="favorites-detail" role="dialog" aria-modal="true" onClick={event => event.stopPropagation()}>
+          <section
+            className={`favorites-detail ${detailItem.category === "story" ? "is-story-detail" : ""}`}
+            role="dialog"
+            aria-modal="true"
+            onClick={event => event.stopPropagation()}
+          >
             <header>
-              <div><strong>{detailItem.title}</strong><span>{detailItem.entityName} · {formatDate(detailItem.sourceCreatedAt)}</span></div>
+              <div>
+                <strong>{detailItem.title}</strong>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[11px] text-[var(--c-icon)]">{detailItem.entityName}</span>
+                  <span className="favorites-time-pill">
+                    <span className="favorites-time-pill-label">现实</span>
+                    <time>{formatDate(detailItem.createdAt)}</time>
+                  </span>
+                </div>
+              </div>
               <button type="button" onClick={() => setDetailItem(null)} aria-label="关闭"><X size={19} /></button>
             </header>
             <div className="favorites-detail-tags">{detailItem.tags.map(tag => <span key={tag}>{tag}</span>)}</div>
             <div className="favorites-detail-body">
-              {detailItem.entries.map(entry => <FavoriteEntryView key={entry.id} entry={entry} foldThinking={detailItem.category === "story"} />)}
+              {detailItem.entries.map(entry => (
+                <FavoriteEntryView
+                  key={entry.id}
+                  entry={entry}
+                  isStory={detailItem.category === "story"}
+                />
+              ))}
             </div>
             <footer>
-              <span>收藏于 {formatDate(detailItem.createdAt)}</span>
+              <span>时序来源：{detailItem.containerName}</span>
               <button type="button" onClick={async () => { await deleteFavoriteItems([detailItem.id]); setDetailItem(null); await refresh(); }}><Trash2 size={15} />删除</button>
             </footer>
           </section>
