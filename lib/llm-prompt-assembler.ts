@@ -1207,7 +1207,7 @@ export function formatRichMediaForHistory(msg: ChatMessage, userName: string, ch
             const target = d?.pokeTarget || (msg.role === "assistant" ? userName : charName);
             const rawContent = msg.content?.trim();
             const actionText = rawContent
-                ? rawContent.replace(/\{user\}/g, userName).replace(/\{char\}/g, charName)
+                ? rawContent.replace(/\{user\}/gi, userName).replace(/\{char\}/gi, charName)
                 : `${sender} 拍了拍 ${target}`;
             return `[系统通知: 手机聊天窗口内「${actionText}」（微信线上双击头像互动提醒，纯手机屏幕虚拟互动，非现实肉体触碰）]`;
         }

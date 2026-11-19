@@ -157,13 +157,13 @@ export function ChatPokeSettingsDialog({
         }
     };
 
-    // 点击动词药丸快速填入：使用 {user} 和 {char} 占位符
+    // 点击动词药丸快速填入：使用 {User} 和 {Char} 占位符
     const handleQuickVerb = (verb: string) => {
         if (activeTab === "user") {
-            setUserDraft(`{user} ${verb} {char} `);
+            setUserDraft(`{User} ${verb} {Char} `);
             setTimeout(() => userInputRef.current?.focus(), 50);
         } else {
-            setCharDraft(`{char} ${verb} {user} `);
+            setCharDraft(`{Char} ${verb} {User} `);
             setTimeout(() => charInputRef.current?.focus(), 50);
         }
     };
@@ -316,7 +316,7 @@ export function ChatPokeSettingsDialog({
                                     placeholder={
                                         config.userPokes.length >= MAX_POKE_ITEMS_COUNT
                                             ? "已达 5 条上限"
-                                            : `输入文案，如：{user} 拍了拍 {char}…`
+                                            : `输入文案，如：{User} 拍了拍 {Char}…`
                                     }
                                     className="flex-1 px-3 py-1.5 rounded-xl text-[12.5px] bg-black/5 dark:bg-white/10 text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 border border-black/10 dark:border-white/10 focus:border-black dark:focus:border-white outline-none disabled:opacity-50 transition-colors"
                                 />
@@ -401,7 +401,7 @@ export function ChatPokeSettingsDialog({
                                     placeholder={
                                         config.charPokes.length >= MAX_POKE_ITEMS_COUNT
                                             ? "已达 5 条上限"
-                                            : `输入文案，如：{char} 戳了戳 {user}…`
+                                            : `输入文案，如：{Char} 戳了戳 {User}…`
                                     }
                                     className="flex-1 px-3 py-1.5 rounded-xl text-[12.5px] bg-black/5 dark:bg-white/10 text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 border border-black/10 dark:border-white/10 focus:border-black dark:focus:border-white outline-none disabled:opacity-50 transition-colors"
                                 />
@@ -418,23 +418,23 @@ export function ChatPokeSettingsDialog({
                     )}
                 </div>
 
-                {/* Footer 按钮组：左下角 AI 生成十条，右下角 取消 与 纯黑保存 */}
+                {/* Footer 按钮组：左下角 AI 生成十条（无边框轻盈文本按钮），右下角 取消 与 纯黑保存 */}
                 <div className="px-4 py-3 bg-white dark:bg-[#18181b] border-t border-black/10 dark:border-white/10 flex items-center justify-between gap-2 shrink-0">
-                    {/* 左下角：AI 生成十条 / 生成中... */}
+                    {/* 左下角：无边框轻透文本按钮 AI 生成十条 / 生成中... */}
                     <button
                         type="button"
                         onClick={handleGenerateAll}
                         disabled={isGenerating}
-                        className="px-3.5 py-1.5 rounded-xl text-[12px] font-semibold flex items-center gap-1.5 border border-black/80 dark:border-white text-black dark:text-white bg-white dark:bg-black hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-xs"
+                        className="py-1.5 px-2 -ml-1 rounded-lg text-[13px] font-medium flex items-center gap-1.5 text-black/75 dark:text-white/75 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                     >
                         {isGenerating ? (
                             <>
-                                <Loader2 size={13} className="animate-spin text-black dark:text-white" />
+                                <Loader2 size={13.5} className="animate-spin text-black dark:text-white" />
                                 <span>生成中…</span>
                             </>
                         ) : (
                             <>
-                                <Sparkles size={13} className="text-black dark:text-white" />
+                                <Sparkles size={13.5} className="text-black dark:text-white" />
                                 <span>AI 生成十条</span>
                             </>
                         )}

@@ -39,28 +39,28 @@ export async function generateAllPokesViaLLM(
         ...(character.personality?.trim() ? ["", `【性格特征】\n${character.personality.trim()}`] : []),
         "",
         "【至关重要的核心铁律】：",
-        "1. 严禁出现「你」、「我」、「他」、「她」等第一/第二/第三人称代词！文案中必须直接使用占位符：{user} 代表用户真实大名，{char} 代表角色真实大名。例如：{user} 拍了拍 {char} 的小脑瓜，绝不能写成 我拍了拍你 或 你拍了拍我！",
+        "1. 严禁出现「你」、「我」、「他」、「她」等第一/第二/第三人称代词！文案中必须直接使用占位符：{User} 代表用户真实大名，{Char} 代表角色真实大名（注意首字母大写）。例如：{User} 拍了拍 {Char} 的小脑瓜，绝不能写成 我拍了拍你 或 你拍了拍我！",
         "2. 拍一拍是手机聊天软件内的线上虚拟屏幕互动（类似微信双击头像震动提醒/戳一戳），绝非现实生活中的线下肉体接触！文案要符合线上打趣、撒娇、傲娇、提醒、隔空戳戳的氛围，严禁写成线下动手动脚（严禁描写掀衣服、抚摸身体等肉体接触）。",
         `3. 严格只生成两组文案，每组最多正好 ${MAX_POKE_ITEMS_COUNT} 条（短小精悍，每句一般在 12~24 字以内）。`,
-        "- userPokes：用户拍角色（格式：{user} 动作词 {char} ...）",
-        "- charPokes：角色拍用户（格式：{char} 动作词 {user} ...）",
+        "- userPokes：用户拍角色（格式：{User} 动作词 {Char} ...）",
+        "- charPokes：角色拍用户（格式：{Char} 动作词 {User} ...）",
         "",
         "【输出格式】：",
         "请务必只输出合法合规的纯 JSON 格式（不要包含任何 markdown 代码块外部的闲聊）：",
         "{",
         '  "userPokes": [',
-        `    "{user} 戳了戳 {char} 紧绷的下颚线",`,
-        `    "{user} 拍了拍 {char} 设防森严的对话框",`,
-        `    "{user} 敲了敲 {char} 的小脑瓜问在不在",`,
-        `    "{user} 拍了拍 {char} 并发送了一记清脆的脑瓜崩",`,
-        `    "{user} 扯了扯 {char} 的衣角试图引起注意"`,
+        `    "{User} 戳了戳 {Char} 紧绷的下颚线",`,
+        `    "{User} 拍了拍 {Char} 设防森严的对话框",`,
+        `    "{User} 敲了敲 {Char} 的小脑瓜问在不在",`,
+        `    "{User} 拍了拍 {Char} 并发送了一记清脆的脑瓜崩",`,
+        `    "{User} 扯了扯 {Char} 的衣角试图引起注意"`,
         "  ],",
         '  "charPokes": [',
-        `    "{char} 拍了拍 {user} 的脑袋瓜问人呢",`,
-        `    "{char} 戳了戳 {user} 的屏幕并递过来一杯温水",`,
-        `    "{char} 弹了弹 {user} 的额头叫 {user} 别发呆",`,
-        `    "{char} 敲了敲 {user} 悄悄发呆的小脑袋",`,
-        `    "{char} 拍了拍 {user} 并叹了口气说笨蛋"`,
+        `    "{Char} 拍了拍 {User} 的脑袋瓜问人呢",`,
+        `    "{Char} 戳了戳 {User} 的屏幕并递过来一杯温水",`,
+        `    "{Char} 弹了弹 {User} 的额头叫 {User} 别发呆",`,
+        `    "{Char} 敲了敲 {User} 悄悄发呆的小脑袋",`,
+        `    "{Char} 拍了拍 {User} 并叹了口气说笨蛋"`,
         "  ]",
         "}",
     ].join("\n");
@@ -93,22 +93,24 @@ export async function generateAllPokesViaLLM(
         const parsed = JSON.parse(cleaned);
         const sanitizePoke = (raw: string, isUserAction: boolean) => {
             let str = raw.trim();
-            // 规整真实名字为占位符
-            if (uName && uName !== "用户") str = str.split(uName).join("{user}");
-            if (charName && charName !== "该角色" && charName !== "对方") str = str.split(charName).join("{char}");
+            // 规整真实名字为首字母大写的占位符
+            if (uName && uName !== "用户") str = str.split(uName).join("{User}");
+            if (charName && charName !== "该角色" && charName !== "对方") str = str.split(charName).join("{Char}");
+            // 规整小写占位符为大写占位符
+            str = str.replace(/\{user\}/gi, "{User}").replace(/\{char\}/gi, "{Char}");
             // 消除残余代词
             if (isUserAction) {
-                str = str.replace(/^我\s*/, "{user} ");
-                str = str.replace(/^你\s*/, "{user} ");
-                str = str.replace(/(拍了拍|戳了戳|揉了揉|捏了捏|敲了敲|抱了抱)\s*(?:他|她)/g, "$1 {char}");
+                str = str.replace(/^我\s*/, "{User} ");
+                str = str.replace(/^你\s*/, "{User} ");
+                str = str.replace(/(拍了拍|戳了戳|揉了揉|捏了捏|敲了敲|抱了抱)\s*(?:他|她)/g, "$1 {Char}");
             } else {
-                str = str.replace(/^他\s*/, "{char} ");
-                str = str.replace(/^她\s*/, "{char} ");
-                str = str.replace(/(拍了拍|戳了戳|揉了揉|捏了捏|敲了敲|抱了抱)\s*(?:你|我)/g, "$1 {user}");
+                str = str.replace(/^他\s*/, "{Char} ");
+                str = str.replace(/^她\s*/, "{Char} ");
+                str = str.replace(/(拍了拍|戳了戳|揉了揉|捏了捏|敲了敲|抱了抱)\s*(?:你|我)/g, "$1 {User}");
             }
             // 确保开头有主语
-            if (!str.startsWith("{user}") && !str.startsWith("{char}")) {
-                str = isUserAction ? `{user} ${str}` : `{char} ${str}`;
+            if (!str.startsWith("{User}") && !str.startsWith("{Char}")) {
+                str = isUserAction ? `{User} ${str}` : `{Char} ${str}`;
             }
             return str.replace(/\s{2,}/g, " ").trim();
         };
@@ -128,8 +130,8 @@ export async function generateAllPokesViaLLM(
         }
 
         return {
-            userPokes: userPokes.length > 0 ? userPokes : ["{user} 拍了拍 {char}"],
-            charPokes: charPokes.length > 0 ? charPokes : ["{char} 拍了拍 {user}"],
+            userPokes: userPokes.length > 0 ? userPokes : ["{User} 拍了拍 {Char}"],
+            charPokes: charPokes.length > 0 ? charPokes : ["{Char} 拍了拍 {User}"],
         };
     } catch (parseErr) {
         console.warn("[generateAllPokesViaLLM] JSON parse failed:", cleaned, parseErr);

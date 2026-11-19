@@ -17,15 +17,15 @@ export interface ChatPokeConfig {
 export const MAX_POKE_ITEMS_COUNT = 5;
 
 export const DEFAULT_USER_POKES: string[] = [
-    "{user} 拍了拍 {char}",
-    "{user} 戳了戳 {char} 的脸颊",
-    "{user} 拍了拍 {char} 的小脑袋",
+    "{User} 拍了拍 {Char}",
+    "{User} 戳了戳 {Char} 的脸颊",
+    "{User} 拍了拍 {Char} 的小脑袋",
 ];
 
 export const DEFAULT_CHAR_POKES: string[] = [
-    "{char} 拍了拍 {user}",
-    "{char} 戳了戳 {user} 的脑袋瓜问人呢",
-    "{char} 拍了拍 {user} 并递过来一杯温水",
+    "{Char} 拍了拍 {User}",
+    "{Char} 戳了戳 {User} 的脑袋瓜问人呢",
+    "{Char} 拍了拍 {User} 并递过来一杯温水",
 ];
 
 /** 归一化拍一拍配置，给足默认值且严格截断至最多 5 条 */
@@ -52,7 +52,7 @@ export function resolvePokeTemplate(template: string, userName?: string, charNam
     const c = charName?.trim() || "对方";
     if (!template) return `${u} 拍了拍 ${c}`;
 
-    let res = template.replace(/\{user\}/g, u).replace(/\{char\}/g, c);
+    let res = template.replace(/\{user\}/gi, u).replace(/\{char\}/gi, c);
 
     // 智能代词规整：严禁出现你/我/他等代词，全面推行真实大名
     // 1. 处理句首代词：如 "你 拍了拍..."、"我 拍了拍..."
