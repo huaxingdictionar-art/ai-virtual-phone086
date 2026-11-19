@@ -7,7 +7,7 @@ import {
     dbPutMessages, dbPutSessions, dbPutContacts, dbDeleteSession,
     dbReplaceContacts, dbReplaceSessions,
 } from "./chat-db";
-import { resolveUserIdentity, loadBindingConfig, resolveBinding, getSoundProfile } from "./settings-storage";
+import { resolveUserIdentity, loadBindingConfig, resolveBinding, getSoundProfile, loadSoundLibrary } from "./settings-storage";
 import { loadCharacters, saveCharacters } from "./character-storage";
 import type { Character } from "./character-types";
 import {
@@ -427,7 +427,13 @@ export function resolveChatSoundConfig(
     const masterEnabled = isMessageSound ? soundProfile.messageSoundsEnabled : soundProfile.callSoundsEnabled;
 
     const channel = soundProfile[kind] || { enabled: true, audios: [] };
-    const activeAudio = channel.audios?.find(a => a.id === channel.activeAudioId) || channel.audios?.[0];
+    let activeAudio = channel.audios?.find(a => a.id === channel.activeAudioId) || channel.audios?.[0];
+    if (!activeAudio && channel.activeAudioId) {
+        try {
+            const library = loadSoundLibrary();
+            activeAudio = library.find((a: any) => a.id === channel.activeAudioId);
+        } catch {}
+    }
 
     const effectiveValue = activeAudio?.dataUrl || activeAudio?.value;
     const profileConfig: ChatSoundConfig = {

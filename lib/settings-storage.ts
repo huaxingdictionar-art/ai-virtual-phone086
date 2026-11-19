@@ -87,6 +87,7 @@ const FOLLOW_UP_CONFIG_KEY = "ai_phone_follow_up_config_v1";
 const CHAT_SEND_CONFIG_KEY = "ai_phone_chat_send_config_v1";
 const USER_IDENTITIES_KEY = "ai_phone_user_identities_v1";
 const SOUND_PROFILES_KEY = "ai_phone_sound_profiles_v1";
+const SOUND_LIBRARY_KEY = "ai_phone_sound_library_v1";
 
 // Legacy key for migration
 const LEGACY_OVERRIDES_KEY = "ai_phone_char_settings_v1";
@@ -98,6 +99,7 @@ registerKvMigration(FOLLOW_UP_CONFIG_KEY);
 registerKvMigration(CHAT_SEND_CONFIG_KEY);
 registerKvMigration(USER_IDENTITIES_KEY);
 registerKvMigration(SOUND_PROFILES_KEY);
+registerKvMigration(SOUND_LIBRARY_KEY);
 registerKvMigration(LEGACY_OVERRIDES_KEY);
 
 // --- Helpers ---
@@ -778,7 +780,105 @@ export function getSoundProfile(id?: string): SoundProfileConfig {
         const found = profiles.find(p => p.id === id);
         if (found) return found;
     }
+    const bindingCfg = loadBindingConfig();
+    const globalId = bindingCfg.globalDefaults.soundProfileId;
+    if (globalId) {
+        const globalFound = profiles.find(p => p.id === globalId);
+        if (globalFound) return globalFound;
+    }
     return profiles[0] || createDefaultSoundProfile();
+}
+
+// --- Sound Library (Audio Pool) ────────────────────────────────
+
+export const DEFAULT_BUILTIN_AUDIOS = [
+    {
+        id: "builtin_new_msg",
+        name: "系统清脆叮咚（合成和弦）",
+        sourceType: "builtin" as const,
+        value: "builtin:chime",
+    },
+    {
+        id: "builtin_send_msg",
+        name: "系统微跃轻弹（合成轻音）",
+        sourceType: "builtin" as const,
+        value: "builtin:pop",
+    },
+    {
+        id: "builtin_incoming_call",
+        name: "系统经典来电铃声",
+        sourceType: "builtin" as const,
+        value: "builtin:ring",
+    },
+    {
+        id: "builtin_outgoing_call",
+        name: "系统呼叫等待回铃",
+        sourceType: "builtin" as const,
+        value: "builtin:dial",
+    },
+    {
+        id: "builtin_hangup",
+        name: "系统挂断忙音",
+        sourceType: "builtin" as const,
+        value: "builtin:busy",
+    },
+];
+
+export function loadSoundLibrary() {
+    if (typeof window === "undefined") return DEFAULT_BUILTIN_AUDIOS;
+    try {
+        const raw = kvGet(SOUND_LIBRARY_KEY);
+        let list: any[] = [];
+        if (raw) {
+            try {
+                list = JSON.parse(raw);
+            } catch {}
+        }
+        if (!Array.isArray(list) || list.length === 0) {
+            list = [...DEFAULT_BUILTIN_AUDIOS];
+        }
+
+        const existingIds = new Set(list.map(item => item.id));
+        for (const builtin of DEFAULT_BUILTIN_AUDIOS) {
+            if (!existingIds.has(builtin.id)) {
+                list.push(builtin);
+                existingIds.add(builtin.id);
+            }
+        }
+
+        // 自动合并历史各个方案中的 audios，防止用户先前上传的音频丢失
+        const profilesRaw = kvGet(SOUND_PROFILES_KEY);
+        if (profilesRaw) {
+            try {
+                const profiles = JSON.parse(profilesRaw) as SoundProfileConfig[];
+                if (Array.isArray(profiles)) {
+                    for (const p of profiles) {
+                        for (const key of ["newMessage", "sendMessage", "incomingCall", "outgoingCall", "hangup"] as const) {
+                            const ch = p[key];
+                            if (ch?.audios && Array.isArray(ch.audios)) {
+                                for (const a of ch.audios) {
+                                    if (a && a.id && !existingIds.has(a.id)) {
+                                        list.push(a);
+                                        existingIds.add(a.id);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch {}
+        }
+
+        return list;
+    } catch {
+        return DEFAULT_BUILTIN_AUDIOS;
+    }
+}
+
+export function saveSoundLibrary(audios: any[]): void {
+    if (typeof window === "undefined") return;
+    kvSet(SOUND_LIBRARY_KEY, JSON.stringify(audios));
+    window.dispatchEvent(new CustomEvent("settings-sound-library-updated"));
 }
 
 // --- Image Generation Settings ──────────────────────────────────────────

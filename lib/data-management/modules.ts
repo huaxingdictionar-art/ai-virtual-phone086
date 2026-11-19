@@ -96,6 +96,7 @@ const PRIMARY_DATA_MODULES: DataModuleDefinition[] = [
           "ai_phone_api_configs_v1",
           "ai_phone_voice_configs_v1",
           "ai_phone_sound_profiles_v1",
+          "ai_phone_sound_library_v1",
           "ai_phone_image_generation_settings_v1",
           "ai_phone_bindings_v1",
           "ai_phone_follow_up_config_v1",
