@@ -512,7 +512,7 @@
 .favorites-detail > header span { color: var(--c-icon, #8490a1); font-size: calc(10px*var(--app-text-scale,1)); }
 .favorites-detail > header button { width: 32px; height: 32px; border: 0; border-radius: 50%; display: grid; place-items: center; color: var(--c-icon, #7f8998); background: var(--c-input, #edf0f4); }
 .favorites-detail-tags { padding: 0 16px 10px; }
-.favorites-detail-body { min-height: 0; overflow-y: auto; padding: 0 14px 14px; display: grid; gap: 10px; }
+.favorites-detail-body { min-height: 0; overflow-y: auto; padding: 15px 16px 14px; display: grid; gap: 10px; }
 .favorites-detail > footer { padding: 11px 15px; display: flex; justify-content: space-between; align-items: center; border-top: 1px solid var(--c-card-border, rgba(20,30,45,.07)); font-size: calc(9px*var(--app-text-scale,1)); color: var(--c-icon, #8791a0); }
 .favorites-detail > footer button { border: 0; display: inline-flex; align-items: center; gap: 5px; color: #c64c4c; background: transparent; }
 
@@ -643,3 +643,13 @@
   gap: 3px;
   font-size: calc(10px * var(--app-text-scale, 1));
 }
+
+/* 音效设置页面：彻底禁用卡片进场过渡动画，实现瞬间秒开 */
+.sound-settings-page .menu-group,
+.sound-settings-page .card-card,
+.sound-settings-page .card-featured {
+  opacity: 1 !important;
+  animation: none !important;
+  transform: none !important;
+}
+

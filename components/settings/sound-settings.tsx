@@ -527,8 +527,15 @@ export function SoundSettings() {
     };
 
     return (
-        <div className="flex flex-col gap-5 pb-12 px-1 text-[var(--c-text-title)] relative">
+        <div className="sound-settings-page flex flex-col gap-5 pb-12 px-1 text-[var(--c-text-title)] relative">
             <style jsx>{`
+                :global(.sound-settings-page .menu-group),
+                :global(.sound-settings-page .card-card),
+                :global(.sound-settings-page .card-featured) {
+                    opacity: 1 !important;
+                    animation: none !important;
+                    transform: none !important;
+                }
                 .sound-select {
                     width: 100%;
                     padding: 8px 30px 8px 12px;
