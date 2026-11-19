@@ -635,8 +635,8 @@ export function DebugPromptPanel() {
         return {
             left,
             top,
-            maxLeft: Math.max(12, parentRect.width - 56 - 12),
-            maxTop: Math.max(12, parentRect.height - 56 - 12),
+            maxLeft: Math.max(12, parentRect.width - 48 - 12),
+            maxTop: Math.max(12, parentRect.height - 48 - 12),
             parentWidth: parentRect.width,
             parentHeight: parentRect.height,
         };
@@ -700,7 +700,7 @@ export function DebugPromptPanel() {
                 const currentX = drag.left + (event.clientX - drag.startClientX);
                 const currentTop = drag.top + (event.clientY - drag.startClientY);
                 const isLeft = currentX < midX;
-                const snappedLeft = isLeft ? 18 : Math.max(18, bounds.parentWidth - 56 - 18);
+                const snappedLeft = isLeft ? 0 : Math.max(0, bounds.parentWidth - 48);
                 const snappedTop = clampFloatingPosition(currentTop, bounds.maxTop);
                 const newPos = { left: snappedLeft, top: snappedTop };
                 setFloatingPosition(newPos);
@@ -893,7 +893,7 @@ export function DebugPromptPanel() {
     } else if (floatingPosition) {
         buttonStyle = { left: floatingPosition.left, top: floatingPosition.top };
     } else if (isDual) {
-        buttonStyle = { bottom: 148, right: 18 };
+        buttonStyle = { bottom: 144, right: 14 };
     }
     if (isPanelOpen) {
         buttonStyle = { ...buttonStyle, zIndex: 100001 };

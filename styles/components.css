@@ -1582,33 +1582,29 @@
 
 .prompt-viewer-float-button {
   position: absolute;
-  right: 18px;
+  right: 14px;
   bottom: 84px;
   z-index: 99999;
-  width: 56px;
-  height: 56px;
+  width: 48px;
+  height: 48px;
   display: grid;
   place-items: center;
   padding: 0;
-  border: none;
   border-radius: 999px;
-  color: #fff;
-  background:
-    radial-gradient(circle at 45% 40%, rgba(100,170,255,0.7) 0%, rgba(130,190,255,0.5) 30%, rgba(180,215,255,0.2) 55%, transparent 72%);
+  /* 高级纯白毛玻璃质感与中性灰 UI */
+  background: rgba(255, 255, 255, 0.76);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
   box-shadow:
-    0 0 20px 4px rgba(120,175,255,0.15),
-    0 4px 12px rgba(100,160,255,0.1);
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.95);
+  color: #4b5563;
   cursor: grab;
   pointer-events: auto;
   touch-action: none;
-  transform: scale(0.75);
-  animation: prompt-float-idle 3s ease-in-out infinite;
-  transition: transform 360ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 200ms ease;
-}
-
-@keyframes prompt-float-idle {
-  0%, 100% { transform: scale(0.75); }
-  50% { transform: scale(0.78); }
+  transition: transform 320ms cubic-bezier(0.25, 0.8, 0.25, 1), opacity 240ms ease, box-shadow 200ms ease, background 200ms ease;
 }
 
 .prompt-viewer-float-button[data-positioned] {
@@ -1619,38 +1615,39 @@
 .prompt-viewer-float-button::after {
   content: "";
   position: absolute;
-  inset: -6px;
+  inset: 0;
   border-radius: inherit;
-  background: radial-gradient(circle at 45% 40%, rgba(140,195,255,0.12) 0%, transparent 65%);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.6) 0%, transparent 65%);
   pointer-events: none;
 }
 
 .prompt-viewer-float-button svg {
-  width: 22px;
-  height: 22px;
+  width: 24px;
+  height: 24px;
+  stroke-width: 1.85;
 }
 
 .prompt-viewer-float-button:hover {
-  transform: scale(1);
-  animation: none;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f2937;
   box-shadow:
-    0 0 28px 6px rgba(120,175,255,0.2),
-    0 4px 14px rgba(100,160,255,0.15);
+    0 6px 20px rgba(0, 0, 0, 0.1),
+    0 2px 6px rgba(0, 0, 0, 0.05),
+    inset 0 1px 1.5px #ffffff;
 }
 
 .prompt-viewer-float-button:active {
   cursor: grabbing;
-  transform: scale(0.92);
-  animation: none;
+  transform: scale(0.96);
 }
 
 .prompt-viewer-float-button[data-dragging] {
   cursor: grabbing;
-  transform: scale(1.05);
-  animation: none;
+  transform: scale(1.06);
+  background: rgba(255, 255, 255, 0.96);
   box-shadow:
-    0 0 32px 8px rgba(120,175,255,0.25),
-    0 6px 16px rgba(100,160,255,0.18);
+    0 10px 28px rgba(0, 0, 0, 0.14),
+    0 3px 8px rgba(0, 0, 0, 0.08);
 }
 
 .quick-action-layer {
@@ -1665,55 +1662,64 @@
 }
 
 .prompt-viewer-float-button.quick-action-float-button {
-  bottom: 148px;
-  background:
-    radial-gradient(circle at 42% 36%, rgba(126, 232, 205, 0.78) 0%, rgba(123, 196, 255, 0.52) 36%, rgba(167, 144, 255, 0.2) 60%, transparent 76%);
+  bottom: 144px;
+  background: rgba(255, 255, 255, 0.76);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.85);
   box-shadow:
-    0 0 20px 4px rgba(96, 218, 195, 0.14),
-    0 5px 14px rgba(70, 154, 195, 0.11);
+    0 4px 16px rgba(0, 0, 0, 0.08),
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    inset 0 1px 1.5px rgba(255, 255, 255, 0.95);
+  color: #4b5563;
 }
 
 .prompt-viewer-float-button.quick-action-float-button::after {
-  background: radial-gradient(circle at 45% 40%, rgba(100, 230, 206, 0.13) 0%, transparent 66%);
+  background: radial-gradient(circle at 35% 30%, rgba(255, 255, 255, 0.6) 0%, transparent 65%);
 }
 
 .prompt-viewer-float-button.quick-action-float-button:hover {
+  background: rgba(255, 255, 255, 0.92);
+  color: #1f2937;
   box-shadow:
-    0 0 28px 6px rgba(96, 218, 195, 0.22),
-    0 5px 16px rgba(70, 154, 195, 0.16);
+    0 6px 20px rgba(0, 0, 0, 0.1),
+    0 2px 6px rgba(0, 0, 0, 0.05),
+    inset 0 1px 1.5px #ffffff;
 }
 
 .prompt-viewer-float-button.quick-action-float-button[data-dragging] {
+  background: rgba(255, 255, 255, 0.96);
   box-shadow:
-    0 0 32px 8px rgba(96, 218, 195, 0.26),
-    0 6px 18px rgba(70, 154, 195, 0.18);
+    0 10px 28px rgba(0, 0, 0, 0.14),
+    0 3px 8px rgba(0, 0, 0, 0.08);
 }
 
-/* 悬浮球贴边停靠状态（半隐藏、低透明度、平滑阻尼动效） */
+/* 悬浮球贴边停靠状态：精准贴进去 50%，露出来 50%，透明度保持 0.55 */
 .prompt-viewer-float-button.is-docked {
-  transform: translateX(36px) scale(0.75);
+  transform: translateX(50%);
   opacity: 0.55;
   animation: none !important;
   transition: transform 320ms cubic-bezier(0.25, 0.8, 0.25, 1), opacity 240ms ease, box-shadow 200ms ease;
 }
 
 .prompt-viewer-float-button.is-docked[data-dock-side="left"] {
-  transform: translateX(-36px) scale(0.75);
+  transform: translateX(-50%);
 }
 
 .prompt-viewer-float-button.is-docked:hover {
-  opacity: 0.9;
-  transform: translateX(24px) scale(0.78);
+  opacity: 0.92;
+  transform: translateX(35%);
 }
 
 .prompt-viewer-float-button.is-docked[data-dock-side="left"]:hover {
-  transform: translateX(-24px) scale(0.78);
+  opacity: 0.92;
+  transform: translateX(-35%);
 }
 
 /* 弹窗打开态与展开挑选状态：恢复完全可见，停止原浮动动画保证贴边过渡丝滑无跳帧 */
 .prompt-viewer-float-button.is-open,
 .prompt-viewer-float-button.is-expanded {
-  transform: translateX(0) scale(0.75);
+  transform: translateX(0);
   opacity: 1;
   animation: none !important;
   transition: transform 320ms cubic-bezier(0.25, 0.8, 0.25, 1), opacity 240ms ease, box-shadow 200ms ease;
@@ -1721,7 +1727,7 @@
 
 /* 双球模式横向并排展开：靠右贴边时，提示词球在快捷操作球左侧并排（间距约 10px） */
 .prompt-viewer-float-button.is-expanded.is-paired {
-  transform: translateX(-52px) scale(0.75) !important;
+  transform: translateX(-58px) !important;
   opacity: 1 !important;
   pointer-events: auto !important;
   animation: none !important;
@@ -1729,20 +1735,20 @@
 
 /* 靠左贴边时，提示词球在快捷操作球右侧并排 */
 .prompt-viewer-float-button.is-expanded.is-paired[data-dock-side="left"] {
-  transform: translateX(52px) scale(0.75) !important;
+  transform: translateX(58px) !important;
 }
 
 /* 双球贴边收拢时，次级球叠在主球内部，展开时横向丝滑滑出 */
 .prompt-viewer-float-button.is-hidden-behind {
   opacity: 0 !important;
   pointer-events: none !important;
-  transform: translateX(36px) scale(0.4) !important;
+  transform: translateX(50%) scale(0.5) !important;
   animation: none !important;
   transition: transform 320ms cubic-bezier(0.25, 0.8, 0.25, 1), opacity 240ms ease;
 }
 
 .prompt-viewer-float-button.is-hidden-behind[data-dock-side="left"] {
-  transform: translateX(-36px) scale(0.4) !important;
+  transform: translateX(-50%) scale(0.5) !important;
 }
 
 .quick-action-popover {

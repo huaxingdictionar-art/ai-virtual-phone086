@@ -261,7 +261,8 @@ export function MainApp() {
       if (cancelled) return;
       setPreparedDesktopTheme(nextPreparedTheme);
       setHydrated(true);
-      if (hasPendingMcpOAuthCallback()) {
+      const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
+      if (hasPendingMcpOAuthCallback() || searchParams?.has("direct") || searchParams?.has("skip_splash")) {
         setSplashDismissed(true);
       }
     })();
