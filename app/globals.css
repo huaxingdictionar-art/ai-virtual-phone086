@@ -586,7 +586,7 @@
 
 /* 收藏详情弹窗极简高级排版（第一行仅保留英文标识与现实时间） */
 .favorites-detail-header {
-  padding: 17px 20px 14px;
+  padding: 18px 20px 14px;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -596,21 +596,21 @@
 .favorites-detail-archive-tag {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  font-size: calc(15.5px * var(--app-text-scale, 1));
-  font-weight: 800;
-  letter-spacing: 0.12em;
+  gap: 8px;
+  font-size: calc(19px * var(--app-text-scale, 1));
+  font-weight: 900;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   line-height: 1;
 }
 .favorites-detail-archive-tag::before {
   content: "";
   display: inline-block;
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background-color: currentColor;
-  opacity: 0.85;
+  opacity: 0.9;
 }
 .favorites-detail-archive-tag.is-chat {
   color: #4f46e5;
