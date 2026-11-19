@@ -9,7 +9,6 @@ import {
     Trash2,
     FileEdit,
     Upload,
-    Link as LinkIcon,
     PhoneCall,
     MessageSquare,
     Bell,
@@ -17,16 +16,13 @@ import {
     PhoneIncoming,
     PhoneOutgoing,
     PhoneOff,
-    CheckCircle2,
 } from "lucide-react";
 import { SettingsContext } from "../phone-settings-app";
-import type { SoundProfileConfig, SoundAudioItem, SoundChannelConfig } from "@/lib/settings-types";
+import type { SoundProfileConfig, SoundAudioItem } from "@/lib/settings-types";
 import {
     loadSoundProfiles,
     saveSoundProfiles,
     createDefaultSoundProfile,
-    loadBindingConfig,
-    saveBindingConfig,
     loadSoundLibrary,
     saveSoundLibrary,
     DEFAULT_BUILTIN_AUDIOS,
@@ -48,9 +44,7 @@ type SoundKind = "newMessage" | "sendMessage" | "incomingCall" | "outgoingCall" 
 type SlotMeta = {
     kind: SoundKind;
     title: string;
-    description: string;
     icon: typeof Bell;
-    isCall?: boolean;
     defaultBuiltinId: string;
 };
 
@@ -58,14 +52,12 @@ const MESSAGE_SLOTS: SlotMeta[] = [
     {
         kind: "newMessage",
         title: "新消息提示音",
-        description: "收到对方消息时播放的声音",
         icon: Bell,
         defaultBuiltinId: "builtin_new_msg",
     },
     {
         kind: "sendMessage",
-        title: "发送消息提示音",
-        description: "自己发出消息时播放的声音",
+        title: "发消息提示音",
         icon: Send,
         defaultBuiltinId: "builtin_send_msg",
     },
@@ -74,31 +66,25 @@ const MESSAGE_SLOTS: SlotMeta[] = [
 const CALL_SLOTS: SlotMeta[] = [
     {
         kind: "incomingCall",
-        title: "来电铃声",
-        description: "对方发起语音或视频通话时的振铃声",
+        title: "对方来电音",
         icon: PhoneIncoming,
-        isCall: true,
         defaultBuiltinId: "builtin_incoming_call",
     },
     {
         kind: "outgoingCall",
-        title: "致电等待音",
-        description: "呼叫对方等待接通时的回铃音",
+        title: "我方致电音",
         icon: PhoneOutgoing,
-        isCall: true,
         defaultBuiltinId: "builtin_outgoing_call",
     },
     {
         kind: "hangup",
         title: "挂断音",
-        description: "通话结束时播放的提示音",
         icon: PhoneOff,
-        isCall: true,
         defaultBuiltinId: "builtin_hangup",
     },
 ];
 
-// 纯净 Web Audio 合成器（为系统内置通话声音提供即时悦耳试听）
+// Web Audio 合成器（为系统内置通话声音提供即时真实试听反馈）
 function playBuiltinSynthesis(kind: SoundKind | string) {
     if (typeof window === "undefined") return;
     try {
@@ -118,7 +104,6 @@ function playBuiltinSynthesis(kind: SoundKind | string) {
         }
 
         if (kind === "incomingCall" || kind === "builtin_incoming_call" || kind === "builtin:ring") {
-            // 经典柔和双音铃声 (A5 880Hz + C#6 1108Hz)
             const osc1 = ctx.createOscillator();
             const osc2 = ctx.createOscillator();
             const gain = ctx.createGain();
@@ -139,7 +124,6 @@ function playBuiltinSynthesis(kind: SoundKind | string) {
         }
 
         if (kind === "outgoingCall" || kind === "builtin_outgoing_call" || kind === "builtin:dial") {
-            // 呼叫等待回铃 (440Hz + 480Hz)
             const osc1 = ctx.createOscillator();
             const osc2 = ctx.createOscillator();
             const gain = ctx.createGain();
@@ -160,7 +144,6 @@ function playBuiltinSynthesis(kind: SoundKind | string) {
         }
 
         if (kind === "hangup" || kind === "builtin_hangup" || kind === "builtin:busy") {
-            // 挂断忙音短蜂鸣 (480Hz + 620Hz)
             const osc1 = ctx.createOscillator();
             const osc2 = ctx.createOscillator();
             const gain = ctx.createGain();
@@ -182,28 +165,21 @@ function playBuiltinSynthesis(kind: SoundKind | string) {
 
         playDefaultNewMessageSound();
     } catch {
-        // 静默兜底
+        // 静默
     }
 }
 
 export function SoundSettings() {
     const { setSubpageTitle } = useContext(SettingsContext);
 
-    // 方案列表与当前选中的方案
     const [profiles, setProfiles] = useState<SoundProfileConfig[]>([]);
     const [activeProfileId, setActiveProfileId] = useState<string>("");
-    const [globalBoundProfileId, setGlobalBoundProfileId] = useState<string>("");
 
-    // 全局音效素材库（华强调的音效池子）
+    // 音效素材库
     const [soundLibrary, setSoundLibrary] = useState<SoundAudioItem[]>([]);
 
     // 正在试听的音频 ID
     const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
-
-    // 弹窗状态：网络链接
-    const [isUrlModalOpen, setIsUrlModalOpen] = useState(false);
-    const [urlName, setUrlName] = useState("");
-    const [urlValue, setUrlValue] = useState("");
 
     // 弹窗状态：重命名音频
     const [isRenameAudioModalOpen, setIsRenameAudioModalOpen] = useState(false);
@@ -227,19 +203,12 @@ export function SoundSettings() {
     useEffect(() => {
         setSubpageTitle("音效设置");
 
-        // 加载方案
         const loadedProfiles = loadSoundProfiles();
         setProfiles(loadedProfiles);
         if (loadedProfiles.length > 0) {
             setActiveProfileId(loadedProfiles[0].id);
         }
 
-        // 加载绑定
-        const bindingCfg = loadBindingConfig();
-        const globalId = bindingCfg.globalDefaults.soundProfileId || loadedProfiles[0]?.id || "";
-        setGlobalBoundProfileId(globalId);
-
-        // 加载全局素材库
         const library = loadSoundLibrary();
         setSoundLibrary(library);
     }, [setSubpageTitle]);
@@ -254,7 +223,6 @@ export function SoundSettings() {
         setPlayingAudioId(null);
     };
 
-    // 试听某一个音频
     const playAudioItem = async (item: SoundAudioItem, fallbackKind?: SoundKind) => {
         if (playingAudioId === item.id) {
             stopAudio();
@@ -298,7 +266,6 @@ export function SoundSettings() {
         }
     };
 
-    // 更新当前方案
     const updateProfile = (updater: (prev: SoundProfileConfig) => SoundProfileConfig) => {
         if (!activeProfile) return;
         const nextProfile = updater(activeProfile);
@@ -308,7 +275,6 @@ export function SoundSettings() {
         saveSoundProfiles(nextList);
     };
 
-    // 上方槽位选择下拉（从素材库连线）
     const handleSelectSlotAudio = (kind: SoundKind, audioId: string) => {
         const audio = soundLibrary.find(a => a.id === audioId);
         updateProfile(prev => {
@@ -327,7 +293,6 @@ export function SoundSettings() {
         });
     };
 
-    // 新建方案
     const handleCreateProfile = () => {
         const base = createDefaultSoundProfile();
         const newId = `sound_profile_${Date.now()}`;
@@ -345,7 +310,6 @@ export function SoundSettings() {
         setActiveProfileId(newId);
     };
 
-    // 删除方案
     const handleDeleteProfile = (id: string) => {
         if (profiles.length <= 1) return;
         const nextList = profiles.filter(p => p.id !== id);
@@ -357,22 +321,6 @@ export function SoundSettings() {
         setDeletingProfileId(null);
     };
 
-    // 设为全手机全局默认音效
-    const handleSetAsGlobalDefault = () => {
-        if (!activeProfile) return;
-        const bindingCfg = loadBindingConfig();
-        const nextCfg = {
-            ...bindingCfg,
-            globalDefaults: {
-                ...bindingCfg.globalDefaults,
-                soundProfileId: activeProfile.id,
-            },
-        };
-        saveBindingConfig(nextCfg);
-        setGlobalBoundProfileId(activeProfile.id);
-    };
-
-    // 上传本地音频到素材库
     const triggerUpload = () => {
         if (fileInputRef.current) {
             fileInputRef.current.value = "";
@@ -388,7 +336,6 @@ export function SoundSettings() {
             const assetId = await saveChatAudioToIndexedDB(file);
             const fileName = file.name.replace(/\.[^/.]+$/, "") || "自定义音频";
 
-            // 小于等于 300KB 的小型提示音同时内嵌 DataURL，双重保险：即使仅备份设置，音频也永不丢失
             let inlineDataUrl: string | undefined;
             if (file.size <= 300 * 1024) {
                 inlineDataUrl = await new Promise<string>((resolve, reject) => {
@@ -415,27 +362,6 @@ export function SoundSettings() {
         }
     };
 
-    // 添加网络音频链接到素材库
-    const handleAddUrlAudio = () => {
-        if (!urlValue.trim()) return;
-
-        const newAudio: SoundAudioItem = {
-            id: `audio_url_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-            name: urlName.trim() || "网络音频",
-            sourceType: "url",
-            value: urlValue.trim(),
-        };
-
-        const nextLibrary = [...soundLibrary, newAudio];
-        setSoundLibrary(nextLibrary);
-        saveSoundLibrary(nextLibrary);
-
-        setIsUrlModalOpen(false);
-        setUrlName("");
-        setUrlValue("");
-    };
-
-    // 重命名素材库中的音频
     const handleSaveAudioRename = () => {
         if (!renamingAudio || !renamingAudioName.trim()) return;
         const newName = renamingAudioName.trim();
@@ -445,7 +371,6 @@ export function SoundSettings() {
         setSoundLibrary(nextLibrary);
         saveSoundLibrary(nextLibrary);
 
-        // 同步更新所有方案中的显示
         const nextProfiles = profiles.map(p => {
             const updated = { ...p };
             for (const key of ["newMessage", "sendMessage", "incomingCall", "outgoingCall", "hangup"] as const) {
@@ -466,7 +391,6 @@ export function SoundSettings() {
         setRenamingAudio(null);
     };
 
-    // 删除素材库中的音频
     const handleConfirmDeleteAudio = () => {
         if (!deletingAudio || deletingAudio.sourceType === "builtin") return;
         const targetId = deletingAudio.id;
@@ -474,7 +398,6 @@ export function SoundSettings() {
         setSoundLibrary(nextLibrary);
         saveSoundLibrary(nextLibrary);
 
-        // 如果当前方案有槽位选中了被删除的音频，自动回退到默认内置音频
         const fallbackIdMap: Record<SoundKind, string> = {
             newMessage: "builtin_new_msg",
             sendMessage: "builtin_send_msg",
@@ -509,11 +432,9 @@ export function SoundSettings() {
 
     if (!activeProfile) return null;
 
-    const isGlobalDefault = globalBoundProfileId === activeProfile.id;
-
-    // 辅助渲染上方各个槽位的试听小按钮
-    const renderSlotPlayButton = (slot: SlotMeta) => {
-        const channel: SoundChannelConfig | undefined = activeProfile[slot.kind];
+    // 纯粹的极简圆形播放试听按钮（无任何胶囊、无“试听”两字，只有一个圆圈加一个小三角形）
+    const renderCirclePlayButton = (slot: SlotMeta) => {
+        const channel = activeProfile[slot.kind];
         const selectedId = channel?.activeAudioId || slot.defaultBuiltinId;
         const selectedAudio = soundLibrary.find(a => a.id === selectedId) || DEFAULT_BUILTIN_AUDIOS.find(a => a.id === slot.defaultBuiltinId);
         const isPlaying = selectedAudio ? playingAudioId === selectedAudio.id : false;
@@ -526,23 +447,18 @@ export function SoundSettings() {
                         playAudioItem(selectedAudio, slot.kind);
                     }
                 }}
-                className={`h-9 px-3 rounded-xl border border-[var(--c-border-light)] text-[12px] font-medium flex items-center gap-1.5 shrink-0 transition-all ${
+                className={`w-9 h-9 rounded-full flex items-center justify-center shrink-0 transition-all ${
                     isPlaying
-                        ? "bg-red-50 text-red-600 border-red-200"
-                        : "bg-[var(--c-card-bg)] text-[var(--c-text-title)] hover:bg-[var(--c-sub-bg)] active:scale-95"
+                        ? "bg-red-500 text-white shadow-xs"
+                        : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100 active:scale-95"
                 }`}
-                title="试听当前选中的声音"
+                title={isPlaying ? "停止" : "播放"}
+                aria-label={isPlaying ? "停止" : "播放"}
             >
                 {isPlaying ? (
-                    <>
-                        <Square size={13} className="text-red-500 fill-red-500" />
-                        <span>停止</span>
-                    </>
+                    <Square size={12} className="fill-white text-white" />
                 ) : (
-                    <>
-                        <Play size={13} className="text-emerald-600 fill-emerald-600" />
-                        <span>试听</span>
-                    </>
+                    <Play size={13} className="fill-emerald-600 text-emerald-600 ml-0.5" />
                 )}
             </button>
         );
@@ -558,7 +474,7 @@ export function SoundSettings() {
                 onChange={handleFileSelected}
             />
 
-            {/* 顶栏：方案选择与管理卡片 */}
+            {/* 顶栏：当前方案管理（纯粹配置音效，绝不出现任何“设为全局默认”的按钮或文本） */}
             <div className="g-card p-4 flex flex-col gap-3">
                 <div className="flex items-center justify-between">
                     <span className="text-[13px] font-medium text-[var(--c-text-title)]">当前方案</span>
@@ -583,7 +499,7 @@ export function SoundSettings() {
                         >
                             {profiles.map(p => (
                                 <option key={p.id} value={p.id}>
-                                    {p.name} {p.id === globalBoundProfileId ? "（全局默认）" : ""}
+                                    {p.name}
                                 </option>
                             ))}
                         </select>
@@ -612,33 +528,12 @@ export function SoundSettings() {
                         </button>
                     )}
                 </div>
-
-                <div className="flex items-center justify-between pt-2 border-t border-[var(--c-border-light)]/60 text-[12px]">
-                    <div className="flex items-center gap-1.5">
-                        {isGlobalDefault ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-600 font-medium">
-                                <CheckCircle2 size={14} /> 已设为全手机全局默认音效
-                            </span>
-                        ) : (
-                            <span className="text-[var(--c-text-sub)]">未设为全局默认（可在绑定中心为角色单独绑定）</span>
-                        )}
-                    </div>
-                    {!isGlobalDefault && (
-                        <button
-                            type="button"
-                            onClick={handleSetAsGlobalDefault}
-                            className="text-[12px] text-blue-600 hover:underline font-medium"
-                        >
-                            设为全局默认
-                        </button>
-                    )}
-                </div>
             </div>
 
-            {/* 💬 消息音效卡片（连线区域：无黑框嵌套） */}
-            <div className="g-card overflow-hidden">
-                <div className="p-4 flex items-center justify-between border-b border-[var(--c-border-light)]/60 bg-[var(--c-sub-bg)]/40">
-                    <div className="flex items-center gap-3">
+            {/* 💬 消息音效卡片（彻底拔除粗黑横线与啰嗦说明） */}
+            <div className="g-card p-4 flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
                         <span
                             className="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-xs"
                             style={{ backgroundColor: BINDING_ACCENTS.preset }}
@@ -648,7 +543,7 @@ export function SoundSettings() {
                         <div>
                             <div className="text-[14px] font-semibold text-[var(--c-text-title)]">消息音效</div>
                             <div className="text-[11px] text-[var(--c-text-sub)]">
-                                {activeProfile.messageSoundsEnabled ? "已开启消息提示声" : "已静音（不播放任何消息声音）"}
+                                {activeProfile.messageSoundsEnabled ? "已开启消息提示声" : "已静音"}
                             </div>
                         </div>
                     </div>
@@ -661,15 +556,12 @@ export function SoundSettings() {
                 </div>
 
                 {activeProfile.messageSoundsEnabled && (
-                    <div className="p-4 flex flex-col gap-4">
-                        {/* 新消息提示音槽位 */}
+                    <div className="flex flex-col gap-3.5 pt-1">
+                        {/* 新消息提示音 */}
                         <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between">
-                                <span className="text-[13px] font-medium text-[var(--c-text-title)] flex items-center gap-1.5">
-                                    <Bell size={15} className="text-[var(--c-text-sub)]" /> 新消息提示音
-                                </span>
-                                <span className="text-[11px] text-[var(--c-text-sub)]">对方发来消息时播放</span>
-                            </div>
+                            <span className="text-[13px] font-medium text-[var(--c-text-title)] flex items-center gap-1.5">
+                                <Bell size={14} className="text-[var(--c-text-sub)]" /> 新消息提示音
+                            </span>
                             <div className="flex items-center gap-2">
                                 <select
                                     value={activeProfile.newMessage?.activeAudioId || "builtin_new_msg"}
@@ -682,7 +574,7 @@ export function SoundSettings() {
                                         </option>
                                     ))}
                                 </select>
-                                {renderSlotPlayButton(MESSAGE_SLOTS[0])}
+                                {renderCirclePlayButton(MESSAGE_SLOTS[0])}
                             </div>
                             <div className="flex items-center justify-between pt-1 text-[12px] text-[var(--c-text-sub)]">
                                 <span>防连续轰炸（10秒内多条消息仅响一次）</span>
@@ -701,16 +593,11 @@ export function SoundSettings() {
                             </div>
                         </div>
 
-                        <div className="h-[1px] bg-[var(--c-border-light)]/60" />
-
-                        {/* 发送消息提示音槽位 */}
+                        {/* 发消息提示音 */}
                         <div className="flex flex-col gap-1.5">
-                            <div className="flex items-center justify-between">
-                                <span className="text-[13px] font-medium text-[var(--c-text-title)] flex items-center gap-1.5">
-                                    <Send size={15} className="text-[var(--c-text-sub)]" /> 发送消息提示音
-                                </span>
-                                <span className="text-[11px] text-[var(--c-text-sub)]">自己发出消息时播放</span>
-                            </div>
+                            <span className="text-[13px] font-medium text-[var(--c-text-title)] flex items-center gap-1.5">
+                                <Send size={14} className="text-[var(--c-text-sub)]" /> 发消息提示音
+                            </span>
                             <div className="flex items-center gap-2">
                                 <select
                                     value={activeProfile.sendMessage?.activeAudioId || "builtin_send_msg"}
@@ -723,17 +610,17 @@ export function SoundSettings() {
                                         </option>
                                     ))}
                                 </select>
-                                {renderSlotPlayButton(MESSAGE_SLOTS[1])}
+                                {renderCirclePlayButton(MESSAGE_SLOTS[1])}
                             </div>
                         </div>
                     </div>
                 )}
             </div>
 
-            {/* 📞 通话音效卡片（连线区域：无黑框嵌套） */}
-            <div className="g-card overflow-hidden">
-                <div className="p-4 flex items-center justify-between border-b border-[var(--c-border-light)]/60 bg-[var(--c-sub-bg)]/40">
-                    <div className="flex items-center gap-3">
+            {/* 📞 通话音效卡片（彻底拔除粗黑横线，只保留清爽的：对方来电音、我方致电音、挂断音） */}
+            <div className="g-card p-4 flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
                         <span
                             className="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-xs"
                             style={{ backgroundColor: "#8b5cf6" }}
@@ -743,7 +630,7 @@ export function SoundSettings() {
                         <div>
                             <div className="text-[14px] font-semibold text-[var(--c-text-title)]">通话音效</div>
                             <div className="text-[11px] text-[var(--c-text-sub)]">
-                                {activeProfile.callSoundsEnabled ? "已开启来电与通话铃声" : "已静音（通话不响铃）"}
+                                {activeProfile.callSoundsEnabled ? "已开启来电与通话铃声" : "已静音"}
                             </div>
                         </div>
                     </div>
@@ -756,20 +643,16 @@ export function SoundSettings() {
                 </div>
 
                 {activeProfile.callSoundsEnabled && (
-                    <div className="p-4 flex flex-col gap-4">
-                        {CALL_SLOTS.map((slot, index) => {
+                    <div className="flex flex-col gap-3.5 pt-1">
+                        {CALL_SLOTS.map(slot => {
                             const Icon = slot.icon;
                             const slotVal = activeProfile[slot.kind]?.activeAudioId || slot.defaultBuiltinId;
 
                             return (
                                 <div key={slot.kind} className="flex flex-col gap-1.5">
-                                    {index > 0 && <div className="h-[1px] bg-[var(--c-border-light)]/60 mb-2.5" />}
-                                    <div className="flex items-center justify-between">
-                                        <span className="text-[13px] font-medium text-[var(--c-text-title)] flex items-center gap-1.5">
-                                            <Icon size={15} className="text-[var(--c-text-sub)]" /> {slot.title}
-                                        </span>
-                                        <span className="text-[11px] text-[var(--c-text-sub)]">{slot.description}</span>
-                                    </div>
+                                    <span className="text-[13px] font-medium text-[var(--c-text-title)] flex items-center gap-1.5">
+                                        <Icon size={14} className="text-[var(--c-text-sub)]" /> {slot.title}
+                                    </span>
                                     <div className="flex items-center gap-2">
                                         <select
                                             value={slotVal}
@@ -782,7 +665,7 @@ export function SoundSettings() {
                                                 </option>
                                             ))}
                                         </select>
-                                        {renderSlotPlayButton(slot)}
+                                        {renderCirclePlayButton(slot)}
                                     </div>
                                 </div>
                             );
@@ -791,49 +674,35 @@ export function SoundSettings() {
                 )}
             </div>
 
-            {/* 🎵 音效素材库（华强调的核心音频池） */}
-            <div className="g-card overflow-hidden">
-                <div className="p-4 flex items-center justify-between border-b border-[var(--c-border-light)]/60 bg-[var(--c-sub-bg)]/40">
-                    <div className="flex items-center gap-2.5">
+            {/* 🎵 音效素材库（彻底删掉丑陋的 URL 链接按钮，只保留单一纯净的上传音频胶囊，消灭奇怪黑弧线） */}
+            <div className="g-card p-4 flex flex-col gap-3">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
                         <span
-                            className="w-8 h-8 rounded-full flex items-center justify-center text-white shadow-xs"
+                            className="w-7 h-7 rounded-full flex items-center justify-center text-white shadow-xs"
                             style={{ backgroundColor: "#0284c7" }}
                         >
-                            <Volume2 size={16} />
+                            <Volume2 size={15} />
                         </span>
                         <div>
-                            <div className="text-[14px] font-semibold text-[var(--c-text-title)]">音效素材库</div>
-                            <div className="text-[11px] text-[var(--c-text-sub)]">
-                                共 {soundLibrary.length} 个可用音频 · 供上方槽位直接选用
-                            </div>
+                            <span className="text-[13.5px] font-semibold text-[var(--c-text-title)]">音效素材库</span>
+                            <span className="text-[11px] text-[var(--c-text-sub)] ml-1.5">
+                                ({soundLibrary.length})
+                            </span>
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
-                        <button
-                            type="button"
-                            onClick={triggerUpload}
-                            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-black text-white text-[12px] font-medium shadow-xs hover:bg-gray-800 active:scale-95 transition-all"
-                        >
-                            <Upload size={13} /> 上传音频
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setUrlName("");
-                                setUrlValue("");
-                                setIsUrlModalOpen(true);
-                            }}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-full border border-[var(--c-border-light)] bg-[var(--c-card-bg)] text-[12px] font-medium text-[var(--c-text-title)] hover:bg-[var(--c-sub-bg)] active:scale-95 transition-all"
-                            title="添加网络音频链接"
-                        >
-                            <LinkIcon size={13} /> 链接
-                        </button>
-                    </div>
+                    <button
+                        type="button"
+                        onClick={triggerUpload}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black text-white text-[12px] font-medium shadow-xs hover:bg-gray-800 active:scale-95 transition-all"
+                    >
+                        <Upload size={13} /> 上传音频
+                    </button>
                 </div>
 
-                {/* 音频列表：清爽通透单层行排列 */}
-                <div className="p-2 flex flex-col divide-y divide-[var(--c-border-light)]/40">
+                {/* 音频列表：清爽微背景卡片，消灭奇怪黑弧线 */}
+                <div className="flex flex-col gap-1.5 pt-1">
                     {soundLibrary.map(audio => {
                         const isPlaying = playingAudioId === audio.id;
                         const isBuiltin = audio.sourceType === "builtin";
@@ -841,52 +710,39 @@ export function SoundSettings() {
                         return (
                             <div
                                 key={audio.id}
-                                className="flex items-center justify-between py-2.5 px-3 rounded-xl hover:bg-[var(--c-sub-bg)]/60 transition-colors"
+                                className="flex items-center justify-between py-2 px-2.5 rounded-xl bg-[var(--c-sub-bg)]/50 hover:bg-[var(--c-sub-bg)] transition-colors"
                             >
-                                <div className="flex items-center gap-3 min-w-0 pr-2">
+                                <div className="flex items-center gap-2.5 min-w-0 pr-2">
                                     <button
                                         type="button"
                                         onClick={() => playAudioItem(audio)}
-                                        className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 transition-all ${
+                                        className={`w-7 h-7 rounded-full flex items-center justify-center shrink-0 transition-all ${
                                             isPlaying
                                                 ? "bg-red-500 text-white shadow-xs"
                                                 : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
                                         }`}
-                                        title={isPlaying ? "停止播放" : "播放试听"}
+                                        title={isPlaying ? "停止" : "播放"}
                                     >
                                         {isPlaying ? (
-                                            <Square size={13} className="fill-white" />
+                                            <Square size={10} className="fill-white" />
                                         ) : (
-                                            <Play size={14} className="fill-emerald-600 ml-0.5" />
+                                            <Play size={11} className="fill-emerald-600 ml-0.5" />
                                         )}
                                     </button>
 
-                                    <div className="flex flex-col min-w-0">
-                                        <span className="text-[13px] font-medium text-[var(--c-text-title)] truncate">
+                                    <div className="flex items-center gap-2 min-w-0">
+                                        <span className="text-[12.5px] font-medium text-[var(--c-text-title)] truncate">
                                             {audio.name}
                                         </span>
-                                        <div className="flex items-center gap-1.5 text-[11px] text-[var(--c-text-sub)]">
-                                            {isBuiltin ? (
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-[var(--c-input)] text-[var(--c-text-sub)]">
-                                                    系统内置
-                                                </span>
-                                            ) : audio.sourceType === "url" ? (
-                                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600">
-                                                    网络链接
-                                                </span>
-                                            ) : (
-                                                <>
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-600">
-                                                        本地上传
-                                                    </span>
-                                                    {audio.dataUrl && (
-                                                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-purple-50 text-purple-600">
-                                                            含离线备份
-                                                        </span>
-                                                    )}
-                                                </>
-                                            )}
-                                        </div>
+                                        {isBuiltin ? (
+                                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/5 text-[var(--c-text-sub)] shrink-0">
+                                                内置
+                                            </span>
+                                        ) : (
+                                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-600 shrink-0">
+                                                本地
+                                            </span>
+                                        )}
                                     </div>
                                 </div>
 
@@ -900,22 +756,22 @@ export function SoundSettings() {
                                                     setRenamingAudioName(audio.name);
                                                     setIsRenameAudioModalOpen(true);
                                                 }}
-                                                className="p-1.5 rounded-lg text-[var(--c-text-sub)] hover:text-[var(--c-text-title)] hover:bg-[var(--c-card-bg)]"
+                                                className="p-1 rounded-md text-[var(--c-text-sub)] hover:text-[var(--c-text-title)]"
                                                 title="重命名音频"
                                             >
-                                                <FileEdit size={15} />
+                                                <FileEdit size={14} />
                                             </button>
                                             <button
                                                 type="button"
                                                 onClick={() => setDeletingAudio(audio)}
-                                                className="p-1.5 rounded-lg text-red-500 hover:bg-red-50"
+                                                className="p-1 rounded-md text-red-500 hover:bg-red-50"
                                                 title="删除音频"
                                             >
-                                                <Trash2 size={15} />
+                                                <Trash2 size={14} />
                                             </button>
                                         </>
                                     ) : (
-                                        <span className="text-[11px] text-[var(--c-text-sub)]/70 px-2">系统保护</span>
+                                        <span className="text-[10.5px] text-[var(--c-text-sub)]/60 px-1.5">保护</span>
                                     )}
                                 </div>
                             </div>
@@ -1005,61 +861,11 @@ export function SoundSettings() {
                 </div>
             )}
 
-            {/* 弹窗：添加网络音频链接 */}
-            {isUrlModalOpen && (
-                <div className="modal-overlay" data-ui="modal" onClick={() => setIsUrlModalOpen(false)}>
-                    <div
-                        className="modal-dialog max-w-[360px]"
-                        role="dialog"
-                        aria-modal="true"
-                        onClick={e => e.stopPropagation()}
-                    >
-                        <span className="modal-header-title">添加网络音频</span>
-                        <div className="modal-body flex flex-col gap-3">
-                            <div>
-                                <label className="text-[12px] text-[var(--c-text-sub)] mb-1 block">音频名称</label>
-                                <Input
-                                    value={urlName}
-                                    onChange={e => setUrlName(e.target.value)}
-                                    placeholder="如：清脆水晶声"
-                                    autoFocus
-                                />
-                            </div>
-                            <div>
-                                <label className="text-[12px] text-[var(--c-text-sub)] mb-1 block">音频 URL</label>
-                                <Input
-                                    value={urlValue}
-                                    onChange={e => setUrlValue(e.target.value)}
-                                    placeholder="https://.../sound.mp3"
-                                />
-                            </div>
-                        </div>
-                        <div className="modal-actions">
-                            <button
-                                type="button"
-                                className="ui-btn ui-btn-outline"
-                                onClick={() => setIsUrlModalOpen(false)}
-                            >
-                                取消
-                            </button>
-                            <button
-                                type="button"
-                                className="ui-btn ui-btn-primary"
-                                disabled={!urlValue.trim()}
-                                onClick={handleAddUrlAudio}
-                            >
-                                添加到素材库
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
             {/* 确认删除音频对话框 */}
             {deletingAudio && (
                 <ConfirmDialog
                     title="删除音频素材"
-                    message={`确定要从素材库中删除「${deletingAudio.name}」吗？若当前方案正使用该音频，将自动回退到系统内置默认音效。`}
+                    message={`确定要从素材库中删除「${deletingAudio.name}」吗？若当前方案正使用该音频，将自动回退到默认音效。`}
                     onConfirm={handleConfirmDeleteAudio}
                     onCancel={() => setDeletingAudio(null)}
                 />
@@ -1069,7 +875,7 @@ export function SoundSettings() {
             {deletingProfileId && (
                 <ConfirmDialog
                     title="删除音效方案"
-                    message="确定要删除该音效方案吗？删除后绑定该方案的角色将自动回退到全局默认方案。"
+                    message="确定要删除该音效方案吗？删除后绑定该方案的角色将自动回退到默认方案。"
                     onConfirm={() => handleDeleteProfile(deletingProfileId)}
                     onCancel={() => setDeletingProfileId(null)}
                 />
