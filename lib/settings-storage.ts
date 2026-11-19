@@ -682,6 +682,7 @@ export function createDefaultSoundProfile(): SoundProfileConfig {
         updatedAt: now,
         messageSoundsEnabled: true,
         callSoundsEnabled: true,
+        autoVolumeNormalization: false,
         newMessage: {
             enabled: true,
             activeAudioId: "builtin_new_msg",

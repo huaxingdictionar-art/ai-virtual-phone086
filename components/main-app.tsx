@@ -229,7 +229,7 @@ async function prepareDesktopThemeForFirstPaint(): Promise<PreparedDesktopTheme>
 export function MainApp() {
   const [preparedDesktopTheme, setPreparedDesktopTheme] = useState<PreparedDesktopTheme | null>(null);
   const [hydrated, setHydrated] = useState(false);
-  const [splashDismissed, setSplashDismissed] = useState(false);
+  const [splashDismissed, setSplashDismissed] = useState(true);
   const [kvHydrateFailed, setKvHydrateFailed] = useState(false);
   const [initAttempt, setInitAttempt] = useState(0);
 
@@ -262,7 +262,10 @@ export function MainApp() {
       setPreparedDesktopTheme(nextPreparedTheme);
       setHydrated(true);
       const searchParams = typeof window !== "undefined" ? new URLSearchParams(window.location.search) : null;
-      if (hasPendingMcpOAuthCallback() || searchParams?.has("direct") || searchParams?.has("skip_splash")) {
+      // 默认秒进桌面；若用户明确带了 show_splash=1 则展示开屏动画
+      if (searchParams?.has("show_splash")) {
+        setSplashDismissed(false);
+      } else {
         setSplashDismissed(true);
       }
     })();

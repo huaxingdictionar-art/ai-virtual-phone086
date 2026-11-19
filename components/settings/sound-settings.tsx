@@ -16,7 +16,7 @@ import {
     PhoneIncoming,
     PhoneOutgoing,
     PhoneOff,
-    Check,
+    SlidersHorizontal,
 } from "lucide-react";
 import { SettingsContext } from "../phone-settings-app";
 import type { SoundProfileConfig, SoundAudioItem } from "@/lib/settings-types";
@@ -182,10 +182,11 @@ export function SoundSettings() {
     // 正在试听的音频 ID
     const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
 
-    // 弹窗状态：重命名音频
-    const [isRenameAudioModalOpen, setIsRenameAudioModalOpen] = useState(false);
-    const [renamingAudio, setRenamingAudio] = useState<SoundAudioItem | null>(null);
-    const [renamingAudioName, setRenamingAudioName] = useState("");
+    // 弹窗状态：自定义音频设置（重命名、音量调节、删除）
+    const [isAudioConfigModalOpen, setIsAudioConfigModalOpen] = useState(false);
+    const [editingAudio, setEditingAudio] = useState<SoundAudioItem | null>(null);
+    const [editingAudioName, setEditingAudioName] = useState("");
+    const [editingAudioVolume, setEditingAudioVolume] = useState<number>(1);
 
     // 弹窗状态：删除音频
     const [deletingAudio, setDeletingAudio] = useState<SoundAudioItem | null>(null);
@@ -235,7 +236,7 @@ export function SoundSettings() {
         setPlayingAudioId(null);
     };
 
-    const playAudioItem = async (item: SoundAudioItem, fallbackKind?: SoundKind) => {
+    const playAudioItem = async (item: SoundAudioItem, fallbackKind?: SoundKind, customVolume?: number) => {
         if (playingAudioId === item.id) {
             stopAudio();
             return;
@@ -264,6 +265,30 @@ export function SoundSettings() {
         try {
             const audio = new Audio(playUrl);
             activeAudioRef.current = audio;
+
+            const effectiveVol = customVolume !== undefined ? customVolume : (item.volume ?? 1);
+            if (activeProfile?.autoVolumeNormalization) {
+                try {
+                    const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+                    if (AudioCtx) {
+                        const ctx = new AudioCtx();
+                        const source = ctx.createMediaElementSource(audio);
+                        const compressor = ctx.createDynamicsCompressor();
+                        compressor.threshold.setValueAtTime(-24, ctx.currentTime);
+                        compressor.knee.setValueAtTime(30, ctx.currentTime);
+                        compressor.ratio.setValueAtTime(12, ctx.currentTime);
+                        compressor.attack.setValueAtTime(0.003, ctx.currentTime);
+                        compressor.release.setValueAtTime(0.25, ctx.currentTime);
+                        source.connect(compressor);
+                        compressor.connect(ctx.destination);
+                    }
+                } catch {
+                    audio.volume = Math.max(0, Math.min(1, effectiveVol));
+                }
+            } else {
+                audio.volume = Math.max(0, Math.min(1, effectiveVol));
+            }
+
             audio.onended = () => {
                 setPlayingAudioId(prev => (prev === item.id ? null : prev));
                 activeAudioRef.current = null;
@@ -389,11 +414,19 @@ export function SoundSettings() {
         }
     };
 
-    const handleSaveAudioRename = () => {
-        if (!renamingAudio || !renamingAudioName.trim()) return;
-        const newName = renamingAudioName.trim();
+    const handleOpenAudioConfigModal = (audio: SoundAudioItem) => {
+        setEditingAudio(audio);
+        setEditingAudioName(audio.name);
+        setEditingAudioVolume(audio.volume ?? 1);
+        setIsAudioConfigModalOpen(true);
+    };
+
+    const handleSaveAudioConfig = () => {
+        if (!editingAudio || !editingAudioName.trim()) return;
+        const newName = editingAudioName.trim();
+        const newVol = editingAudioVolume;
         const nextLibrary = soundLibrary.map(item =>
-            item.id === renamingAudio.id ? { ...item, name: newName } : item
+            item.id === editingAudio.id ? { ...item, name: newName, volume: newVol } : item
         );
         setSoundLibrary(nextLibrary);
         saveSoundLibrary(nextLibrary);
@@ -405,7 +438,7 @@ export function SoundSettings() {
                 if (ch?.audios) {
                     updated[key] = {
                         ...ch,
-                        audios: ch.audios.map(a => (a.id === renamingAudio.id ? { ...a, name: newName } : a)),
+                        audios: ch.audios.map(a => (a.id === editingAudio.id ? { ...a, name: newName, volume: newVol } : a)),
                     };
                 }
             }
@@ -414,8 +447,9 @@ export function SoundSettings() {
         setProfiles(nextProfiles);
         saveSoundProfiles(nextProfiles);
 
-        setIsRenameAudioModalOpen(false);
-        setRenamingAudio(null);
+        setIsAudioConfigModalOpen(false);
+        setEditingAudio(null);
+        showToast("✓ 音效配置已更新");
     };
 
     const handleConfirmDeleteAudio = () => {
@@ -493,6 +527,31 @@ export function SoundSettings() {
 
     return (
         <div className="flex flex-col gap-5 pb-12 px-1 text-[var(--c-text-title)] relative">
+            <style jsx>{`
+                .sound-select {
+                    width: 100%;
+                    padding: 8px 30px 8px 12px;
+                    border-radius: var(--ui-radius, 10px);
+                    border: 1px solid var(--c-input-border, rgba(0, 0, 0, 0.08));
+                    background-color: var(--c-input, #ffffff);
+                    color: var(--c-text-title, #1e293b);
+                    font-size: calc(13px * var(--app-text-scale, 1));
+                    cursor: pointer;
+                    outline: none;
+                    -webkit-appearance: none;
+                    -moz-appearance: none;
+                    appearance: none;
+                    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+                    background-repeat: no-repeat;
+                    background-position: right 10px center;
+                    background-size: 13px 13px;
+                    transition: border-color 0.2s;
+                }
+                .sound-select:focus {
+                    border-color: var(--c-icon-active, #4f46e5);
+                }
+            `}</style>
+
             {/* 优雅悬浮 Toast 提示 */}
             {toast && (
                 <div className="fixed top-14 left-1/2 -translate-x-1/2 z-50 px-4 py-2 rounded-full bg-black/85 backdrop-blur-md text-white text-[12px] font-medium shadow-lg transition-all flex items-center gap-1.5 pointer-events-none animate-fade-in">
@@ -508,12 +567,20 @@ export function SoundSettings() {
                 onChange={handleFileSelected}
             />
 
-            {/* 1. 当前方案管理 */}
+            {/* 1. 音效预设管理（对齐手绘草图） */}
             <div className="flex flex-col gap-2.5">
                 <p className="settings-menu-section-title">PROFILE MANAGEMENT</p>
                 <div className="menu-group p-4 flex flex-col gap-3">
                     <div className="flex items-center justify-between">
-                        <span className="text-[13px] font-medium text-[var(--c-text-title)]">当前方案</span>
+                        <div className="flex items-center gap-2.5">
+                            <span
+                                className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
+                                style={{ color: "#4f46e5", backgroundColor: "#4f46e518" }}
+                            >
+                                <SlidersHorizontal size={16} strokeWidth={1.8} />
+                            </span>
+                            <span className="text-[13.5px] font-semibold text-[var(--c-text-title)]">音效预设</span>
+                        </div>
                         <button
                             type="button"
                             onClick={handleOpenCreateProfileModal}
@@ -530,9 +597,9 @@ export function SoundSettings() {
                                 onChange={e => {
                                     stopAudio();
                                     setActiveProfileId(e.target.value);
-                                    showToast("已切换音效方案");
+                                    showToast("已切换音效预设");
                                 }}
-                                className="ui-select w-full pr-8 text-[13px]"
+                                className="sound-select w-full"
                             >
                                 {profiles.map(p => (
                                     <option key={p.id} value={p.id}>
@@ -548,31 +615,55 @@ export function SoundSettings() {
                                 setRenamingProfileName(activeProfile.name);
                                 setIsRenameProfileModalOpen(true);
                             }}
-                            className="ui-btn ui-btn-outline p-2 text-[var(--c-text-sub)]"
+                            className="ui-btn ui-btn-outline p-2 text-[var(--c-text-sub)] shrink-0"
                             title="重命名方案"
                         >
                             <FileEdit size={16} />
                         </button>
-
-                        {profiles.length > 1 && (
-                            <button
-                                type="button"
-                                onClick={() => setDeletingProfileId(activeProfile.id)}
-                                className="ui-btn ui-btn-soft-danger p-2"
-                                title="删除方案"
-                            >
-                                <Trash2 size={16} />
-                            </button>
-                        )}
                     </div>
 
-                    <div className="pt-1 flex items-center justify-end border-t border-black/[0.045]">
+                    {/* 自动音量均衡开关 */}
+                    <div className="flex items-center justify-between py-1 text-[12px]">
+                        <div className="flex flex-col gap-0.5 pr-2">
+                            <span className="font-medium text-[var(--c-text-title)]">自动音量均衡</span>
+                            <span className="text-[11px] text-[var(--c-text-sub)]">智能平抑忽大忽小的声压，让音效自然统一</span>
+                        </div>
+                        <Toggle
+                            checked={activeProfile.autoVolumeNormalization === true}
+                            onChange={checked => {
+                                updateProfile(prev => ({ ...prev, autoVolumeNormalization: checked }));
+                                showToast(checked ? "已启用全局音量均衡" : "已恢复自定义音量");
+                            }}
+                        />
+                    </div>
+
+                    {/* 原生细虚线分行与底部操作按钮（对齐手绘草图） */}
+                    <div className="pt-2.5 flex items-center justify-between border-t border-dashed border-black/[0.08]">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (profiles.length <= 1) {
+                                    showToast("至少需保留一个音效方案");
+                                    return;
+                                }
+                                setDeletingProfileId(activeProfile.id);
+                            }}
+                            className={`text-[12px] font-medium transition-colors ${
+                                profiles.length <= 1
+                                    ? "text-neutral-300 cursor-not-allowed"
+                                    : "text-red-500 hover:text-red-600 active:scale-95"
+                            }`}
+                            disabled={profiles.length <= 1}
+                        >
+                            删除
+                        </button>
+
                         <button
                             type="button"
                             onClick={handleSaveCurrentProfile}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-black/[0.05] hover:bg-black/[0.08] active:scale-95 text-[12px] font-medium text-[var(--c-text-title)] transition-all"
+                            className="inline-flex items-center px-3 py-1.5 rounded-lg bg-black/[0.05] hover:bg-black/[0.08] active:scale-95 text-[12px] font-medium text-[var(--c-text-title)] transition-all"
                         >
-                            <Check size={13} /> 保存/更新当前配置
+                            保存/更新当前配置
                         </button>
                     </div>
                 </div>
@@ -616,7 +707,7 @@ export function SoundSettings() {
                                     <select
                                         value={activeProfile.newMessage?.activeAudioId || "builtin_new_msg"}
                                         onChange={e => handleSelectSlotAudio("newMessage", e.target.value)}
-                                        className="ui-select flex-1 text-[13px]"
+                                        className="sound-select flex-1"
                                     >
                                         {soundLibrary.map(audio => (
                                              <option key={audio.id} value={audio.id}>
@@ -655,7 +746,7 @@ export function SoundSettings() {
                                     <select
                                         value={activeProfile.sendMessage?.activeAudioId || "builtin_send_msg"}
                                         onChange={e => handleSelectSlotAudio("sendMessage", e.target.value)}
-                                        className="ui-select flex-1 text-[13px]"
+                                        className="sound-select flex-1"
                                     >
                                         {soundLibrary.map(audio => (
                                              <option key={audio.id} value={audio.id}>
@@ -713,7 +804,7 @@ export function SoundSettings() {
                                             <select
                                                 value={slotVal}
                                                 onChange={e => handleSelectSlotAudio(slot.kind, e.target.value)}
-                                                className="ui-select flex-1 text-[13px]"
+                                                className="sound-select flex-1"
                                             >
                                                 {soundLibrary.map(audio => (
                                                      <option key={audio.id} value={audio.id}>
@@ -760,15 +851,18 @@ export function SoundSettings() {
                         </button>
                     </div>
 
-                    <div className="flex flex-col gap-1.5 pt-1">
-                        {soundLibrary.map(audio => {
+                    <div className="flex flex-col pt-1">
+                        {soundLibrary.map((audio, index) => {
                             const isPlaying = playingAudioId === audio.id;
                             const isBuiltin = audio.sourceType === "builtin";
+                            const isLast = index === soundLibrary.length - 1;
 
                             return (
                                 <div
                                     key={audio.id}
-                                    className="flex items-center justify-between py-2 px-2.5 rounded-xl bg-[var(--c-sub-bg)]/50 hover:bg-[var(--c-sub-bg)] transition-colors"
+                                    className={`flex items-center justify-between py-2 px-1 transition-colors ${
+                                        !isLast ? "border-b border-dashed border-black/[0.06]" : ""
+                                    }`}
                                 >
                                     <div className="flex items-center gap-2.5 min-w-0 pr-2">
                                         <button
@@ -792,11 +886,7 @@ export function SoundSettings() {
                                             <span className="text-[12.5px] font-medium text-[var(--c-text-title)] truncate">
                                                 {audio.name}
                                             </span>
-                                            {isBuiltin ? (
-                                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-black/5 text-[var(--c-text-sub)] shrink-0">
-                                                    内置
-                                                </span>
-                                            ) : (
+                                            {!isBuiltin && (
                                                 <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-50 text-emerald-600 shrink-0">
                                                     本地
                                                 </span>
@@ -805,31 +895,19 @@ export function SoundSettings() {
                                     </div>
 
                                     <div className="flex items-center gap-1 shrink-0">
-                                        {!isBuiltin ? (
-                                            <>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => {
-                                                        setRenamingAudio(audio);
-                                                        setRenamingAudioName(audio.name);
-                                                        setIsRenameAudioModalOpen(true);
-                                                    }}
-                                                    className="p-1 rounded-md text-[var(--c-text-sub)] hover:text-[var(--c-text-title)]"
-                                                    title="重命名音频"
-                                                >
-                                                    <FileEdit size={14} />
-                                                </button>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setDeletingAudio(audio)}
-                                                    className="p-1 rounded-md text-red-500 hover:bg-red-50"
-                                                    title="删除音频"
-                                                >
-                                                    <Trash2 size={14} />
-                                                </button>
-                                            </>
+                                        {isBuiltin ? (
+                                            <span className="text-[10.5px] px-2 py-0.5 rounded-full bg-black/[0.04] text-[var(--c-text-sub,#64748b)] font-medium">
+                                                内置
+                                            </span>
                                         ) : (
-                                            <span className="text-[10.5px] text-[var(--c-text-sub)]/60 px-1.5">保护</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleOpenAudioConfigModal(audio)}
+                                                className="p-1.5 rounded-lg text-[var(--c-text-sub)] hover:text-[var(--c-text-title)] hover:bg-black/5 active:scale-95 transition-all"
+                                                title="音效设置与编辑"
+                                            >
+                                                <FileEdit size={15} />
+                                            </button>
                                         )}
                                     </div>
                                 </div>
@@ -922,39 +1000,98 @@ export function SoundSettings() {
                 </div>
             )}
 
-            {/* 弹窗：重命名音频素材 */}
-            {isRenameAudioModalOpen && (
-                <div className="modal-overlay" data-ui="modal" onClick={() => setIsRenameAudioModalOpen(false)}>
+            {/* 弹窗：自定义音频设置（重命名、音量调节、删除） */}
+            {isAudioConfigModalOpen && editingAudio && (
+                <div className="modal-overlay" data-ui="modal" onClick={() => setIsAudioConfigModalOpen(false)}>
                     <div
                         className="modal-dialog max-w-[340px]"
                         role="dialog"
                         aria-modal="true"
                         onClick={e => e.stopPropagation()}
                     >
-                        <span className="modal-header-title">重命名音频素材</span>
-                        <div className="modal-body">
-                            <Input
-                                value={renamingAudioName}
-                                onChange={e => setRenamingAudioName(e.target.value)}
-                                placeholder="输入音频名称"
-                                autoFocus
-                            />
+                        <span className="modal-header-title">音效设置与编辑</span>
+                        <div className="modal-body flex flex-col gap-4">
+                            {/* 音频名称 */}
+                            <div className="flex flex-col gap-1.5">
+                                <span className="text-[12px] font-medium text-[var(--c-text-sub,#64748b)]">
+                                    音效名称
+                                </span>
+                                <Input
+                                    value={editingAudioName}
+                                    onChange={e => setEditingAudioName(e.target.value)}
+                                    placeholder="输入音频名称"
+                                    autoFocus
+                                />
+                            </div>
+
+                            {/* 音量微调 */}
+                            <div className="flex flex-col gap-1.5 p-3 rounded-xl bg-black/[0.03]">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-[12px] font-medium text-[var(--c-text-title)]">
+                                        单音效音量
+                                    </span>
+                                    <span className="text-[12px] font-semibold text-[var(--c-text-title)]">
+                                        {Math.round(editingAudioVolume * 100)}%
+                                    </span>
+                                </div>
+
+                                {activeProfile?.autoVolumeNormalization ? (
+                                    <p className="text-[11px] text-[var(--c-text-sub,#64748b)] leading-relaxed mt-1">
+                                        💡 当前方案已开启「自动音量均衡」，所有音效将由智能响度算法统一均衡接管，单音效音量滑块已由全局控制替代。
+                                    </p>
+                                ) : (
+                                    <div className="flex items-center gap-3 mt-1.5">
+                                        <input
+                                            type="range"
+                                            min={0.1}
+                                            max={1.5}
+                                            step={0.05}
+                                            value={editingAudioVolume}
+                                            onChange={e => {
+                                                const val = Number.parseFloat(e.target.value);
+                                                setEditingAudioVolume(val);
+                                            }}
+                                            className="flex-1 accent-indigo-600 cursor-pointer"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => playAudioItem(editingAudio, undefined, editingAudioVolume)}
+                                            className="px-2 py-1 rounded bg-black/10 hover:bg-black/15 text-[11px] font-medium shrink-0 active:scale-95 transition-all"
+                                        >
+                                            试听
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
                         </div>
-                        <div className="modal-actions">
+                        <div className="modal-actions justify-between">
                             <button
                                 type="button"
-                                className="ui-btn ui-btn-outline"
-                                onClick={() => setIsRenameAudioModalOpen(false)}
+                                className="ui-btn text-red-500 hover:bg-red-50 text-[12.5px]"
+                                onClick={() => {
+                                    const toDelete = editingAudio;
+                                    setIsAudioConfigModalOpen(false);
+                                    setDeletingAudio(toDelete);
+                                }}
                             >
-                                取消
+                                删除音频
                             </button>
-                            <button
-                                type="button"
-                                className="ui-btn ui-btn-primary"
-                                onClick={handleSaveAudioRename}
-                            >
-                                保存
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    className="ui-btn ui-btn-outline"
+                                    onClick={() => setIsAudioConfigModalOpen(false)}
+                                >
+                                    取消
+                                </button>
+                                <button
+                                    type="button"
+                                    className="ui-btn ui-btn-primary"
+                                    onClick={handleSaveAudioConfig}
+                                >
+                                    保存设置
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>

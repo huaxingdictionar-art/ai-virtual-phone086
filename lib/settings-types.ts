@@ -256,6 +256,8 @@ export type SoundAudioItem = {
     value: string;
     /** 小型音频直接内嵌 DataURL（小于300KB），无论如何备份与迁移均100%跟随配置 */
     dataUrl?: string;
+    /** 单音效自定义音量增益（0.1 ~ 1.5，默认 1.0 即 100%） */
+    volume?: number;
 };
 
 export type SoundChannelConfig = {
@@ -269,6 +271,8 @@ export type SoundChannelConfig = {
 export type SoundProfileConfig = SettingItemMeta & {
     messageSoundsEnabled: boolean;
     callSoundsEnabled: boolean;
+    /** 自动音量均衡：智能平抑过大/过小声压，让音效统一舒适 */
+    autoVolumeNormalization?: boolean;
     newMessage: SoundChannelConfig;
     sendMessage: SoundChannelConfig;
     incomingCall: SoundChannelConfig;

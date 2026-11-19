@@ -120,11 +120,38 @@ async function resolveChatSoundSrc(kind: ChatSoundKind, session?: SessionLike): 
     return dataUrl;
 }
 
+function attachVolumeOrNormalization(audio: HTMLAudioElement, config: { volume?: number; autoVolumeNormalization?: boolean }): void {
+    try {
+        if (config.autoVolumeNormalization) {
+            const ctx = getAudioContext();
+            if (ctx) {
+                const source = ctx.createMediaElementSource(audio);
+                const compressor = ctx.createDynamicsCompressor();
+                compressor.threshold.setValueAtTime(-24, ctx.currentTime);
+                compressor.knee.setValueAtTime(30, ctx.currentTime);
+                compressor.ratio.setValueAtTime(12, ctx.currentTime);
+                compressor.attack.setValueAtTime(0.003, ctx.currentTime);
+                compressor.release.setValueAtTime(0.25, ctx.currentTime);
+                source.connect(compressor);
+                compressor.connect(ctx.destination);
+                return;
+            }
+        }
+        if (typeof config.volume === "number") {
+            audio.volume = Math.max(0, Math.min(1, config.volume));
+        }
+    } catch {
+        // 静默降级
+    }
+}
+
 /** 设置页“试听”：优先播放自定义音频，未配置时试听内置默认音效 */
 export async function previewChatSound(kind: ChatSoundKind, session?: SessionLike): Promise<void> {
+    const config = resolveChatSoundConfig(kind, session);
     const src = await resolveChatSoundSrc(kind, session);
     if (src) {
         const audio = new Audio(src);
+        attachVolumeOrNormalization(audio, config);
         audio.play().catch(() => {});
         return;
     }
@@ -145,6 +172,7 @@ export async function playChatSoundOnce(kind: ChatSoundKind, session?: SessionLi
     const src = await resolveChatSoundSrc(kind, session);
     if (src) {
         const audio = new Audio(src);
+        attachVolumeOrNormalization(audio, config);
         audio.play().catch(() => {});
         return;
     }
@@ -181,6 +209,7 @@ export function startChatSoundLoop(kind: ChatSoundKind, session?: SessionLike): 
         stopActiveSoundLoop();
         const audio = new Audio(src);
         audio.loop = true;
+        attachVolumeOrNormalization(audio, config);
         activeSoundLoop = { audio, token };
         audio.play().catch(() => {});
     });

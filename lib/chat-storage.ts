@@ -388,6 +388,10 @@ export type ChatSoundConfig = {
     value?: string;
     /** （仅新消息音效）开启后同一角色连续多条消息只播一次音效 */
     notifyOncePerBurst?: boolean;
+    /** 单音效自定义音量 (0.1 ~ 1.5) */
+    volume?: number;
+    /** 是否全局开启自动音量均衡 */
+    autoVolumeNormalization?: boolean;
 };
 
 export type ChatSoundsConfig = {
@@ -439,6 +443,8 @@ export function resolveChatSoundConfig(
         sourceType: activeAudio && activeAudio.sourceType !== "builtin" ? activeAudio.sourceType : undefined,
         value: activeAudio && activeAudio.sourceType !== "builtin" ? effectiveValue : undefined,
         notifyOncePerBurst: channel.notifyOncePerBurst,
+        volume: activeAudio?.volume,
+        autoVolumeNormalization: soundProfile.autoVolumeNormalization,
     };
 
     // 如果全局 ChatAppSettings 或单个会话有遗留覆盖，予以合并
