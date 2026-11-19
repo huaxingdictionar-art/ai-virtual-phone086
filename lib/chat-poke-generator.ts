@@ -112,3 +112,52 @@ export async function generateAllPokesViaLLM(
         throw new Error("大模型返回格式解析失败，请点击重新生成一次。");
     }
 }
+
+// 全局单例任务状态管理器：关闭弹窗甚至切换页面，后台任务依然继续，重新打开弹窗依然维持「生成中」
+export const POKE_GENERATION_STATE_EVENT = "chat-poke-generation-state-changed";
+
+export interface PokeGenerationStateDetail {
+    characterId: string;
+    isGenerating: boolean;
+    result?: GeneratedPokesResult;
+    error?: string;
+}
+
+const generatingCharacters = new Set<string>();
+
+export function isCharacterGeneratingPokes(characterId: string): boolean {
+    return generatingCharacters.has(characterId);
+}
+
+export async function triggerPersistentPokeGeneration(
+    character: Character,
+    userName: string = "你",
+): Promise<GeneratedPokesResult> {
+    const charId = character.id;
+    generatingCharacters.add(charId);
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent<PokeGenerationStateDetail>(POKE_GENERATION_STATE_EVENT, {
+            detail: { characterId: charId, isGenerating: true },
+        }));
+    }
+
+    try {
+        const result = await generateAllPokesViaLLM(character, userName);
+        generatingCharacters.delete(charId);
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent<PokeGenerationStateDetail>(POKE_GENERATION_STATE_EVENT, {
+                detail: { characterId: charId, isGenerating: false, result },
+            }));
+        }
+        return result;
+    } catch (err: unknown) {
+        generatingCharacters.delete(charId);
+        const errMsg = err instanceof Error ? err.message : "AI 生成失败，请稍后重试";
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent<PokeGenerationStateDetail>(POKE_GENERATION_STATE_EVENT, {
+                detail: { characterId: charId, isGenerating: false, error: errMsg },
+            }));
+        }
+        throw err;
+    }
+}

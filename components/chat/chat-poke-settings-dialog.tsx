@@ -9,7 +9,12 @@ import {
     normalizePokeConfig,
     resolvePokeTemplate,
 } from "@/lib/chat-poke-types";
-import { generateAllPokesViaLLM } from "@/lib/chat-poke-generator";
+import {
+    triggerPersistentPokeGeneration,
+    isCharacterGeneratingPokes,
+    POKE_GENERATION_STATE_EVENT,
+    type PokeGenerationStateDetail,
+} from "@/lib/chat-poke-generator";
 import { Toggle } from "@/components/ui/form";
 
 interface ChatPokeSettingsDialogProps {
@@ -31,52 +36,66 @@ export function ChatPokeSettingsDialog({
     userName = "你",
     initialConfig,
     onSave,
-    onTriggerPokeOnce,
 }: ChatPokeSettingsDialogProps) {
     const [config, setConfig] = useState<Required<ChatPokeConfig>>(() => normalizePokeConfig(initialConfig));
     const [activeTab, setActiveTab] = useState<"user" | "char">("user");
     const [userDraft, setUserDraft] = useState("");
     const [charDraft, setCharDraft] = useState("");
-    const [isGenerating, setIsGenerating] = useState(false);
+    const [isGenerating, setIsGenerating] = useState(() => isCharacterGeneratingPokes(character.id));
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
     const userInputRef = useRef<HTMLInputElement>(null);
     const charInputRef = useRef<HTMLInputElement>(null);
 
-    // 同步外部配置
+    // 同步外部配置与持久化生成状态
     useEffect(() => {
         if (open) {
             setConfig(normalizePokeConfig(initialConfig));
+            setIsGenerating(isCharacterGeneratingPokes(character.id));
             setErrorMessage(null);
             setSuccessMessage(null);
         }
-    }, [open, initialConfig]);
+    }, [open, initialConfig, character.id]);
+
+    // 全局监听持久化生成事件：即使用户在生成中关闭了弹窗，再次打开或者在后台完成时均能秒级同步！
+    useEffect(() => {
+        const handleStateChange = (e: Event) => {
+            const ce = e as CustomEvent<PokeGenerationStateDetail>;
+            if (ce.detail?.characterId !== character.id) return;
+
+            setIsGenerating(ce.detail.isGenerating);
+            if (!ce.detail.isGenerating && ce.detail.result) {
+                setConfig((prev) => ({
+                    ...prev,
+                    userPokes: ce.detail.result!.userPokes.slice(0, MAX_POKE_ITEMS_COUNT),
+                    charPokes: ce.detail.result!.charPokes.slice(0, MAX_POKE_ITEMS_COUNT),
+                }));
+                setSuccessMessage("文案已生成！双方各已更新 5 条精选文案。");
+                setTimeout(() => setSuccessMessage(null), 3000);
+            } else if (!ce.detail.isGenerating && ce.detail.error) {
+                setErrorMessage(ce.detail.error);
+            }
+        };
+
+        window.addEventListener(POKE_GENERATION_STATE_EVENT, handleStateChange);
+        return () => window.removeEventListener(POKE_GENERATION_STATE_EVENT, handleStateChange);
+    }, [character.id]);
 
     if (!open) return null;
 
     const charName = character?.name || "对方";
 
-    // 一键全部生成（双方各 5 条）
+    // 点击左下角【AI 生成十条】：支持后台持久执行与全局状态恢复
     const handleGenerateAll = async () => {
         try {
             setIsGenerating(true);
             setErrorMessage(null);
             setSuccessMessage(null);
-
-            const result = await generateAllPokesViaLLM(character, userName);
-            setConfig(prev => ({
-                ...prev,
-                userPokes: result.userPokes.slice(0, MAX_POKE_ITEMS_COUNT),
-                charPokes: result.charPokes.slice(0, MAX_POKE_ITEMS_COUNT),
-            }));
-            setSuccessMessage("已结合当前人设生成双方各 5 条精选文案！");
-            setTimeout(() => setSuccessMessage(null), 3000);
+            await triggerPersistentPokeGeneration(character, userName);
         } catch (err: unknown) {
             const msg = err instanceof Error ? err.message : "AI 生成失败，请稍后重试";
             setErrorMessage(msg);
-        } finally {
-            setIsGenerating(false);
         }
     };
 
@@ -88,7 +107,7 @@ export function ChatPokeSettingsDialog({
             setErrorMessage(`文案池最多容纳 ${MAX_POKE_ITEMS_COUNT} 条，请先删除不需要的句子`);
             return;
         }
-        setConfig(prev => ({
+        setConfig((prev) => ({
             ...prev,
             userPokes: [...prev.userPokes, text].slice(0, MAX_POKE_ITEMS_COUNT),
         }));
@@ -104,7 +123,7 @@ export function ChatPokeSettingsDialog({
             setErrorMessage(`文案池最多容纳 ${MAX_POKE_ITEMS_COUNT} 条，请先删除不需要的句子`);
             return;
         }
-        setConfig(prev => ({
+        setConfig((prev) => ({
             ...prev,
             charPokes: [...prev.charPokes, text].slice(0, MAX_POKE_ITEMS_COUNT),
         }));
@@ -114,7 +133,7 @@ export function ChatPokeSettingsDialog({
 
     // 删除文案
     const handleDeletePoke = (type: "user" | "char", index: number) => {
-        setConfig(prev => {
+        setConfig((prev) => {
             if (type === "user") {
                 const next = [...prev.userPokes];
                 next.splice(index, 1);
@@ -158,22 +177,22 @@ export function ChatPokeSettingsDialog({
 
     return (
         <div
-            className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/40 backdrop-blur-[3px] animate-fade-in select-none"
+            className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/45 backdrop-blur-[3px] animate-fade-in select-none"
             onClick={(e) => {
                 if (e.target === e.currentTarget) onClose();
             }}
         >
             <div
-                className="w-full max-w-[360px] max-h-[85vh] flex flex-col rounded-[20px] bg-[var(--c-page-bg,#ffffff)] text-[var(--c-text,#1f2937)] shadow-xl border border-black/8 dark:border-white/10 overflow-hidden transition-all"
+                className="w-full max-w-[360px] max-h-[85vh] flex flex-col rounded-[20px] bg-[var(--c-page-bg,#ffffff)] text-black dark:text-white shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden transition-all"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Header: 极简纯净，拒绝多余唠叨 */}
-                <div className="flex items-center justify-between px-4 py-3.5 border-b border-[var(--c-border,#e5e7eb)] shrink-0">
-                    <h3 className="text-[16px] font-semibold tracking-tight">拍一拍设置</h3>
+                {/* Header: 利落纯黑标题，拒绝多余唠叨 */}
+                <div className="flex items-center justify-between px-4 py-3.5 border-b border-black/10 dark:border-white/10 shrink-0">
+                    <h3 className="text-[16px] font-bold tracking-tight text-black dark:text-white">拍一拍设置</h3>
                     <button
                         type="button"
                         onClick={onClose}
-                        className="w-7 h-7 rounded-full flex items-center justify-center text-[var(--c-sub,#8e8e93)] hover:bg-[var(--c-input,#f2f2f7)] active:scale-95 transition-all"
+                        className="w-7 h-7 rounded-full flex items-center justify-center text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all"
                         aria-label="关闭"
                     >
                         <X size={16} />
@@ -196,35 +215,15 @@ export function ChatPokeSettingsDialog({
                         </div>
                     )}
 
-                    {/* AI 一键生成按钮：原生黑白灰质感，拒绝花哨渐变 */}
-                    <button
-                        type="button"
-                        onClick={handleGenerateAll}
-                        disabled={isGenerating}
-                        className="w-full py-2 px-3 rounded-xl font-medium text-[12.5px] flex items-center justify-center gap-1.5 transition-all active:scale-[0.99] border border-black/8 dark:border-white/10 bg-[var(--c-input,#f2f2f7)] text-[var(--c-text,#1f2937)] hover:bg-[var(--c-border,#e5e7eb)]/60 disabled:opacity-50"
-                    >
-                        {isGenerating ? (
-                            <>
-                                <Loader2 size={14} className="animate-spin text-[var(--c-sub,#8e8e93)]" />
-                                <span>正在结合人设构思文案…</span>
-                            </>
-                        ) : (
-                            <>
-                                <Sparkles size={14} className="text-[var(--c-sub,#8e8e93)]" />
-                                <span>AI 智能生成文案池</span>
-                            </>
-                        )}
-                    </button>
-
-                    {/* Tab 切换：原生 Segmented Control */}
-                    <div className="grid grid-cols-2 p-1 rounded-xl bg-[var(--c-input,#f2f2f7)] text-[12.5px] font-medium text-center">
+                    {/* Tab 切换：纯正黑白高对比分段选择器 */}
+                    <div className="grid grid-cols-2 p-1 rounded-xl bg-black/5 dark:bg-white/10 text-[12.5px] font-medium text-center">
                         <button
                             type="button"
                             onClick={() => setActiveTab("user")}
                             className={`py-1.5 rounded-lg transition-all ${
                                 activeTab === "user"
-                                    ? "bg-[var(--c-page-bg,#ffffff)] text-[var(--c-text,#1f2937)] shadow-sm font-semibold"
-                                    : "text-[var(--c-sub,#8e8e93)] hover:text-[var(--c-text,#1f2937)]"
+                                    ? "bg-black text-white dark:bg-white dark:text-black shadow-sm font-semibold"
+                                    : "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white"
                             }`}
                         >
                             你拍 TA ({config.userPokes.length}/5)
@@ -234,17 +233,17 @@ export function ChatPokeSettingsDialog({
                             onClick={() => setActiveTab("char")}
                             className={`py-1.5 rounded-lg transition-all ${
                                 activeTab === "char"
-                                    ? "bg-[var(--c-page-bg,#ffffff)] text-[var(--c-text,#1f2937)] shadow-sm font-semibold"
-                                    : "text-[var(--c-sub,#8e8e93)] hover:text-[var(--c-text,#1f2937)]"
+                                    ? "bg-black text-white dark:bg-white dark:text-black shadow-sm font-semibold"
+                                    : "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white"
                             }`}
                         >
                             TA 拍你 ({config.charPokes.length}/5)
                         </button>
                     </div>
 
-                    {/* 快捷动词药丸 */}
+                    {/* 快捷动词药丸：纯黑文字与利落胶囊 */}
                     <div className="space-y-1.5">
-                        <div className="text-[11px] text-[var(--c-sub,#8e8e93)]">
+                        <div className="text-[11px] font-medium text-black/60 dark:text-white/60">
                             快捷动词（点击填入下方）：
                         </div>
                         <div className="flex flex-wrap gap-1.5">
@@ -253,7 +252,7 @@ export function ChatPokeSettingsDialog({
                                     key={verb}
                                     type="button"
                                     onClick={() => handleQuickVerb(verb)}
-                                    className="px-2.5 py-1 rounded-full text-[12px] bg-[var(--c-input,#f2f2f7)] text-[var(--c-text,#1f2937)] hover:bg-[var(--c-border,#e5e7eb)] active:scale-95 transition-all border border-black/5 dark:border-white/5"
+                                    className="px-2.5 py-1 rounded-full text-[12px] font-medium bg-black/5 dark:bg-white/10 text-black dark:text-white hover:bg-black/10 dark:hover:bg-white/15 active:scale-95 transition-all border border-black/10 dark:border-white/10"
                                 >
                                     {verb}
                                 </button>
@@ -266,29 +265,29 @@ export function ChatPokeSettingsDialog({
                         <div className="space-y-2.5">
                             <div className="space-y-1.5">
                                 {config.userPokes.length === 0 ? (
-                                    <div className="py-5 text-center text-[12px] text-[var(--c-sub,#8e8e93)]">
-                                        暂无文案，可点击上方 AI 生成或在下方输入添加
+                                    <div className="py-5 text-center text-[12px] text-black/50 dark:text-white/50">
+                                        暂无文案，可点击左下角 AI 生成或在下方输入添加
                                     </div>
                                 ) : (
                                     config.userPokes.map((item, idx) => (
                                         <div
                                             key={idx}
                                             onClick={() => handleSelectDraft("user", item)}
-                                            className="group flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[var(--c-input,#f8f8fa)] text-[12.5px] border border-black/5 dark:border-white/5 hover:border-black/15 dark:hover:border-white/20 cursor-pointer transition-all"
+                                            className="group flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-black/5 dark:bg-white/5 text-[12.5px] font-medium border border-black/8 dark:border-white/10 hover:border-black/30 dark:hover:border-white/30 cursor-pointer transition-all"
                                             title="点击填入下方微调"
                                         >
-                                            <span className="truncate flex-1 select-text">
+                                            <span className="truncate flex-1 select-text text-black dark:text-white">
                                                 {resolvePokeTemplate(item, userName, charName)}
                                             </span>
                                             <div className="flex items-center gap-1 shrink-0">
-                                                <Edit3 size={13} className="text-[var(--c-sub,#8e8e93)] opacity-0 group-hover:opacity-60 transition-opacity" />
+                                                <Edit3 size={13} className="text-black/40 dark:text-white/40 opacity-0 group-hover:opacity-70 transition-opacity" />
                                                 <button
                                                     type="button"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleDeletePoke("user", idx);
                                                     }}
-                                                    className="w-5 h-5 rounded flex items-center justify-center text-[var(--c-sub,#8e8e93)] hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                                    className="w-5 h-5 rounded flex items-center justify-center text-black/40 dark:text-white/40 hover:text-red-600 hover:bg-red-500/10 transition-colors"
                                                     aria-label="删除"
                                                 >
                                                     <X size={13} />
@@ -318,13 +317,13 @@ export function ChatPokeSettingsDialog({
                                             ? "已达 5 条上限"
                                             : "输入自定义拍一拍文案…"
                                     }
-                                    className="flex-1 px-3 py-1.5 rounded-xl text-[12.5px] bg-[var(--c-input,#f2f2f7)] border border-transparent focus:border-black/20 dark:focus:border-white/20 outline-none disabled:opacity-50 transition-colors"
+                                    className="flex-1 px-3 py-1.5 rounded-xl text-[12.5px] bg-black/5 dark:bg-white/10 text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 border border-black/10 dark:border-white/10 focus:border-black dark:focus:border-white outline-none disabled:opacity-50 transition-colors"
                                 />
                                 <button
                                     type="button"
                                     onClick={handleAddUserPoke}
                                     disabled={!userDraft.trim() || config.userPokes.length >= MAX_POKE_ITEMS_COUNT}
-                                    className="px-3 py-1.5 rounded-xl text-[12.5px] font-medium bg-[var(--c-text,#1f2937)] text-[var(--c-page-bg,#ffffff)] disabled:opacity-30 active:scale-95 transition-all shrink-0"
+                                    className="px-3.5 py-1.5 rounded-xl text-[12.5px] font-semibold bg-black text-white dark:bg-white dark:text-black disabled:opacity-30 active:scale-95 transition-all shrink-0"
                                 >
                                     添加
                                 </button>
@@ -335,11 +334,11 @@ export function ChatPokeSettingsDialog({
                     {/* Tab 2: TA 拍你 */}
                     {activeTab === "char" && (
                         <div className="space-y-2.5">
-                            {/* 角色主动拍我开关：简约黑白灰卡片 + 绿色开关 */}
-                            <div className="p-2.5 rounded-xl bg-[var(--c-input,#f8f8fa)] flex items-center justify-between border border-black/5 dark:border-white/5">
+                            {/* 角色主动拍我开关：纯正黑白卡片 + 原生绿色开关 */}
+                            <div className="p-2.5 rounded-xl bg-black/5 dark:bg-white/5 flex items-center justify-between border border-black/8 dark:border-white/10">
                                 <div>
-                                    <div className="text-[12.5px] font-medium">允许角色主动拍你</div>
-                                    <div className="text-[10.5px] text-[var(--c-sub,#8e8e93)]">闲聊或追问中角色主动互动</div>
+                                    <div className="text-[12.5px] font-semibold text-black dark:text-white">允许角色主动拍你</div>
+                                    <div className="text-[10.5px] text-black/60 dark:text-white/60">闲聊或追问中角色线上双击你</div>
                                 </div>
                                 <Toggle
                                     checked={config.allowCharActivePoke}
@@ -351,29 +350,29 @@ export function ChatPokeSettingsDialog({
 
                             <div className="space-y-1.5">
                                 {config.charPokes.length === 0 ? (
-                                    <div className="py-5 text-center text-[12px] text-[var(--c-sub,#8e8e93)]">
-                                        暂无文案，可点击上方 AI 生成或在下方输入添加
+                                    <div className="py-5 text-center text-[12px] text-black/50 dark:text-white/50">
+                                        暂无文案，可点击左下角 AI 生成或在下方输入添加
                                     </div>
                                 ) : (
                                     config.charPokes.map((item, idx) => (
                                         <div
                                             key={idx}
                                             onClick={() => handleSelectDraft("char", item)}
-                                            className="group flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[var(--c-input,#f8f8fa)] text-[12.5px] border border-black/5 dark:border-white/5 hover:border-black/15 dark:hover:border-white/20 cursor-pointer transition-all"
+                                            className="group flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-black/5 dark:bg-white/5 text-[12.5px] font-medium border border-black/8 dark:border-white/10 hover:border-black/30 dark:hover:border-white/30 cursor-pointer transition-all"
                                             title="点击填入下方微调"
                                         >
-                                            <span className="truncate flex-1 select-text">
+                                            <span className="truncate flex-1 select-text text-black dark:text-white">
                                                 {resolvePokeTemplate(item, userName, charName)}
                                             </span>
                                             <div className="flex items-center gap-1 shrink-0">
-                                                <Edit3 size={13} className="text-[var(--c-sub,#8e8e93)] opacity-0 group-hover:opacity-60 transition-opacity" />
+                                                <Edit3 size={13} className="text-black/40 dark:text-white/40 opacity-0 group-hover:opacity-70 transition-opacity" />
                                                 <button
                                                     type="button"
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         handleDeletePoke("char", idx);
                                                     }}
-                                                    className="w-5 h-5 rounded flex items-center justify-center text-[var(--c-sub,#8e8e93)] hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                                    className="w-5 h-5 rounded flex items-center justify-center text-black/40 dark:text-white/40 hover:text-red-600 hover:bg-red-500/10 transition-colors"
                                                     aria-label="删除"
                                                 >
                                                     <X size={13} />
@@ -403,13 +402,13 @@ export function ChatPokeSettingsDialog({
                                             ? "已达 5 条上限"
                                             : "输入角色拍你的文案…"
                                     }
-                                    className="flex-1 px-3 py-1.5 rounded-xl text-[12.5px] bg-[var(--c-input,#f2f2f7)] border border-transparent focus:border-black/20 dark:focus:border-white/20 outline-none disabled:opacity-50 transition-colors"
+                                    className="flex-1 px-3 py-1.5 rounded-xl text-[12.5px] bg-black/5 dark:bg-white/10 text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 border border-black/10 dark:border-white/10 focus:border-black dark:focus:border-white outline-none disabled:opacity-50 transition-colors"
                                 />
                                 <button
                                     type="button"
                                     onClick={handleAddCharPoke}
                                     disabled={!charDraft.trim() || config.charPokes.length >= MAX_POKE_ITEMS_COUNT}
-                                    className="px-3 py-1.5 rounded-xl text-[12.5px] font-medium bg-[var(--c-text,#1f2937)] text-[var(--c-page-bg,#ffffff)] disabled:opacity-30 active:scale-95 transition-all shrink-0"
+                                    className="px-3.5 py-1.5 rounded-xl text-[12.5px] font-semibold bg-black text-white dark:bg-white dark:text-black disabled:opacity-30 active:scale-95 transition-all shrink-0"
                                 >
                                     添加
                                 </button>
@@ -418,22 +417,45 @@ export function ChatPokeSettingsDialog({
                     )}
                 </div>
 
-                {/* Footer 按钮组：纯粹的 取消 与 保存 */}
-                <div className="px-4 py-3 bg-[var(--c-input,#f9f9fb)] border-t border-[var(--c-border,#e5e7eb)] flex items-center justify-end gap-2.5 shrink-0">
+                {/* Footer 按钮组：左下角 AI 生成十条，右下角 取消 与 纯黑保存 */}
+                <div className="px-4 py-3 bg-black/3 dark:bg-white/5 border-t border-black/10 dark:border-white/10 flex items-center justify-between gap-2 shrink-0">
+                    {/* 左下角：AI 生成十条 / 生成中... */}
                     <button
                         type="button"
-                        onClick={onClose}
-                        className="px-4 py-1.5 rounded-xl text-[13px] text-[var(--c-sub,#8e8e93)] hover:bg-black/5 dark:hover:bg-white/5 active:scale-95 transition-all"
+                        onClick={handleGenerateAll}
+                        disabled={isGenerating}
+                        className="px-3 py-1.5 rounded-xl text-[12px] font-semibold flex items-center gap-1.5 border border-black/15 dark:border-white/20 bg-white dark:bg-[#2c2c2e] text-black dark:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-2xs"
                     >
-                        取消
+                        {isGenerating ? (
+                            <>
+                                <Loader2 size={13} className="animate-spin text-black dark:text-white" />
+                                <span>生成中…</span>
+                            </>
+                        ) : (
+                            <>
+                                <Sparkles size={13} className="text-black dark:text-white" />
+                                <span>AI 生成十条</span>
+                            </>
+                        )}
                     </button>
-                    <button
-                        type="button"
-                        onClick={handleSave}
-                        className="px-5 py-1.5 rounded-xl text-[13px] font-medium bg-[var(--c-text,#1f2937)] text-[var(--c-page-bg,#ffffff)] hover:opacity-90 active:scale-95 transition-all shadow-sm"
-                    >
-                        保存
-                    </button>
+
+                    {/* 右下角：取消 与 纯黑保存 */}
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="px-3.5 py-1.5 rounded-xl text-[13px] font-medium text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all"
+                        >
+                            取消
+                        </button>
+                        <button
+                            type="button"
+                            onClick={handleSave}
+                            className="px-5 py-1.5 rounded-xl text-[13px] font-bold bg-black text-white dark:bg-white dark:text-black hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                        >
+                            保存
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
