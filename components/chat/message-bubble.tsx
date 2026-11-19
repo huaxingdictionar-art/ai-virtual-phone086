@@ -29,6 +29,7 @@ import { ScanPayCard } from "@/components/chat/scan-pay-card";
 import { payWithWalletBalance } from "@/lib/wallet-storage";
 import { formatShoppingPaymentRequestHistory } from "@/lib/shopping-payment-request";
 import { toCustomAppIconId } from "@/lib/custom-app-types";
+import { resolvePokeTemplate } from "@/lib/chat-poke-types";
 import { ChatPluginSlot } from "@/components/chat/chat-plugin-slot";
 import { CHAT_PLUGIN_SLOTS_CHANGED_EVENT, getChatPluginRuntime } from "@/lib/chat-plugin-runtime";
 
@@ -1506,22 +1507,24 @@ function DiceBubble({ msg }: { msg: ChatMessage }) {
 }
 
 function PokeBubble({ msg, charName, userName }: { msg: ChatMessage; charName?: string; userName?: string }) {
-    // Prefer mediaData fields (group chat aware), fallback to old role-based logic
-    const sender = msg.mediaData?.pokeSender || (msg.role === "user" ? (userName || "你") : (charName || "对方"));
-    const target = msg.mediaData?.pokeTarget || (msg.role === "user" ? (charName || "对方") : (userName || "你"));
-    // Replace user's own name with "你" for display
-    const displaySender = sender === userName ? "你" : sender;
-    const displayTarget = target === userName ? "你" : target;
+    const uName = userName?.trim() || "用户";
+    const cName = charName?.trim() || "对方";
+
+    // 拍一拍严格使用双方真实大名，杜绝出现“你/我/他”等代词
+    const rawSender = msg.mediaData?.pokeSender;
+    const rawTarget = msg.mediaData?.pokeTarget;
+    const sender = (rawSender && rawSender !== "我" && rawSender !== "你")
+        ? rawSender
+        : (msg.role === "user" ? uName : cName);
+    const target = (rawTarget && rawTarget !== "自己" && rawTarget !== "你" && rawTarget !== "对方")
+        ? rawTarget
+        : (rawTarget === "自己" ? sender : (msg.role === "user" ? cName : uName));
 
     let text = msg.content?.trim();
     if (text) {
-        text = text.replace(/\{user\}/g, "你").replace(/\{char\}/g, charName || "对方");
-        if (userName && userName !== "你") {
-            // 用户自己的真实名字在端内展示为 "你"
-            text = text.split(userName).join("你");
-        }
+        text = resolvePokeTemplate(text, uName, cName);
     } else {
-        text = `${displaySender} 拍了拍 ${displayTarget}`;
+        text = `${sender} 拍了拍 ${target}`;
     }
 
     return (

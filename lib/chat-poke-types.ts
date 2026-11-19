@@ -46,11 +46,24 @@ export function normalizePokeConfig(config?: ChatPokeConfig | null): Required<Ch
     };
 }
 
-/** 替换文案模板中的占位符 */
-export function resolvePokeTemplate(template: string, userName: string, charName: string): string {
-    const u = userName?.trim() || "你";
+/** 替换文案模板中的占位符，并规范化人称代词为双方真实大名 */
+export function resolvePokeTemplate(template: string, userName?: string, charName?: string): string {
+    const u = userName?.trim() || "用户";
     const c = charName?.trim() || "对方";
+    if (!template) return `${u} 拍了拍 ${c}`;
+
     let res = template.replace(/\{user\}/g, u).replace(/\{char\}/g, c);
+
+    // 智能代词规整：严禁出现你/我/他等代词，全面推行真实大名
+    // 1. 处理句首代词：如 "你 拍了拍..."、"我 拍了拍..."
+    res = res.replace(/^(?:你|我)\s*(拍了拍|戳了戳|揉了揉|捏了捏|敲了敲|抱了抱|扯了扯|弹了弹)/, `${u} $1`);
+    // 2. 处理句中代词：如 "拍了拍 你"、"拍了拍 我"
+    res = res.replace(/(拍了拍|戳了戳|揉了揉|捏了捏|敲了敲|抱了抱|扯了扯|弹了弹)\s*(?:你|我)(?=[^\w]|$)/g, `$1 ${u}`);
+    // 3. 处理指代角色的代词：如 "拍了拍 他"、"拍了拍 她"
+    res = res.replace(/(拍了拍|戳了戳|揉了揉|捏了捏|敲了敲|抱了抱|扯了扯|弹了弹)\s*(?:他|她)(?=[^\w]|$)/g, `$1 ${c}`);
+    // 4. 处理 "拍了拍自己"：如 "华 拍了拍自己" -> "华 拍了拍 华"
+    res = res.replace(/(拍了拍|戳了戳|揉了揉|捏了捏|敲了敲|抱了抱)\s*自己/g, `$1 ${u}`);
+
     return res.trim();
 }
 

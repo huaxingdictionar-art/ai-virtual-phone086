@@ -16,7 +16,7 @@ export interface GeneratedPokesResult {
  */
 export async function generateAllPokesViaLLM(
     character: Character,
-    userName: string = "你",
+    userName?: string,
 ): Promise<GeneratedPokesResult> {
     const bindings = loadBindingConfig();
     const slot = resolveBinding(bindings, character.id, "chat");
@@ -29,7 +29,7 @@ export async function generateAllPokesViaLLM(
     }
 
     const charName = character.name?.trim() || "该角色";
-    const uName = userName?.trim() || "你";
+    const uName = userName?.trim() || "用户";
 
     const systemPrompt = [
         "你是一位懂角色扮演与细腻网络社交氛围的文案大师。",
@@ -38,13 +38,12 @@ export async function generateAllPokesViaLLM(
         `【角色设定】\n${character.persona?.trim() || "（暂无具体设定）"}`,
         ...(character.personality?.trim() ? ["", `【性格特征】\n${character.personality.trim()}`] : []),
         "",
-        "【至关重要的核心规则】：",
-        "1. 拍一拍是手机聊天软件内的线上虚拟屏幕互动（类似微信双击头像震动提醒/戳一戳），绝非现实生活中的线下肉体接触！",
-        "2. 哪怕双方身处异地、相隔千里也能在手机上拍。文案要符合线上打趣、撒娇、傲娇、提醒、隔空戳戳的氛围，千万不要写成线下直接动手动脚（严禁描写掀衣服、摸身体等真实肢体接触）！",
-        "3. 文案中必须使用占位符：{user} 代表用户，{char} 代表角色。",
-        `4. 严格只生成两组文案，每组最多正好 ${MAX_POKE_ITEMS_COUNT} 条（短小精悍，每句一般在 12~24 字以内）。`,
-        "- userPokes：用户拍角色（{user} 拍了拍 {char} 的... / {user} 戳了戳 {char} 的...）",
-        "- charPokes：角色拍用户（{char} 拍了拍 {user} 的... / {char} 戳了戳 {user} 的...）",
+        "【至关重要的核心铁律】：",
+        "1. 严禁出现「你」、「我」、「他」、「她」等第一/第二/第三人称代词！文案中必须直接使用占位符：{user} 代表用户真实大名，{char} 代表角色真实大名。例如：{user} 拍了拍 {char} 的小脑瓜，绝不能写成 我拍了拍你 或 你拍了拍我！",
+        "2. 拍一拍是手机聊天软件内的线上虚拟屏幕互动（类似微信双击头像震动提醒/戳一戳），绝非现实生活中的线下肉体接触！文案要符合线上打趣、撒娇、傲娇、提醒、隔空戳戳的氛围，严禁写成线下动手动脚（严禁描写掀衣服、抚摸身体等肉体接触）。",
+        `3. 严格只生成两组文案，每组最多正好 ${MAX_POKE_ITEMS_COUNT} 条（短小精悍，每句一般在 12~24 字以内）。`,
+        "- userPokes：用户拍角色（格式：{user} 动作词 {char} ...）",
+        "- charPokes：角色拍用户（格式：{char} 动作词 {user} ...）",
         "",
         "【输出格式】：",
         "请务必只输出合法合规的纯 JSON 格式（不要包含任何 markdown 代码块外部的闲聊）：",
@@ -58,9 +57,9 @@ export async function generateAllPokesViaLLM(
         "  ],",
         '  "charPokes": [',
         `    "{char} 拍了拍 {user} 的脑袋瓜问人呢",`,
-        `    "{char} 戳了戳 {user} 的屏幕催你快回消息",`,
-        `    "{char} 弹了弹 {user} 的额头并递过来一杯温水",`,
-        `    "{char} 敲了敲 {user} 悄悄发呆的小脑瓜",`,
+        `    "{char} 戳了戳 {user} 的屏幕并递过来一杯温水",`,
+        `    "{char} 弹了弹 {user} 的额头叫 {user} 别发呆",`,
+        `    "{char} 敲了敲 {user} 悄悄发呆的小脑袋",`,
         `    "{char} 拍了拍 {user} 并叹了口气说笨蛋"`,
         "  ]",
         "}",
@@ -92,12 +91,37 @@ export async function generateAllPokesViaLLM(
 
     try {
         const parsed = JSON.parse(cleaned);
-        const userPokes = Array.isArray(parsed.userPokes)
-            ? parsed.userPokes.filter((s: unknown) => typeof s === "string" && s.trim().length > 0).slice(0, MAX_POKE_ITEMS_COUNT)
+        const sanitizePoke = (raw: string, isUserAction: boolean) => {
+            let str = raw.trim();
+            // 规整真实名字为占位符
+            if (uName && uName !== "用户") str = str.split(uName).join("{user}");
+            if (charName && charName !== "该角色" && charName !== "对方") str = str.split(charName).join("{char}");
+            // 消除残余代词
+            if (isUserAction) {
+                str = str.replace(/^我\s*/, "{user} ");
+                str = str.replace(/^你\s*/, "{user} ");
+                str = str.replace(/(拍了拍|戳了戳|揉了揉|捏了捏|敲了敲|抱了抱)\s*(?:他|她)/g, "$1 {char}");
+            } else {
+                str = str.replace(/^他\s*/, "{char} ");
+                str = str.replace(/^她\s*/, "{char} ");
+                str = str.replace(/(拍了拍|戳了戳|揉了揉|捏了捏|敲了敲|抱了抱)\s*(?:你|我)/g, "$1 {user}");
+            }
+            // 确保开头有主语
+            if (!str.startsWith("{user}") && !str.startsWith("{char}")) {
+                str = isUserAction ? `{user} ${str}` : `{char} ${str}`;
+            }
+            return str.replace(/\s{2,}/g, " ").trim();
+        };
+
+        const rawUserPokes: string[] = Array.isArray(parsed.userPokes)
+            ? parsed.userPokes.filter((s: unknown): s is string => typeof s === "string" && s.trim().length > 0).slice(0, MAX_POKE_ITEMS_COUNT)
             : [];
-        const charPokes = Array.isArray(parsed.charPokes)
-            ? parsed.charPokes.filter((s: unknown) => typeof s === "string" && s.trim().length > 0).slice(0, MAX_POKE_ITEMS_COUNT)
+        const rawCharPokes: string[] = Array.isArray(parsed.charPokes)
+            ? parsed.charPokes.filter((s: unknown): s is string => typeof s === "string" && s.trim().length > 0).slice(0, MAX_POKE_ITEMS_COUNT)
             : [];
+
+        const userPokes = rawUserPokes.map((s: string) => sanitizePoke(s, true));
+        const charPokes = rawCharPokes.map((s: string) => sanitizePoke(s, false));
 
         if (userPokes.length === 0 && charPokes.length === 0) {
             throw new Error("解析出的文案列表为空，请重试。");
@@ -131,7 +155,7 @@ export function isCharacterGeneratingPokes(characterId: string): boolean {
 
 export async function triggerPersistentPokeGeneration(
     character: Character,
-    userName: string = "你",
+    userName?: string,
 ): Promise<GeneratedPokesResult> {
     const charId = character.id;
     generatingCharacters.add(charId);

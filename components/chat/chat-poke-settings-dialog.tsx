@@ -33,7 +33,7 @@ export function ChatPokeSettingsDialog({
     open,
     onClose,
     character,
-    userName = "你",
+    userName = "用户",
     initialConfig,
     onSave,
 }: ChatPokeSettingsDialogProps) {
@@ -99,7 +99,7 @@ export function ChatPokeSettingsDialog({
         }
     };
 
-    // 添加「你拍TA」文案
+    // 添加双方大名文案
     const handleAddUserPoke = () => {
         const text = userDraft.trim();
         if (!text) return;
@@ -115,7 +115,6 @@ export function ChatPokeSettingsDialog({
         setErrorMessage(null);
     };
 
-    // 添加「TA拍你」文案
     const handleAddCharPoke = () => {
         const text = charDraft.trim();
         if (!text) return;
@@ -158,7 +157,7 @@ export function ChatPokeSettingsDialog({
         }
     };
 
-    // 点击动词药丸快速填入
+    // 点击动词药丸快速填入：使用 {user} 和 {char} 占位符
     const handleQuickVerb = (verb: string) => {
         if (activeTab === "user") {
             setUserDraft(`{user} ${verb} {char} `);
@@ -177,13 +176,13 @@ export function ChatPokeSettingsDialog({
 
     return (
         <div
-            className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/45 backdrop-blur-[3px] animate-fade-in select-none"
+            className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-[3px] animate-fade-in select-none"
             onClick={(e) => {
                 if (e.target === e.currentTarget) onClose();
             }}
         >
             <div
-                className="w-full max-w-[360px] max-h-[85vh] flex flex-col rounded-[20px] bg-[var(--c-page-bg,#ffffff)] text-black dark:text-white shadow-2xl border border-black/10 dark:border-white/10 overflow-hidden transition-all"
+                className="w-full max-w-[360px] max-h-[85vh] flex flex-col rounded-[20px] bg-white dark:bg-[#18181b] text-black dark:text-white shadow-2xl border border-black/15 dark:border-white/15 overflow-hidden transition-all"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header: 利落纯黑标题，拒绝多余唠叨 */}
@@ -215,29 +214,31 @@ export function ChatPokeSettingsDialog({
                         </div>
                     )}
 
-                    {/* Tab 切换：纯正黑白高对比分段选择器 */}
+                    {/* Tab 切换：双方真实大名展示，纯正黑白高对比分段选择器 */}
                     <div className="grid grid-cols-2 p-1 rounded-xl bg-black/5 dark:bg-white/10 text-[12.5px] font-medium text-center">
                         <button
                             type="button"
                             onClick={() => setActiveTab("user")}
-                            className={`py-1.5 rounded-lg transition-all ${
+                            className={`py-1.5 px-1 rounded-lg transition-all truncate ${
                                 activeTab === "user"
                                     ? "bg-black text-white dark:bg-white dark:text-black shadow-sm font-semibold"
                                     : "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white"
                             }`}
+                            title={`${userName || "用户"} 拍 ${charName}`}
                         >
-                            你拍 TA ({config.userPokes.length}/5)
+                            {userName || "用户"} 拍 {charName} ({config.userPokes.length}/5)
                         </button>
                         <button
                             type="button"
                             onClick={() => setActiveTab("char")}
-                            className={`py-1.5 rounded-lg transition-all ${
+                            className={`py-1.5 px-1 rounded-lg transition-all truncate ${
                                 activeTab === "char"
                                     ? "bg-black text-white dark:bg-white dark:text-black shadow-sm font-semibold"
                                     : "text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white"
                             }`}
+                            title={`${charName} 拍 ${userName || "用户"}`}
                         >
-                            TA 拍你 ({config.charPokes.length}/5)
+                            {charName} 拍 {userName || "用户"} ({config.charPokes.length}/5)
                         </button>
                     </div>
 
@@ -260,7 +261,7 @@ export function ChatPokeSettingsDialog({
                         </div>
                     </div>
 
-                    {/* Tab 1: 你拍 TA */}
+                    {/* Tab 1: 用户拍角色（真实大名） */}
                     {activeTab === "user" && (
                         <div className="space-y-2.5">
                             <div className="space-y-1.5">
@@ -315,7 +316,7 @@ export function ChatPokeSettingsDialog({
                                     placeholder={
                                         config.userPokes.length >= MAX_POKE_ITEMS_COUNT
                                             ? "已达 5 条上限"
-                                            : "输入自定义拍一拍文案…"
+                                            : `输入文案，如：{user} 拍了拍 {char}…`
                                     }
                                     className="flex-1 px-3 py-1.5 rounded-xl text-[12.5px] bg-black/5 dark:bg-white/10 text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 border border-black/10 dark:border-white/10 focus:border-black dark:focus:border-white outline-none disabled:opacity-50 transition-colors"
                                 />
@@ -331,14 +332,14 @@ export function ChatPokeSettingsDialog({
                         </div>
                     )}
 
-                    {/* Tab 2: TA 拍你 */}
+                    {/* Tab 2: 角色拍用户（真实大名） */}
                     {activeTab === "char" && (
                         <div className="space-y-2.5">
                             {/* 角色主动拍我开关：纯正黑白卡片 + 原生绿色开关 */}
                             <div className="p-2.5 rounded-xl bg-black/5 dark:bg-white/5 flex items-center justify-between border border-black/8 dark:border-white/10">
                                 <div>
                                     <div className="text-[12.5px] font-semibold text-black dark:text-white">允许角色主动拍你</div>
-                                    <div className="text-[10.5px] text-black/60 dark:text-white/60">闲聊或追问中角色线上双击你</div>
+                                    <div className="text-[10.5px] text-black/60 dark:text-white/60">闲聊或追问中角色线上双击你头像</div>
                                 </div>
                                 <Toggle
                                     checked={config.allowCharActivePoke}
@@ -400,7 +401,7 @@ export function ChatPokeSettingsDialog({
                                     placeholder={
                                         config.charPokes.length >= MAX_POKE_ITEMS_COUNT
                                             ? "已达 5 条上限"
-                                            : "输入角色拍你的文案…"
+                                            : `输入文案，如：{char} 戳了戳 {user}…`
                                     }
                                     className="flex-1 px-3 py-1.5 rounded-xl text-[12.5px] bg-black/5 dark:bg-white/10 text-black dark:text-white placeholder:text-black/40 dark:placeholder:text-white/40 border border-black/10 dark:border-white/10 focus:border-black dark:focus:border-white outline-none disabled:opacity-50 transition-colors"
                                 />
@@ -418,13 +419,13 @@ export function ChatPokeSettingsDialog({
                 </div>
 
                 {/* Footer 按钮组：左下角 AI 生成十条，右下角 取消 与 纯黑保存 */}
-                <div className="px-4 py-3 bg-black/3 dark:bg-white/5 border-t border-black/10 dark:border-white/10 flex items-center justify-between gap-2 shrink-0">
+                <div className="px-4 py-3 bg-white dark:bg-[#18181b] border-t border-black/10 dark:border-white/10 flex items-center justify-between gap-2 shrink-0">
                     {/* 左下角：AI 生成十条 / 生成中... */}
                     <button
                         type="button"
                         onClick={handleGenerateAll}
                         disabled={isGenerating}
-                        className="px-3 py-1.5 rounded-xl text-[12px] font-semibold flex items-center gap-1.5 border border-black/15 dark:border-white/20 bg-white dark:bg-[#2c2c2e] text-black dark:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-2xs"
+                        className="px-3.5 py-1.5 rounded-xl text-[12px] font-semibold flex items-center gap-1.5 border border-black/80 dark:border-white text-black dark:text-white bg-white dark:bg-black hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed transition-all shadow-xs"
                     >
                         {isGenerating ? (
                             <>
@@ -444,14 +445,14 @@ export function ChatPokeSettingsDialog({
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-3.5 py-1.5 rounded-xl text-[13px] font-medium text-black/60 dark:text-white/60 hover:text-black dark:hover:text-white hover:bg-black/5 dark:hover:bg-white/10 active:scale-95 transition-all"
+                            className="px-3.5 py-1.5 rounded-xl text-[13px] font-medium text-black/70 dark:text-white/70 hover:text-black dark:hover:text-white active:scale-95 transition-all"
                         >
                             取消
                         </button>
                         <button
                             type="button"
                             onClick={handleSave}
-                            className="px-5 py-1.5 rounded-xl text-[13px] font-bold bg-black text-white dark:bg-white dark:text-black hover:opacity-90 active:scale-95 transition-all shadow-sm"
+                            className="px-5 py-1.5 rounded-xl text-[13px] font-bold bg-black text-white dark:bg-white dark:text-black hover:bg-black/90 dark:hover:bg-white/90 active:scale-95 transition-all shadow-sm"
                         >
                             保存
                         </button>

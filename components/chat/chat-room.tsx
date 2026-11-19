@@ -2534,7 +2534,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
         const pokeCfg = session.pokeConfig;
         if (pokeCfg?.enabled === false) return;
 
-        const uName = userIdentity?.name || "你";
+        const uName = userIdentity?.name || "用户";
         const cName = targetChar.name || "对方";
         const userPokes = pokeCfg?.userPokes && pokeCfg.userPokes.length > 0
             ? pokeCfg.userPokes
@@ -2550,11 +2550,11 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
     };
 
     const handleSelfAvatarPokeAction = () => {
-        const uName = userIdentity?.name || "你";
+        const uName = userIdentity?.name || "用户";
         sendRichMessage("poke", {
             pokeSender: uName,
-            pokeTarget: "自己",
-            customText: `${uName} 拍了拍自己的小脑袋`,
+            pokeTarget: uName,
+            customText: `${uName} 拍了拍 ${uName} 的小脑瓜`,
         } as Record<string, unknown>);
     };
 
@@ -9946,11 +9946,11 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                                             <>
                                                 {msg.mediaType === "poke"
                                                     ? (() => {
-                                                        const sender = msg.mediaData?.pokeSender || (msg.role === "user" ? "你" : (character?.name || "对方"));
-                                                        const target = msg.mediaData?.pokeTarget || (msg.role === "user" ? (character?.name || "对方") : "你");
-                                                        const displaySender = sender === userIdentity?.name ? "你" : sender;
-                                                        const displayTarget = target === userIdentity?.name ? "你" : target;
-                                                        return `${displaySender} 拍了拍 ${displayTarget}`;
+                                                        const uName = userIdentity?.name || "用户";
+                                                        const cName = character?.name || "对方";
+                                                        const sender = msg.mediaData?.pokeSender || (msg.role === "user" ? uName : cName);
+                                                        const target = msg.mediaData?.pokeTarget || (msg.role === "user" ? cName : uName);
+                                                        return `${sender} 拍了拍 ${target}`;
                                                     })()
                                                     : formatSysMsgForUI(msg.content, msg)}
                                             </>
@@ -10713,7 +10713,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                     open={showDirectPokeSettings}
                     onClose={() => setShowDirectPokeSettings(false)}
                     character={character}
-                    userName={userIdentity?.name || "你"}
+                    userName={userIdentity?.name || "用户"}
                     initialConfig={session.pokeConfig}
                     onSave={(newConfig) => {
                         session.pokeConfig = newConfig;
@@ -10721,7 +10721,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                     }}
                     onTriggerPokeOnce={(pokeText) => {
                         sendRichMessage("poke", {
-                            pokeSender: userIdentity?.name || "你",
+                            pokeSender: userIdentity?.name || "用户",
                             pokeTarget: character?.name || "对方",
                             customText: pokeText,
                         } as Record<string, unknown>);

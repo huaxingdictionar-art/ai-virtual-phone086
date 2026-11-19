@@ -1206,7 +1206,9 @@ export function formatRichMediaForHistory(msg: ChatMessage, userName: string, ch
             const sender = d?.pokeSender || (msg.role === "assistant" ? charName : userName);
             const target = d?.pokeTarget || (msg.role === "assistant" ? userName : charName);
             const rawContent = msg.content?.trim();
-            const actionText = rawContent ? rawContent : (isGroup ? `${sender}拍了拍${target}` : `我拍了拍${target}`);
+            const actionText = rawContent
+                ? rawContent.replace(/\{user\}/g, userName).replace(/\{char\}/g, charName)
+                : `${sender} 拍了拍 ${target}`;
             return `[系统通知: 手机聊天窗口内「${actionText}」（微信线上双击头像互动提醒，纯手机屏幕虚拟互动，非现实肉体触碰）]`;
         }
         case "sticker":

@@ -329,7 +329,7 @@ export function loadNativeTimeline(
             else if (msg.mediaType === "decline_transfer") content = "[拒收转账]";
             else if (msg.mediaType === "accept_payment_request") content = "[接受代付]";
             else if (msg.mediaType === "decline_payment_request") content = "[拒绝代付]";
-            else if (msg.mediaType === "poke") content = `[我拍了拍${msg.mediaData?.pokeTarget || ""}]`;
+            else if (msg.mediaType === "poke") content = `[${msg.mediaData?.pokeSender || "对方"} 拍了拍 ${msg.mediaData?.pokeTarget || "用户"}]`;
             // Represent rich media as text when content is empty
             else if (!content && msg.mediaType) {
                 if (msg.mediaType === "sticker") content = `[表情包:${msg.mediaData?.label || "贴纸"}]`;

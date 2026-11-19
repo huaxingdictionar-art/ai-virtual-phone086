@@ -2841,7 +2841,7 @@ export function ChatSettingsPanel({
                     open={showPokeSettings}
                     onClose={() => setShowPokeSettings(false)}
                     character={character}
-                    userName={userIdentity?.name || "你"}
+                    userName={userIdentity?.name || "用户"}
                     initialConfig={session.pokeConfig}
                     onSave={(newConfig) => {
                         updateSession({ pokeConfig: newConfig });
