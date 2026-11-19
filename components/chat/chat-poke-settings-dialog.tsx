@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Sparkles, X, Plus, Trash2, Check, AlertCircle, Loader2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { Sparkles, X, Plus, Trash2, Check, AlertCircle, Loader2, Edit3 } from "lucide-react";
 import type { Character } from "@/lib/character-types";
 import {
     ChatPokeConfig,
@@ -40,6 +40,9 @@ export function ChatPokeSettingsDialog({
     const [isGenerating, setIsGenerating] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string | null>(null);
     const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+    const userInputRef = useRef<HTMLInputElement>(null);
+    const charInputRef = useRef<HTMLInputElement>(null);
 
     // 同步外部配置
     useEffect(() => {
@@ -125,12 +128,25 @@ export function ChatPokeSettingsDialog({
         setErrorMessage(null);
     };
 
+    // 点击某一条文案回填至输入框微调
+    const handleSelectDraft = (type: "user" | "char", text: string) => {
+        if (type === "user") {
+            setUserDraft(text);
+            setTimeout(() => userInputRef.current?.focus(), 50);
+        } else {
+            setCharDraft(text);
+            setTimeout(() => charInputRef.current?.focus(), 50);
+        }
+    };
+
     // 点击动词药丸快速填入
     const handleQuickVerb = (verb: string) => {
         if (activeTab === "user") {
             setUserDraft(`{user} ${verb} {char} `);
+            setTimeout(() => userInputRef.current?.focus(), 50);
         } else {
             setCharDraft(`{char} ${verb} {user} `);
+            setTimeout(() => charInputRef.current?.focus(), 50);
         }
     };
 
@@ -154,21 +170,26 @@ export function ChatPokeSettingsDialog({
 
     return (
         <div
-            className="fixed inset-0 z-[120] flex items-center justify-center p-3 bg-black/45 backdrop-blur-[3px] animate-fade-in"
+            className="fixed inset-0 z-[120] flex items-center justify-center p-3.5 bg-black/50 backdrop-blur-[4px] animate-fade-in select-none"
             onClick={(e) => {
                 if (e.target === e.currentTarget) onClose();
             }}
         >
             <div
-                className="w-full max-w-[390px] max-h-[88vh] flex flex-col rounded-[22px] bg-[var(--c-page-bg,#ffffff)] text-[var(--c-text,#1f2937)] shadow-2xl border border-black/5 dark:border-white/10 overflow-hidden"
+                className="w-full max-w-[390px] max-h-[88vh] flex flex-col rounded-[24px] bg-[var(--c-page-bg,#ffffff)] text-[var(--c-text,#1f2937)] shadow-2xl border border-black/5 dark:border-white/10 overflow-hidden transition-all"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between px-5 pt-4 pb-2 border-b border-[var(--c-border,#e5e7eb)] shrink-0">
+                <div className="flex items-center justify-between px-5 pt-4 pb-2.5 border-b border-[var(--c-border,#e5e7eb)] shrink-0 bg-[var(--c-page-bg,#ffffff)]">
                     <div>
-                        <h3 className="text-[17px] font-bold leading-tight">拍一拍设置</h3>
+                        <h3 className="text-[17px] font-bold leading-tight flex items-center gap-1.5">
+                            <span>拍一拍设置</span>
+                            <span className="text-[11px] font-normal px-2 py-0.5 rounded-full bg-[var(--c-input,#f2f2f7)] text-[var(--c-sub,#8e8e93)]">
+                                双方各限 5 条
+                            </span>
+                        </h3>
                         <p className="text-[11.5px] text-[var(--c-sub,#8e8e93)] mt-0.5">
-                            双击头像触发 · 专属互动动作池（各最多5条）
+                            双击头像触发 · 手机线上虚拟互动，非现实肢体接触
                         </p>
                     </div>
                     <button
@@ -185,24 +206,24 @@ export function ChatPokeSettingsDialog({
                 <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3.5">
                     {/* 错误与成功提示 */}
                     {errorMessage && (
-                        <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500/10 text-red-600 dark:text-red-400 text-[12px] leading-tight">
+                        <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500/10 text-red-600 dark:text-red-400 text-[12px] leading-tight animate-fade-in">
                             <AlertCircle size={15} className="shrink-0" />
                             <span>{errorMessage}</span>
                         </div>
                     )}
                     {successMessage && (
-                        <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[12px] leading-tight">
+                        <div className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[12px] leading-tight animate-fade-in">
                             <Check size={15} className="shrink-0" />
                             <span>{successMessage}</span>
                         </div>
                     )}
 
                     {/* 主控制面板卡片 */}
-                    <div className="p-3 rounded-2xl bg-[var(--c-input,#f6f6f9)] flex items-center justify-between gap-3">
+                    <div className="p-3 rounded-2xl bg-[var(--c-input,#f6f6f9)] flex items-center justify-between gap-3 border border-black/5 dark:border-white/5">
                         <div>
-                            <div className="text-[13.5px] font-semibold">启用拍一拍</div>
+                            <div className="text-[13.5px] font-semibold">启用拍一拍互动</div>
                             <div className="text-[11px] text-[var(--c-sub,#8e8e93)] mt-0.5">
-                                聊天中双击头像触发动作
+                                聊天中双击头像随机抽取文案
                             </div>
                         </div>
                         <Toggle
@@ -260,8 +281,8 @@ export function ChatPokeSettingsDialog({
                     {/* 快捷动词药丸 */}
                     <div className="space-y-1.5">
                         <div className="text-[11px] text-[var(--c-sub,#8e8e93)] flex items-center justify-between">
-                            <span>快捷动词（点击填入输入框）：</span>
-                            <span className="text-[10px]">可用 &#123;user&#125; 与 &#123;char&#125;</span>
+                            <span>快捷动词（点击填入下方）：</span>
+                            <span className="text-[10px] opacity-75">点击列表条目可回填微调</span>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                             {QUICK_VERBS.map((verb) => (
@@ -269,7 +290,7 @@ export function ChatPokeSettingsDialog({
                                     key={verb}
                                     type="button"
                                     onClick={() => handleQuickVerb(verb)}
-                                    className="px-2.5 py-1 rounded-full text-[12px] bg-[var(--c-input,#f2f2f7)] hover:bg-[var(--c-border,#e5e7eb)] active:scale-95 transition-all"
+                                    className="px-2.5 py-1 rounded-full text-[12px] bg-[var(--c-input,#f2f2f7)] text-[var(--c-text,#1f2937)] hover:bg-[var(--c-border,#e5e7eb)] active:scale-95 transition-all border border-black/5 dark:border-white/5"
                                 >
                                     {verb}
                                 </button>
@@ -289,19 +310,27 @@ export function ChatPokeSettingsDialog({
                                     config.userPokes.map((item, idx) => (
                                         <div
                                             key={idx}
-                                            className="group flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[var(--c-input,#f8f8fa)] text-[12.5px] border border-black/5 dark:border-white/5"
+                                            onClick={() => handleSelectDraft("user", item)}
+                                            className="group flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[var(--c-input,#f8f8fa)] text-[12.5px] border border-black/5 dark:border-white/5 hover:border-[var(--c-accent,#007aff)]/40 cursor-pointer transition-all"
+                                            title="点击回填至下方输入框微调"
                                         >
-                                            <span className="truncate" title={resolvePokeTemplate(item, userName, charName)}>
+                                            <span className="truncate flex-1 select-text">
                                                 {resolvePokeTemplate(item, userName, charName)}
                                             </span>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleDeletePoke("user", idx)}
-                                                className="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[var(--c-sub,#8e8e93)] hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                                                aria-label="删除"
-                                            >
-                                                <X size={14} />
-                                            </button>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <Edit3 size={13} className="text-[var(--c-sub,#8e8e93)] opacity-0 group-hover:opacity-60 transition-opacity" />
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeletePoke("user", idx);
+                                                    }}
+                                                    className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--c-sub,#8e8e93)] hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                                    aria-label="删除"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
                                         </div>
                                     ))
                                 )}
@@ -310,6 +339,7 @@ export function ChatPokeSettingsDialog({
                             {/* 底部输入框 */}
                             <div className="flex items-center gap-2 pt-1">
                                 <input
+                                    ref={userInputRef}
                                     type="text"
                                     value={userDraft}
                                     onChange={(e) => setUserDraft(e.target.value)}
@@ -323,15 +353,15 @@ export function ChatPokeSettingsDialog({
                                     placeholder={
                                         config.userPokes.length >= MAX_POKE_ITEMS_COUNT
                                             ? "已达 5 条上限"
-                                            : "输入自定义拍一拍文案…"
+                                            : "输入拍一拍文案（如：拍了拍对方的软肋）"
                                     }
-                                    className="flex-1 px-3 py-2 rounded-xl text-[12.5px] bg-[var(--c-input,#f2f2f7)] border border-transparent focus:border-[var(--c-accent,#007aff)] outline-none disabled:opacity-50"
+                                    className="flex-1 px-3 py-2 rounded-xl text-[12.5px] bg-[var(--c-input,#f2f2f7)] border border-transparent focus:border-[var(--c-accent,#007aff)] outline-none disabled:opacity-50 transition-colors"
                                 />
                                 <button
                                     type="button"
                                     onClick={handleAddUserPoke}
                                     disabled={!userDraft.trim() || config.userPokes.length >= MAX_POKE_ITEMS_COUNT}
-                                    className="px-3.5 py-2 rounded-xl text-[12.5px] font-medium bg-[var(--c-accent,#007aff)] text-white disabled:opacity-40 active:scale-95 transition-all"
+                                    className="px-3.5 py-2 rounded-xl text-[12.5px] font-medium bg-[var(--c-accent,#007aff)] text-white disabled:opacity-40 active:scale-95 transition-all shrink-0"
                                 >
                                     添加
                                 </button>
@@ -343,8 +373,11 @@ export function ChatPokeSettingsDialog({
                     {activeTab === "char" && (
                         <div className="space-y-2.5">
                             {/* 角色主动拍我开关 */}
-                            <div className="p-2.5 rounded-xl bg-[var(--c-input,#f8f8fa)] flex items-center justify-between">
-                                <span className="text-[12px]">允许角色在追问或闲聊中主动拍你</span>
+                            <div className="p-2.5 rounded-xl bg-[var(--c-input,#f8f8fa)] flex items-center justify-between border border-black/5 dark:border-white/5">
+                                <div>
+                                    <div className="text-[12px] font-medium">允许角色主动拍你</div>
+                                    <div className="text-[10.5px] text-[var(--c-sub,#8e8e93)]">闲聊或追问中角色线上双击你的头像</div>
+                                </div>
                                 <Toggle
                                     checked={config.allowCharActivePoke}
                                     onChange={(checked) =>
@@ -362,19 +395,27 @@ export function ChatPokeSettingsDialog({
                                     config.charPokes.map((item, idx) => (
                                         <div
                                             key={idx}
-                                            className="group flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[var(--c-input,#f8f8fa)] text-[12.5px] border border-black/5 dark:border-white/5"
+                                            onClick={() => handleSelectDraft("char", item)}
+                                            className="group flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[var(--c-input,#f8f8fa)] text-[12.5px] border border-black/5 dark:border-white/5 hover:border-[var(--c-accent,#007aff)]/40 cursor-pointer transition-all"
+                                            title="点击回填至下方输入框微调"
                                         >
-                                            <span className="truncate" title={resolvePokeTemplate(item, userName, charName)}>
+                                            <span className="truncate flex-1 select-text">
                                                 {resolvePokeTemplate(item, userName, charName)}
                                             </span>
-                                            <button
-                                                type="button"
-                                                onClick={() => handleDeletePoke("char", idx)}
-                                                className="shrink-0 w-6 h-6 rounded-md flex items-center justify-center text-[var(--c-sub,#8e8e93)] hover:text-red-500 hover:bg-red-500/10 transition-colors"
-                                                aria-label="删除"
-                                            >
-                                                <X size={14} />
-                                            </button>
+                                            <div className="flex items-center gap-1 shrink-0">
+                                                <Edit3 size={13} className="text-[var(--c-sub,#8e8e93)] opacity-0 group-hover:opacity-60 transition-opacity" />
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        handleDeletePoke("char", idx);
+                                                    }}
+                                                    className="w-6 h-6 rounded-md flex items-center justify-center text-[var(--c-sub,#8e8e93)] hover:text-red-500 hover:bg-red-500/10 transition-colors"
+                                                    aria-label="删除"
+                                                >
+                                                    <X size={14} />
+                                                </button>
+                                            </div>
                                         </div>
                                     ))
                                 )}
@@ -383,6 +424,7 @@ export function ChatPokeSettingsDialog({
                             {/* 底部输入框 */}
                             <div className="flex items-center gap-2 pt-1">
                                 <input
+                                    ref={charInputRef}
                                     type="text"
                                     value={charDraft}
                                     onChange={(e) => setCharDraft(e.target.value)}
@@ -398,13 +440,13 @@ export function ChatPokeSettingsDialog({
                                             ? "已达 5 条上限"
                                             : "输入角色拍你的文案…"
                                     }
-                                    className="flex-1 px-3 py-2 rounded-xl text-[12.5px] bg-[var(--c-input,#f2f2f7)] border border-transparent focus:border-[var(--c-accent,#007aff)] outline-none disabled:opacity-50"
+                                    className="flex-1 px-3 py-2 rounded-xl text-[12.5px] bg-[var(--c-input,#f2f2f7)] border border-transparent focus:border-[var(--c-accent,#007aff)] outline-none disabled:opacity-50 transition-colors"
                                 />
                                 <button
                                     type="button"
                                     onClick={handleAddCharPoke}
                                     disabled={!charDraft.trim() || config.charPokes.length >= MAX_POKE_ITEMS_COUNT}
-                                    className="px-3.5 py-2 rounded-xl text-[12.5px] font-medium bg-[var(--c-accent,#007aff)] text-white disabled:opacity-40 active:scale-95 transition-all"
+                                    className="px-3.5 py-2 rounded-xl text-[12.5px] font-medium bg-[var(--c-accent,#007aff)] text-white disabled:opacity-40 active:scale-95 transition-all shrink-0"
                                 >
                                     添加
                                 </button>

@@ -2525,6 +2525,39 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
         return () => window.removeEventListener("trigger-custom-poke", onTriggerCustomPoke);
     }, [session.id, character?.name, userIdentity?.name]);
 
+    // 拍一拍与头像手势控制（支持真机触屏长按直达、快速双击连击秒拍、PC端双击与右键）
+    const avatarLongPressTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const lastAvatarTapRef = useRef<number>(0);
+
+    const handleCharacterAvatarPokeAction = (targetChar: Character | null) => {
+        if (!targetChar) return;
+        const pokeCfg = session.pokeConfig;
+        if (pokeCfg?.enabled === false) return;
+
+        const uName = userIdentity?.name || "你";
+        const cName = targetChar.name || "对方";
+        const userPokes = pokeCfg?.userPokes && pokeCfg.userPokes.length > 0
+            ? pokeCfg.userPokes
+            : DEFAULT_USER_POKES;
+        const picked = userPokes[Math.floor(Math.random() * userPokes.length)];
+        const finalPokeText = resolvePokeTemplate(picked, uName, cName);
+
+        sendRichMessage("poke", {
+            pokeSender: uName,
+            pokeTarget: cName,
+            customText: finalPokeText,
+        } as Record<string, unknown>);
+    };
+
+    const handleSelfAvatarPokeAction = () => {
+        const uName = userIdentity?.name || "你";
+        sendRichMessage("poke", {
+            pokeSender: uName,
+            pokeTarget: "自己",
+            customText: `${uName} 拍了拍自己的小脑袋`,
+        } as Record<string, unknown>);
+    };
+
     useEffect(() => {
         const seen = screenFxSeenRef.current;
         let fired = activeScreenEffect !== null;
@@ -9988,23 +10021,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                                                             const targetChar = session.isGroup && msg.senderCharacterId
                                                                 ? groupCharMap.get(msg.senderCharacterId) || character
                                                                 : character;
-                                                            if (!targetChar) return;
-                                                            const pokeCfg = session.pokeConfig;
-                                                            if (pokeCfg?.enabled === false) return;
-
-                                                            const uName = userIdentity?.name || "你";
-                                                            const cName = targetChar.name || "对方";
-                                                            const userPokes = pokeCfg?.userPokes && pokeCfg.userPokes.length > 0
-                                                                ? pokeCfg.userPokes
-                                                                : DEFAULT_USER_POKES;
-                                                            const picked = userPokes[Math.floor(Math.random() * userPokes.length)];
-                                                            const finalPokeText = resolvePokeTemplate(picked, uName, cName);
-
-                                                            sendRichMessage("poke", {
-                                                                pokeSender: uName,
-                                                                pokeTarget: cName,
-                                                                customText: finalPokeText,
-                                                            } as Record<string, unknown>);
+                                                            handleCharacterAvatarPokeAction(targetChar);
                                                         }}
                                                         onContextMenu={(e) => {
                                                             if (!session.isGroup) {
@@ -10012,11 +10029,42 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                                                                 setShowDirectPokeSettings(true);
                                                             }
                                                         }}
-                                                        title={session.isGroup ? "双击拍TA" : "双击拍TA，右键或长按设置拍一拍"}
+                                                        onPointerDown={() => {
+                                                            if (avatarLongPressTimerRef.current) clearTimeout(avatarLongPressTimerRef.current);
+                                                            if (!session.isGroup) {
+                                                                avatarLongPressTimerRef.current = setTimeout(() => {
+                                                                    setShowDirectPokeSettings(true);
+                                                                }, 550);
+                                                            }
+                                                        }}
+                                                        onPointerUp={() => {
+                                                            if (avatarLongPressTimerRef.current) {
+                                                                clearTimeout(avatarLongPressTimerRef.current);
+                                                                avatarLongPressTimerRef.current = null;
+                                                            }
+                                                            const now = Date.now();
+                                                            if (now - lastAvatarTapRef.current < 320) {
+                                                                lastAvatarTapRef.current = 0;
+                                                                const targetChar = session.isGroup && msg.senderCharacterId
+                                                                    ? groupCharMap.get(msg.senderCharacterId) || character
+                                                                    : character;
+                                                                handleCharacterAvatarPokeAction(targetChar);
+                                                            } else {
+                                                                lastAvatarTapRef.current = now;
+                                                            }
+                                                        }}
+                                                        onPointerCancel={() => {
+                                                            if (avatarLongPressTimerRef.current) {
+                                                                clearTimeout(avatarLongPressTimerRef.current);
+                                                                avatarLongPressTimerRef.current = null;
+                                                            }
+                                                        }}
+                                                        title={session.isGroup ? "双击拍TA" : "双击拍TA，长按或右键设置拍一拍"}
+                                                        style={{ touchAction: "manipulation" }}
                                                         className="w-[40px] h-[40px] rounded-[20px] bg-[var(--c-input)] overflow-hidden cursor-pointer select-none active:scale-95 transition-transform"
                                                     >
                                                         {senderChar?.avatar ? (
-                                                            <img src={senderChar.avatar} className="w-full h-full object-cover" alt="" />
+                                                            <img src={senderChar.avatar} className="w-full h-full object-cover pointer-events-none" alt="" />
                                                         ) : (
                                                             <ChatFallbackAvatar />
                                                         )}
@@ -10113,25 +10161,46 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                                         )}
                                         {msg.role === "user" && !isEmptyBubble && (
                                             <div
-                                                onDoubleClick={() => {
-                                                    const uName = userIdentity?.name || "你";
-                                                    sendRichMessage("poke", {
-                                                        pokeSender: uName,
-                                                        pokeTarget: "自己",
-                                                        customText: `${uName} 拍了拍自己的小脑袋`,
-                                                    } as Record<string, unknown>);
-                                                }}
+                                                onDoubleClick={handleSelfAvatarPokeAction}
                                                 onContextMenu={(e) => {
                                                     if (!session.isGroup) {
                                                         e.preventDefault();
                                                         setShowDirectPokeSettings(true);
                                                     }
                                                 }}
-                                                title="双击拍自己，右键或长按设置拍一拍"
+                                                onPointerDown={() => {
+                                                    if (avatarLongPressTimerRef.current) clearTimeout(avatarLongPressTimerRef.current);
+                                                    if (!session.isGroup) {
+                                                        avatarLongPressTimerRef.current = setTimeout(() => {
+                                                            setShowDirectPokeSettings(true);
+                                                        }, 550);
+                                                    }
+                                                }}
+                                                onPointerUp={() => {
+                                                    if (avatarLongPressTimerRef.current) {
+                                                        clearTimeout(avatarLongPressTimerRef.current);
+                                                        avatarLongPressTimerRef.current = null;
+                                                    }
+                                                    const now = Date.now();
+                                                    if (now - lastAvatarTapRef.current < 320) {
+                                                        lastAvatarTapRef.current = 0;
+                                                        handleSelfAvatarPokeAction();
+                                                    } else {
+                                                        lastAvatarTapRef.current = now;
+                                                    }
+                                                }}
+                                                onPointerCancel={() => {
+                                                    if (avatarLongPressTimerRef.current) {
+                                                        clearTimeout(avatarLongPressTimerRef.current);
+                                                        avatarLongPressTimerRef.current = null;
+                                                    }
+                                                }}
+                                                title="双击拍自己，长按或右键设置拍一拍"
+                                                style={{ touchAction: "manipulation" }}
                                                 className="chat-msg-avatar w-[40px] h-[40px] rounded-[20px] bg-[var(--c-page-body-bg)] shrink-0 flex items-center justify-center overflow-hidden cursor-pointer select-none active:scale-95 transition-transform"
                                             >
                                                 {userIdentity?.avatarUrl ? (
-                                                    <img src={userIdentity.avatarUrl} alt="Me" className="w-full h-full object-cover rounded-[20px]" />
+                                                    <img src={userIdentity.avatarUrl} alt="Me" className="w-full h-full object-cover rounded-[20px] pointer-events-none" />
                                                 ) : (
                                                     <User size={20} color="var(--c-text)" />
                                                 )}
