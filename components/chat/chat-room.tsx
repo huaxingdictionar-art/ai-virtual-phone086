@@ -1296,6 +1296,8 @@ type ChatRoomProps = {
     onBack: () => void;
     /** 会话在设置页被删除后回调：由外层卸载本聊天室并回到列表 */
     onDeleted?: () => void;
+    /** 剧情悬浮小手机消息同步桥梁：仅上报用户主动发送的消息 */
+    onUserMessageSent?: (message: ChatMessage) => void;
 };
 
 type OfflineActionTarget = {
@@ -1918,7 +1920,7 @@ const OfflineTextInputBar = memo(forwardRef<OfflineTextInputHandle, {
     );
 }));
 
-export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
+export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: ChatRoomProps) {
     const [liveCSS, setLiveCSS] = useState(session.customCSS || "");
     const [messages, setMessages] = useState<ChatMessage[]>([]);
     const [transientMessages, setTransientMessages] = useState<ChatMessage[]>([]);
@@ -5846,6 +5848,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             ...(mediaUrl ? { mediaUrl } : {}),
         });
         setMessages(prev => [...prev, newMsg]);
+        onUserMessageSent?.(newMsg);
         setPendingGenerate(true);
         return true;
     };
@@ -5868,6 +5871,7 @@ export function ChatRoom({ session, onBack, onDeleted }: ChatRoomProps) {
             mediaType: "system_instruction",
         });
         setMessages(prev => [...prev, newMsg]);
+        onUserMessageSent?.(newMsg);
         setPendingGenerate(true);
         return true;
     };

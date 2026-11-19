@@ -8,7 +8,8 @@ import { ChatRoom } from "./chat-room";
 import { MascotChatRoom } from "./mascot-chat-room";
 import { UserProfilePanel } from "./user-profile-panel";
 import { MessageCircle, Users, Aperture, UserRound } from "lucide-react";
-import { ChatSession, loadChatSessions, pushChatMessage, hydrateChatStorage, setActiveChatSessionId } from "@/lib/chat-storage";
+import { ChatSession, type ChatMessage, loadChatSessions, pushChatMessage, hydrateChatStorage, setActiveChatSessionId } from "@/lib/chat-storage";
+import type { MomentPost } from "@/lib/moments-types";
 import { notifyMascotPageContext } from "@/lib/mascot-events";
 import { loadCharacters } from "@/lib/character-storage";
 import { SessionCustomCSS } from "@/components/ui/session-custom-css";
@@ -26,9 +27,13 @@ export type PhoneChatAppProps = {
     onSessionChange?: (session: ChatSession | null) => void;
     sharePayload?: ChatSharePayload | null;
     onShareDone?: () => void;
+    /** 剧情悬浮小手机消息同步桥梁：仅上报用户主动发送的消息 */
+    onUserMessageSent?: (message: ChatMessage, session: ChatSession) => void;
+    /** 剧情悬浮小手机动态同步桥梁：上报用户发布的朋友圈动态 */
+    onMomentPublished?: (post: MomentPost) => void;
 };
 
-export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSessionId, onSessionChange, sharePayload, onShareDone }: PhoneChatAppProps) {
+export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSessionId, onSessionChange, sharePayload, onShareDone, onUserMessageSent, onMomentPublished }: PhoneChatAppProps) {
     const [activeTab, setActiveTab] = useState<TabKey>("messages");
     const [activeSession, setActiveSession] = useState<ChatSession | null>(null);
     const [activeMascot, setActiveMascot] = useState(false);
@@ -272,7 +277,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
                         }}
                     />
                 )}
-                {activeTab === "feeds" && <MomentsFeed onCloseApp={onClose} />}
+                {activeTab === "feeds" && <MomentsFeed onCloseApp={onClose} onUserPublished={onMomentPublished} />}
                 {activeTab === "me" && <UserProfilePanel onClose={() => setActiveTab("messages")} />}
             </div>
 
@@ -314,6 +319,7 @@ export const PhoneChatApp = memo(function PhoneChatApp({ onClose, initialSession
                     <ChatRoom
                         session={sess}
                         onBack={() => setActiveSession(null)}
+                        onUserMessageSent={message => onUserMessageSent?.(message, sess)}
                         onDeleted={() => {
                             // 会话已删除：把缓存的聊天室一并卸载，避免僵尸挂载
                             setVisitedSessions(prev => {

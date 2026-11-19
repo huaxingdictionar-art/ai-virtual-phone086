@@ -184,7 +184,7 @@ export type ChatMessage = {
         | "offline_lock_system_notice"
         | "offline_unlock_system_notice"
         | `plugin:${string}`; // 聊天插件自定义消息类型（由注册该 kind 的插件渲染气泡）
-    origin?: "chat" | "reading_discuss" | "custom_app" | "custom_app_background";
+    origin?: "chat" | "reading_discuss" | "custom_app" | "custom_app_background" | "story_floating_phone";
     mediaUrl?: string;
     mediaData?: {
         amount?: number;          // 红包/转账金额
@@ -1407,6 +1407,16 @@ export function saveChatSessions(sessions: ChatSession[]) {
     }
     if (normalized.changed || redirectedMessages > 0 || refreshed.changed) dbReplaceSessions(refreshed.items);
     else dbPutSessions(refreshed.items);
+}
+
+export function markChatSessionRead(sessionId: string): void {
+    const session = _sessionsCache.find(item => item.id === sessionId);
+    if (!session || session.unreadCount === 0) return;
+    session.unreadCount = 0;
+    dbPutSessions([session]);
+    if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("chat-messages-updated", { detail: { sessionId } }));
+    }
 }
 
 export function createOrGetSession(contactId: string): ChatSession {

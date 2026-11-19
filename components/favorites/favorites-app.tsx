@@ -185,7 +185,16 @@ function parseFavoriteContent(content: string, isStory = false): ParsedFavoriteC
     text = text.replace(/<\/?content\b[^>]*>/gi, "").trim();
   }
 
-  // 4. 清理残留的多余空行
+  // 4. 全面防御性剔除任何残留的代码/XML格式标签（如残存的 <summary>、<thought>、<context> 等）
+  text = text
+    .replace(/<\/?(summary|content|think|thinking|narrative|scene|dialogue|system|instruction|user|assistant|context)\b[^>]*>/gi, "")
+    .replace(/<[a-zA-Z_][a-zA-Z0-9_-]*(?:\s+[^>]*)?>[\s\S]*?<\/[a-zA-Z_][a-zA-Z0-9_-]*>/g, (block) => {
+      return block.replace(/<\/?[a-zA-Z_][a-zA-Z0-9_-]*(?:\s+[^>]*)?>/g, "");
+    })
+    .replace(/<\/?[a-zA-Z_][a-zA-Z0-9_-]*(?:\s+[^>]*)?>/g, "")
+    .trim();
+
+  // 5. 清理残留的多余空行
   text = text.replace(/\n{3,}/g, "\n\n").trim();
 
   return { visible: text, summary, thoughts };

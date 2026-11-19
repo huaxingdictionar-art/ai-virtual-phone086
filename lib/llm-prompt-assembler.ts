@@ -100,8 +100,10 @@ export interface AssemblerInput {
     phoneAppLabel?: string;
     phoneSnapshotSummary?: string;
     phoneLastRefreshAt?: string;
-    characterRelations?: string;          // formatted world-group relationship marker
-    dwellingContext?: string;               // formatted dwelling layout snapshot for cross-app reference
+    /** null = explicitly disable the automatic relationship lookup (used by isolated story branches). */
+    characterRelations?: string | null;   // formatted world-group relationship marker
+    /** null = explicitly disable the automatic dwelling lookup (used by isolated story branches). */
+    dwellingContext?: string | null;      // formatted dwelling layout snapshot for cross-app reference
     dwellingRoom?: string;
     dwellingFurniture?: string;
     dwellingItem?: string;
@@ -169,6 +171,12 @@ function isImageGenerationMediaMessage(msg: ChatMessage): boolean {
 }
 
 function formatPhotoDirective(msg: ChatMessage, prefix = ""): string {
+    if (msg.mediaData?.avatarRecommendationForCharacterId) {
+        const status = msg.mediaData.avatarRecommendationStatus;
+        if (status === "accepted") return `${prefix}[头像推荐:你已接受并使用这张头像]`;
+        if (status === "declined") return `${prefix}[头像推荐:你已拒绝这张头像]`;
+        return `${prefix}[头像推荐] 用户向你推荐这张图片作为你的新头像。请根据人设自主决定：愿意采用就在本次回复末尾输出[接受头像推荐]；不采用则输出[拒绝头像推荐]。两个控制标记不会展示给用户。`;
+    }
     const description = msg.mediaData?.label?.trim() || "图片";
     const mode = msg.mediaData?.useReferenceImage === true ? "使用参考图" : "不使用参考图";
     return `${prefix}[照片:${mode}:${description}]`;
@@ -407,8 +415,8 @@ function getMarkerContent(
     longTermMemories?: string,
     regexGroups?: RegexConfig[],
     regexCtx?: RegexContext,
-    characterRelations?: string,
-    dwellingContext?: string,
+    characterRelations?: string | null,
+    dwellingContext?: string | null,
 ): string | null {
     switch (identifier) {
         case "charDescription":
@@ -434,10 +442,12 @@ function getMarkerContent(
         case "memoryLongTerm":
             return longTermMemories?.trim() || null;
         case "characterRelations": {
+            if (characterRelations === null) return null;
             const relations = characterRelations?.trim() || formatCharacterRelationsForPrompt(character.id).trim();
             return relations || null;
         }
         case "dwellingContext": {
+            if (dwellingContext === null) return null;
             if (dwellingContext?.trim()) return dwellingContext;
             // Auto-load from in-memory cache if not explicitly provided
             const cached = readDwellingLayoutCache(character.id);

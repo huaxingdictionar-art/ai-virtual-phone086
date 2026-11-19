@@ -253,7 +253,9 @@ export async function addStoryFavorite(input: {
     senderName: message.role === "user"
       ? (identity?.name || "我")
       : message.role === "assistant" ? entityName : "系统",
-    content: message.rawContent,
+    content: (message.renderedContent && message.renderedContent.trim())
+      ? (message.storySummary ? `<content>${message.renderedContent.trim()}</content>\n<summary>${message.storySummary.trim()}</summary>` : message.renderedContent.trim())
+      : message.rawContent,
     createdAt: message.createdAt,
   }));
   const now = new Date().toISOString();
