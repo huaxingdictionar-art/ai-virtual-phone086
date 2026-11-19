@@ -38,6 +38,34 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-title" content="float" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="mobile-web-app-capable" content="yes" />
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var p = window.location.port;
+                  var h = window.location.hostname;
+                  if (p === "3002" || h === "localhost" || h === "127.0.0.1") {
+                    if ("serviceWorker" in navigator) {
+                      navigator.serviceWorker.getRegistrations().then(function(regs) {
+                        for (var i = 0; i < regs.length; i++) {
+                          regs[i].unregister();
+                        }
+                      });
+                    }
+                    if ("caches" in window) {
+                      caches.keys().then(function(keys) {
+                        for (var j = 0; j < keys.length; j++) {
+                          caches.delete(keys[j]);
+                        }
+                      });
+                    }
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
       </head>
       <body>
         <PWAManifestInjector />

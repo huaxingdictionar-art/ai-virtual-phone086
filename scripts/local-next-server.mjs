@@ -54,6 +54,11 @@ app
   .then(() => {
     const server = http.createServer(async (request, response) => {
       try {
+        if (port === 3002) {
+          response.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+          response.setHeader("Pragma", "no-cache");
+          response.setHeader("Expires", "0");
+        }
         await handle(request, response);
       } catch (error) {
         console.error("[server] request error:", error);
