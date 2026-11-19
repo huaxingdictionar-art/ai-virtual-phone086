@@ -1512,11 +1512,23 @@ function PokeBubble({ msg, charName, userName }: { msg: ChatMessage; charName?: 
     // Replace user's own name with "你" for display
     const displaySender = sender === userName ? "你" : sender;
     const displayTarget = target === userName ? "你" : target;
+
+    let text = msg.content?.trim();
+    if (text) {
+        text = text.replace(/\{user\}/g, "你").replace(/\{char\}/g, charName || "对方");
+        if (userName && userName !== "你") {
+            // 用户自己的真实名字在端内展示为 "你"
+            text = text.split(userName).join("你");
+        }
+    } else {
+        text = `${displaySender} 拍了拍 ${displayTarget}`;
+    }
+
     return (
         <div
-            className="chat-sys-msg ts-12 mx-auto text-center"
+            className="chat-sys-msg ts-12 mx-auto text-center cursor-default select-none transition-transform active:scale-95"
         >
-            {displaySender} 拍了拍 {displayTarget}
+            {text}
         </div>
     );
 }

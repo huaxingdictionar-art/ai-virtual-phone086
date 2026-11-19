@@ -196,12 +196,19 @@ const RICH_PATTERNS: {
         }),
     },
     {
-        regex: /\[([^\]]+)拍了拍([^\]]+)\]/,
-        build: (m) => ({
-            content: "",
-            mediaType: "poke" as const,
-            mediaData: { pokeSender: m[1]?.trim() || "", pokeTarget: m[2]?.trim() || "" },
-        }),
+        // 拍一拍/戳一戳动作指令，支持丰富动词与自定义后缀
+        regex: /\[([^\]]+?)(拍了拍|戳了戳|揉了揉|捏了捏|敲了敲|弹了弹|扯了扯)([^\]]+)\]/,
+        build: (m) => {
+            const sender = m[1]?.trim() || "";
+            const verb = m[2]?.trim() || "拍了拍";
+            const rest = m[3]?.trim() || "";
+            const fullAction = `${sender} ${verb} ${rest}`.replace(/\s+/g, " ").trim();
+            return {
+                content: fullAction,
+                mediaType: "poke" as const,
+                mediaData: { pokeSender: sender, pokeTarget: rest },
+            };
+        },
     },
     {
         regex: new RegExp(`\\[表情包${C}([^\\]]+)\\]`),

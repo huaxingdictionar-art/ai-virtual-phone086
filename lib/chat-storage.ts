@@ -21,6 +21,7 @@ import { kvGet, kvSet, kvRemove, registerKvMigration } from "./kv-db";
 import { emitChatPluginEvent, runChatPluginTransformSync } from "./chat-plugin-hooks";
 import { parseAIResponse } from "./rich-message-parser";
 import { extractTextToolDirectiveText } from "./text-tool-protocol";
+import type { ChatPokeConfig } from "./chat-poke-types";
 
 export const DEFAULT_VISION_IMAGE_PROMPT_LIMIT = 1;
 export const MAX_VISION_IMAGE_PROMPT_LIMIT = 20;
@@ -130,6 +131,8 @@ export type ChatSession = {
     chineseThinkingPromptEnabled?: boolean;
     /** 内置中文思考提示词篇幅（100 / 300 / 500 字，默认 100） */
     chineseThinkingPromptLength?: 100 | 300 | 500;
+    /** 拍一拍自定义配置（文案池各5条、开关、主动拍等） */
+    pokeConfig?: ChatPokeConfig;
 };
 
 export type ChatMessageStatus = "sending" | "sent" | "read" | "failed" | "rejected";
@@ -664,6 +667,11 @@ export function getChatMessagePreview(msg: ChatMessage): string {
 
     // Poke: "你 拍了拍 XX" / "XX 拍了拍 你" (no brackets, user name → "你")
     if (msg.mediaType === "poke") {
+        if (msg.content?.trim()) {
+            let txt = msg.content.trim();
+            if (userName) txt = txt.replace(new RegExp(userName, "g"), "你");
+            return txt;
+        }
         const sender = msg.mediaData?.pokeSender || (msg.role === "user" ? "你" : "对方");
         const target = msg.mediaData?.pokeTarget || (msg.role === "user" ? "对方" : "你");
         const dSender = (userName && sender === userName) ? "你" : sender;

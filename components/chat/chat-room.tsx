@@ -37,6 +37,8 @@ import { CustomAppRunner } from "@/components/app-market/custom-app-runner";
 import { CustomAppForegroundBoundary } from "@/components/app-market/custom-app-failure";
 
 import { ChatSettingsPanel } from "./chat-settings-panel";
+import { ChatPokeSettingsDialog } from "./chat-poke-settings-dialog";
+import { DEFAULT_USER_POKES, resolvePokeTemplate } from "@/lib/chat-poke-types";
 import { VoiceCallScreen } from "./voice-call-screen";
 import { VideoCallScreen } from "./video-call-screen";
 import { GroupCallScreen } from "./group-call-screen";
@@ -2422,6 +2424,7 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
     const [customPlusActions, setCustomPlusActions] = useState<RegisteredCustomAppChatPlusAction[]>(() => loadCustomAppChatPlusActions());
     const [activeCustomChatPlus, setActiveCustomChatPlus] = useState<ActiveCustomChatPlus | null>(null);
     const [showSettings, setShowSettings] = useState(false);
+    const [showDirectPokeSettings, setShowDirectPokeSettings] = useState(false);
     const [showVoiceCall, setShowVoiceCall] = useState(false);
     const [showVideoCall, setShowVideoCall] = useState(false);
     const [callMinimized, setCallMinimized] = useState(false);
@@ -2505,6 +2508,22 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
     const [activeScreenEffect, setActiveScreenEffect] = useState<ActiveScreenEffect | null>(null);
     const screenFxSeenRef = useRef<Set<string>>(new Set());
     const screenFxMountedAtRef = useRef(Date.now());
+
+    useEffect(() => {
+        const onTriggerCustomPoke = (e: Event) => {
+            const ce = e as CustomEvent<{ sessionId?: string; text?: string }>;
+            if (ce.detail?.sessionId && ce.detail.sessionId !== session.id) return;
+            const text = ce.detail?.text;
+            if (!text) return;
+            sendRichMessage("poke", {
+                pokeSender: userIdentity?.name || "你",
+                pokeTarget: character?.name || "对方",
+                customText: text,
+            } as Record<string, unknown>);
+        };
+        window.addEventListener("trigger-custom-poke", onTriggerCustomPoke);
+        return () => window.removeEventListener("trigger-custom-poke", onTriggerCustomPoke);
+    }, [session.id, character?.name, userIdentity?.name]);
 
     useEffect(() => {
         const seen = screenFxSeenRef.current;
@@ -5824,12 +5843,14 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
         if (mediaType === "poke") {
             const pokeSender = userIdentity?.name || "你";
             const pokeTarget = mediaData?.pokeTarget || character?.name || "对方";
+            const customText = (mediaData as Record<string, unknown>)?.customText as string | undefined;
+            const finalContent = customText || `${pokeSender} 拍了拍 ${pokeTarget}`;
             const sysMsg = pushChatMessage({
                 sessionId: session.id,
                 role: "user",
-                content: `${pokeSender} 拍了拍 ${pokeTarget}`,
+                content: finalContent,
                 mediaType: "poke",
-                mediaData: { pokeSender, pokeTarget },
+                mediaData: { pokeSender, pokeTarget, ...(mediaData || {}) },
             });
             setMessages(prev => [...prev, sysMsg]);
             setPendingGenerate(true);
@@ -9962,12 +9983,38 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                                                             : character;
                                                         return (
                                                             <>
-                                                    <div onDoubleClick={() => {
-                                                        const targetChar = session.isGroup && msg.senderCharacterId
-                                                            ? groupCharMap.get(msg.senderCharacterId) || character
-                                                            : character;
-                                                        if (targetChar) sendRichMessage("poke", { pokeTarget: targetChar.name });
-                                                    }} className="w-[40px] h-[40px] rounded-[20px] bg-[var(--c-input)] overflow-hidden cursor-pointer">
+                                                    <div
+                                                        onDoubleClick={() => {
+                                                            const targetChar = session.isGroup && msg.senderCharacterId
+                                                                ? groupCharMap.get(msg.senderCharacterId) || character
+                                                                : character;
+                                                            if (!targetChar) return;
+                                                            const pokeCfg = session.pokeConfig;
+                                                            if (pokeCfg?.enabled === false) return;
+
+                                                            const uName = userIdentity?.name || "你";
+                                                            const cName = targetChar.name || "对方";
+                                                            const userPokes = pokeCfg?.userPokes && pokeCfg.userPokes.length > 0
+                                                                ? pokeCfg.userPokes
+                                                                : DEFAULT_USER_POKES;
+                                                            const picked = userPokes[Math.floor(Math.random() * userPokes.length)];
+                                                            const finalPokeText = resolvePokeTemplate(picked, uName, cName);
+
+                                                            sendRichMessage("poke", {
+                                                                pokeSender: uName,
+                                                                pokeTarget: cName,
+                                                                customText: finalPokeText,
+                                                            } as Record<string, unknown>);
+                                                        }}
+                                                        onContextMenu={(e) => {
+                                                            if (!session.isGroup) {
+                                                                e.preventDefault();
+                                                                setShowDirectPokeSettings(true);
+                                                            }
+                                                        }}
+                                                        title={session.isGroup ? "双击拍TA" : "双击拍TA，右键或长按设置拍一拍"}
+                                                        className="w-[40px] h-[40px] rounded-[20px] bg-[var(--c-input)] overflow-hidden cursor-pointer select-none active:scale-95 transition-transform"
+                                                    >
                                                         {senderChar?.avatar ? (
                                                             <img src={senderChar.avatar} className="w-full h-full object-cover" alt="" />
                                                         ) : (
@@ -10065,7 +10112,24 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                                             </span>
                                         )}
                                         {msg.role === "user" && !isEmptyBubble && (
-                                            <div className="chat-msg-avatar w-[40px] h-[40px] rounded-[20px] bg-[var(--c-page-body-bg)] shrink-0 flex items-center justify-center overflow-hidden">
+                                            <div
+                                                onDoubleClick={() => {
+                                                    const uName = userIdentity?.name || "你";
+                                                    sendRichMessage("poke", {
+                                                        pokeSender: uName,
+                                                        pokeTarget: "自己",
+                                                        customText: `${uName} 拍了拍自己的小脑袋`,
+                                                    } as Record<string, unknown>);
+                                                }}
+                                                onContextMenu={(e) => {
+                                                    if (!session.isGroup) {
+                                                        e.preventDefault();
+                                                        setShowDirectPokeSettings(true);
+                                                    }
+                                                }}
+                                                title="双击拍自己，右键或长按设置拍一拍"
+                                                className="chat-msg-avatar w-[40px] h-[40px] rounded-[20px] bg-[var(--c-page-body-bg)] shrink-0 flex items-center justify-center overflow-hidden cursor-pointer select-none active:scale-95 transition-transform"
+                                            >
                                                 {userIdentity?.avatarUrl ? (
                                                     <img src={userIdentity.avatarUrl} alt="Me" className="w-full h-full object-cover rounded-[20px]" />
                                                 ) : (
@@ -10573,6 +10637,27 @@ export function ChatRoom({ session, onBack, onDeleted, onUserMessageSent }: Chat
                     />
                 </div>,
                 wrapperRef.current.parentElement
+            )}
+
+            {!session.isGroup && character && showDirectPokeSettings && (
+                <ChatPokeSettingsDialog
+                    open={showDirectPokeSettings}
+                    onClose={() => setShowDirectPokeSettings(false)}
+                    character={character}
+                    userName={userIdentity?.name || "你"}
+                    initialConfig={session.pokeConfig}
+                    onSave={(newConfig) => {
+                        session.pokeConfig = newConfig;
+                        saveChatSessions(loadChatSessions().map(s => s.id === session.id ? { ...s, pokeConfig: newConfig } : s));
+                    }}
+                    onTriggerPokeOnce={(pokeText) => {
+                        sendRichMessage("poke", {
+                            pokeSender: userIdentity?.name || "你",
+                            pokeTarget: character?.name || "对方",
+                            customText: pokeText,
+                        } as Record<string, unknown>);
+                    }}
+                />
             )}
 
             {activeCustomChatPlus && activeCustomChatPlus.presentation === "none" && (

@@ -66,6 +66,7 @@ import { CHAT_SESSION_CSS_EXAMPLE } from "@/lib/css-examples";
 import { Toggle, Input } from "@/components/ui/form";
 import { resolveChatCharacterAvatar, resolveChatUserAvatar, CHAT_REQUEST_REPLY_EVENT } from "@/lib/chat-storage";
 import { PageShell } from "@/components/ui/page-shell";
+import { ChatPokeSettingsDialog } from "./chat-poke-settings-dialog";
 
 // 自定义状态栏预填模板：微博主页（契约=「状态栏」章节整段正文，含【逻辑】【格式】与包裹要求）
 // 预览用的默认示例数据：契约没有自带示例时兜底，字段与下面的微博模板对应
@@ -617,6 +618,7 @@ export function ChatSettingsPanel({
     const userIdentity = resolveUserIdentity(undefined, session.isGroup ? "group_chat" : "chat");
 
     const [showAvatarDialog, setShowAvatarDialog] = useState(false);
+    const [showPokeSettings, setShowPokeSettings] = useState(false);
     const [, setAvatarRevision] = useState(0);
     const ownAvatarInputRef = useRef<HTMLInputElement | null>(null);
     const characterAvatarInputRef = useRef<HTMLInputElement | null>(null);
@@ -1381,6 +1383,24 @@ export function ChatSettingsPanel({
                                 <Toggle checked={isBlacklisted} onChange={handleToggleBlacklist} />
                             </div>
                         </div>
+                    )}
+                    {/* 拍一拍设置：仅私聊提供 */}
+                    {!session.isGroup && character && (
+                        <button className="menu-item" onClick={() => setShowPokeSettings(true)}>
+                            <ChatInfoIcon icon={Sparkles} color={CONTENT_APP_ACCENTS.chat} />
+                            <div className="menu-label-group">
+                                <span className="menu-label">拍一拍</span>
+                                <span className="menu-desc">双击头像触发，自定义双方互动文案池</span>
+                            </div>
+                            <div className="menu-right">
+                                <span className="menu-desc mr-1">
+                                    {session.pokeConfig?.enabled === false
+                                        ? "已关闭"
+                                        : `${session.pokeConfig?.userPokes?.length ?? 3}条`}
+                                </span>
+                                <ChevronRight size={16} />
+                            </div>
+                        </button>
                     )}
                     <div className="menu-item">
                         <ChatInfoIcon icon={ImageIcon} color={BINDING_ACCENTS.api} />
@@ -2815,6 +2835,25 @@ export function ChatSettingsPanel({
                         </div>
                     </div>
                 </div>
+            )}
+            {!session.isGroup && character && (
+                <ChatPokeSettingsDialog
+                    open={showPokeSettings}
+                    onClose={() => setShowPokeSettings(false)}
+                    character={character}
+                    userName={userIdentity?.name || "你"}
+                    initialConfig={session.pokeConfig}
+                    onSave={(newConfig) => {
+                        updateSession({ pokeConfig: newConfig });
+                    }}
+                    onTriggerPokeOnce={(pokeText) => {
+                        window.dispatchEvent(
+                            new CustomEvent("trigger-custom-poke", {
+                                detail: { sessionId: session.id, text: pokeText },
+                            }),
+                        );
+                    }}
+                />
             )}
         </PageShell>
     );

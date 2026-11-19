@@ -1203,11 +1203,11 @@ export function formatRichMediaForHistory(msg: ChatMessage, userName: string, ch
                 ? buildGroupAdminBracketText(d.adminAction, d.adminActorName || charName, d.adminTargetName || "", d.adminMuteMinutes)
                 : msg.content;
         case "poke": {
-            if (isGroup) {
-                return `[${d?.pokeSender || charName}拍了拍${d?.pokeTarget || userName}]`;
-            }
-            const pokeTarget = d?.pokeTarget || (msg.role === "assistant" ? userName : charName);
-            return `[我拍了拍${pokeTarget}]`;
+            const sender = d?.pokeSender || (msg.role === "assistant" ? charName : userName);
+            const target = d?.pokeTarget || (msg.role === "assistant" ? userName : charName);
+            const rawContent = msg.content?.trim();
+            const actionText = rawContent ? rawContent : (isGroup ? `${sender}拍了拍${target}` : `我拍了拍${target}`);
+            return `[系统通知: 手机聊天窗口内「${actionText}」（微信线上双击头像互动提醒，纯手机屏幕虚拟互动，非现实肉体触碰）]`;
         }
         case "sticker":
             return `[表情包:${d?.label ?? "表情"}]`;
